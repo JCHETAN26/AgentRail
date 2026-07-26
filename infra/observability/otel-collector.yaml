@@ -1,0 +1,41 @@
+# OpenTelemetry Collector — Phase 0 placeholder.
+#
+# The services currently propagate correlation and W3C trace identifiers but do
+# not yet export spans (see docs/adr/0004-correlation-before-opentelemetry.md).
+# This configuration exists so the observability profile starts cleanly and so
+# Phase 13 has a known endpoint to point exporters at.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+exporters:
+  debug:
+    verbosity: normal
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]

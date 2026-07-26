@@ -1,0 +1,9 @@
+# Every change requires review from the repository owner.
+# Paths are listed explicitly so that ownership can be split as the project grows.
+
+*                       @JCHETAN26
+
+/.github/               @JCHETAN26
+/infra/                 @JCHETAN26
+/docs/security/         @JCHETAN26
+/packages/contracts/    @JCHETAN26
