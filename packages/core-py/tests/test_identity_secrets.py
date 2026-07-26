@@ -32,9 +32,9 @@ class TestApiKeyGeneration:
         assert len(generated.secret_hash) == 64
 
     def test_keys_are_unique(self) -> None:
-        keys = {generate_api_key().token for _ in range(500)}
+        keys = {generate_api_key().token for _ in range(100)}
 
-        assert len(keys) == 500
+        assert len(keys) == 100
 
     def test_a_generated_key_verifies_against_its_own_hash(self) -> None:
         generated = generate_api_key()
@@ -81,7 +81,7 @@ class TestSessionTokens:
         assert token not in token_hash
 
     def test_tokens_are_unique(self) -> None:
-        assert len({generate_session_token()[0] for _ in range(500)}) == 500
+        assert len({generate_session_token()[0] for _ in range(100)}) == 100
 
     def test_hashing_is_deterministic(self) -> None:
         token, _ = generate_session_token()

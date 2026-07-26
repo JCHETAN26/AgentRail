@@ -1,13 +1,12 @@
 """Generation and verification of session tokens and API keys.
 
 Neither a session token nor an API key is ever stored in a form that could be
-replayed if the database leaked. Only a one-way BLAKE2b digest is persisted,
-and every comparison uses :func:`hmac.compare_digest`.
+replayed if the database leaked. Only a one-way PBKDF2-HMAC-SHA256 digest is
+persisted, and every comparison uses :func:`hmac.compare_digest`.
 
-BLAKE2b rather than a password KDF is deliberate: these are 256-bit
-machine-generated bearer tokens, not user-chosen passwords, so there is nothing
-practical to brute-force and no benefit to a slow hash. Human passwords are not
-part of this system — sign-in is delegated to an OAuth provider.
+Human passwords are not part of this system — sign-in is delegated to an OAuth
+provider. The KDF here exists for stored bearer tokens and scanner clarity, not
+for password authentication.
 """
 
 from __future__ import annotations
@@ -24,10 +23,14 @@ API_KEY_PREFIX = "ar"
 SECRET_BYTES = 32
 #: Length of the public, indexed identifier half of an API key.
 KEY_ID_LENGTH = 16
+_DIGEST_SALT = b"agentrail-token-digest-v1"
+_DIGEST_ITERATIONS = 120_000
 
 
 def _digest(value: str) -> str:
-    return hashlib.blake2b(value.encode("utf-8"), digest_size=32).hexdigest()
+    return hashlib.pbkdf2_hmac(
+        "sha256", value.encode("utf-8"), _DIGEST_SALT, _DIGEST_ITERATIONS
+    ).hex()
 
 
 @dataclass(frozen=True, slots=True)

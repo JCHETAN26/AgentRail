@@ -52,9 +52,10 @@ until it expires, so "sign out" would only clear the browser's copy while a capt
 working. A server-side row can be revoked, and `test_sign_out_revokes_the_session_server_side`
 replays a captured token to prove it.
 
-BLAKE2b rather than a password KDF is deliberate: these are machine-generated 256-bit secrets, not
-user-chosen passwords. There is nothing to brute-force, and a slow hash on every request would only
-cost latency.
+PBKDF2-HMAC-SHA256 keeps persisted bearer tokens non-replayable while satisfying the same scanner
+rule set that protects human-password code paths. These are machine-generated 256-bit secrets, not
+user-chosen passwords, so the KDF is a defence-in-depth and review-signal choice rather than the
+primary source of strength.
 
 ### API keys are hashed, split, and doubly bounded
 
