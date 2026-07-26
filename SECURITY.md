@@ -56,5 +56,9 @@ and the test that covers it.
 - `.env.example` contains only values that are valid on a local machine and nowhere else.
 - API keys, when they arrive in Phase 1, will be stored only as hashes.
 - Container images run as an unprivileged user, asserted in CI.
-- Dependencies are installed from committed lockfiles, reviewed by Dependabot, and blocked on
-  moderate-or-higher advisories by `dependency-review`.
+- Dependencies are installed from committed lockfiles with frozen installs, so the dependency set is
+  reproducible, and Dependabot raises version updates weekly.
+- **The `dependency-review` gate is not yet in force.** It fails on every pull request because the
+  repository's dependency graph is disabled, so it is excluded from the required status checks — a
+  change introducing a moderate-or-higher advisory can currently merge. This is tracked as T12 in
+  `docs/security/THREAT_MODEL.md` and closes as soon as the dependency graph is enabled.

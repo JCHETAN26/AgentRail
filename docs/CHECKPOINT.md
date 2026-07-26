@@ -6,19 +6,34 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 ## Current state
 
-|                  |                                                                                          |
-| ---------------- | ---------------------------------------------------------------------------------------- |
-| **Phase**        | 0 — Repository, product contract and guardrails                                          |
-| **Status**       | Complete, awaiting review                                                                |
-| **Branch**       | `feat/p00-foundation`                                                                    |
-| **Pull request** | See the PR opened from this branch (draft until CI is green)                             |
-| **Base**         | `main` @ `a07219b` (`chore: initialize repository`)                                      |
-| **Next phase**   | 1 — Authentication, organisations and tenancy. **Do not start until this PR is merged.** |
+|                |                                                                                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| **Phase**      | 0 — Repository, product contract and guardrails                                                       |
+| **Status**     | **Merged.** PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1), rebased onto `main` on 2026-07-26 |
+| **Next phase** | 1 — Authentication, organisations and tenancy. Ready to start.                                        |
+| **Guardrails** | Branch protection **live** on `main`; direct pushes rejected                                          |
 
 `main` was bootstrapped with a `.gitignore` and `README.md` only, because the GitHub repository was
 empty and a pull request needs a base branch to exist. Per the repository owner's instruction, the
 planning documents (`BUILDPLAN.md`, `SYSTEM_PROMPT.md`, `CLAUDE_CODE_MASTER_PROMPT.md`) are
 git-ignored and are **not** published to the remote.
+
+### Post-merge housekeeping (2026-07-26)
+
+- **Branch protection applied and verified** — see `docs/BRANCH_PROTECTION.md` for the exact
+  configuration, the three documented deviations from the build plan, and the verification output.
+- **Dependabot's opening wave of 17 pull requests triaged** — 13 merged, 4 closed. Closed with
+  reasons: `#8` Python 3.14 base image (violates the `requires-python <3.13` pin; all three container
+  builds failed), `#14` redis 5→8 (three majors; `python` and `integration` failed), `#13` React
+  group and `#15` the 9-package tooling group (both red, and grouped updates cannot be taken
+  partially). Each will be re-raised by Dependabot and deserves its own branch.
+- **MIT licence added.**
+- **One blemish in the history:** `565bc7c` is an empty commit titled
+  `test: should be rejected by branch protection`. It was pushed directly to `main` while verifying
+  the protection rules, at a point when "Include administrators" was off and the push was therefore
+  allowed rather than rejected. The setting is now on and a repeat is impossible. The commit is empty
+  — no file changed — and removing it would require a force-push to a shared branch, which the
+  project rules forbid, so it stays as a documented artefact.
 
 ---
 
@@ -108,7 +123,10 @@ No benchmark numbers exist and none may be quoted. Benchmarks are Phase 17.
 - MinIO runs in Compose but no service uses object storage yet (Phase 4).
 - Idempotency keys are globally unique; they must become organisation-scoped in Phase 1.
 - GitHub Actions are pinned to major versions, not immutable SHAs (Phase 14).
-- No `LICENSE` file — the licence has not been chosen. **This needs a decision from the owner.**
+- `dependency-review` fails on every pull request and is therefore not a required check. It is
+  blocked on a browser-only repository setting — see "Owner actions required".
+- Branch protection requires **0** approvals, because a single maintainer cannot approve their own
+  pull request. Raise it to 1 when a second maintainer joins.
 
 ---
 
@@ -128,7 +146,7 @@ No benchmark numbers exist and none may be quoted. Benchmarks are Phase 17.
 
 ## Next tasks (Phase 1)
 
-Only after this pull request is merged:
+Phase 0 is merged, so Phase 1 may begin:
 
 1. Branch `feat/p01-auth-and-tenancy` from the merged `main`.
 2. OAuth browser sign-in; users, organisations, memberships and roles (owner, admin, developer,
@@ -150,11 +168,20 @@ complete states; the pull request is green.
 
 ## Owner actions required
 
+**Exactly one item remains, and it cannot be automated.**
+
 1. **Enable the dependency graph** at
    [`Settings → Code security and analysis`](https://github.com/JCHETAN26/AgentRail/settings/security_analysis).
-   The `dependency-review` check fails until it is on — this is a repository setting, not a code
-   problem, and repository settings are not changed automatically.
-2. Review and merge the Phase 0 pull request.
-3. Apply the settings in `docs/BRANCH_PROTECTION.md` once CI has run at least once, so the checks can
-   be selected.
-4. Decide on a licence and add a `LICENSE` file.
+
+   There is no REST API for this: `PATCH /repos/{owner}/{repo}` accepts the `secret_scanning*` and
+   `dependabot_security_updates` fields under `security_and_analysis`, but not `dependency_graph`.
+   It is a browser-only toggle.
+
+   Three things unblock at once when it is on — `dependency-review` starts passing, Dependabot
+   security alerts and updates become available, and `dependency-review` can be added to the required
+   status checks in `docs/BRANCH_PROTECTION.md`.
+
+   Verify with `gh api repos/JCHETAN26/AgentRail/dependency-graph/sbom` — a `404` means still off.
+
+Completed on 2026-07-26: Phase 0 merged, branch protection applied and verified, Dependabot's opening
+wave triaged, MIT licence added.
