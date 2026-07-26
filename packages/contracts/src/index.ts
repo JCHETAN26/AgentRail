@@ -39,6 +39,14 @@ export type Role = Schemas['Role'];
 export type Permission = Schemas['Permission'];
 export type AuthProviderInfo = Schemas['AuthProviderInfo'];
 
+/** Agent registry. */
+export type AgentDefinition = Schemas['AgentDefinitionResponse'];
+export type AgentDefinitionListResponse = Schemas['AgentDefinitionListResponse'];
+export type CreateAgentDefinitionRequest = Schemas['CreateAgentDefinitionRequest'];
+export type AgentVersion = Schemas['AgentVersionResponse'];
+export type AgentVersionListResponse = Schemas['AgentVersionListResponse'];
+export type CreateAgentVersionRequest = Schemas['CreateAgentVersionRequest'];
+
 /** Terminal job states. A job in one of these will never change again. */
 export const TERMINAL_JOB_STATES = ['COMPLETED', 'FAILED'] as const satisfies readonly JobState[];
 

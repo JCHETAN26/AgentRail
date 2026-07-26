@@ -8,28 +8,27 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 2 — CloudOps sandbox and contracts                                                  |
-| **Status**     | In progress on branch `feat/p02-cloudops-sandbox`                                   |
-| **Base**       | `main` @ `a37e1f0` (Phase 1 merged)                                                 |
-| **Next phase** | 3 — Agent registry, after Phase 2 exits                                             |
+| **Phase**      | 3 — Agent registry and immutable versions                                           |
+| **Status**     | In progress on branch `feat/p03-agent-registry`                                     |
+| **Base**       | `main` @ `c6b17be` (Phase 2 merged)                                                 |
+| **Next phase** | 4 — Dataset ingestion and suite builder, after Phase 3 exits                        |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
 applied branch protection, Dependabot triage) in [#19](https://github.com/JCHETAN26/AgentRail/pull/19).
 Phase 1 shipped in PR [#20](https://github.com/JCHETAN26/AgentRail/pull/20).
+Phase 2 shipped in PR [#21](https://github.com/JCHETAN26/AgentRail/pull/21).
 
 ---
 
 ## Read these first
 
-1. `BUILDPLAN.md` §4 — CloudOps tool list, incident families and ground-truth requirements
-2. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/cloudops.py` — Phase 2 synthetic data,
-   tool contracts, scenarios and idempotency behavior
-3. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/app.py` — HTTP surface for the sandbox
-4. `services/cloudops-sandbox/tests/test_app.py` — contract tests for tools, scenarios, faults and
-   idempotency
-5. `docs/adr/0006-delegated-authentication-and-tenant-scoping.md` — still the auth/tenant boundary
-6. `docs/security/THREAT_MODEL.md` — 27 threats, with what is _not_ mitigated stated plainly
+1. `BUILDPLAN.md` §10 and Phase 3 — agent registry model and exit criteria
+2. `packages/core-py/src/agentrail_core/agents.py` — registry persistence models
+3. `services/api/src/agentrail_api/agents/service.py` — digesting, immutability and tenancy checks
+4. `services/api/src/agentrail_api/routers/agents.py` — public registry API surface
+5. `services/api/tests/test_agents_api.py` — registry integration coverage
+6. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/cloudops.py` — Phase 2 tool contracts
 
 ---
 
@@ -69,6 +68,18 @@ Phase 1 shipped in PR [#20](https://github.com/JCHETAN26/AgentRail/pull/20).
   ground truth for diagnosis, allowed/forbidden tools, expected arguments, remediation/approval,
   evidence and budgets.
 
+## Phase 3 progress
+
+- Added project-scoped `AgentDefinition` and immutable `AgentVersion` persistence models.
+- Added Alembic revision `0003_agent_registry`.
+- Added `agent:read` and `agent:manage` permissions.
+- Added APIs to create/list project agents, create/list immutable agent versions and fetch a version
+  by ID.
+- Agent versions include graph spec, prompt bundle, model configuration, tool contracts, policy
+  bundle, optional source commit and canonical SHA-256 content digest.
+- Duplicate version content for the same agent is rejected.
+- Bare agent/version ID routes resolve tenant scope through the owning project before returning data.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -84,10 +95,11 @@ Phase 1 shipped in PR [#20](https://github.com/JCHETAN26/AgentRail/pull/20).
 
 ## Migrations
 
-| Revision           | Description                                                                                                                                                                      |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0001_create_jobs` | Creates `jobs` with check constraints and `ix_jobs_state_created_at`                                                                                                             |
-| `0002_identity`    | Adds users, organisations, memberships, projects, sessions, api_keys, audit_events; retrofits `jobs.project_id`; moves idempotency uniqueness to `(project_id, idempotency_key)` |
+| Revision              | Description                                                                                                                                                                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_create_jobs`    | Creates `jobs` with check constraints and `ix_jobs_state_created_at`                                                                                                             |
+| `0002_identity`       | Adds users, organisations, memberships, projects, sessions, api_keys, audit_events; retrofits `jobs.project_id`; moves idempotency uniqueness to `(project_id, idempotency_key)` |
+| `0003_agent_registry` | Adds project-scoped agent definitions and immutable agent versions with per-agent version and digest uniqueness                                                                  |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -133,6 +145,21 @@ Latest Phase 2 branch checks, run locally on 2026-07-26:
 | `scripts/export_openapi.py`    | Pass — API snapshot unchanged                         |
 | `@agentrail/contracts check`   | Pass                                                  |
 
+Latest Phase 3 branch checks, run locally on 2026-07-26:
+
+| Command                      | Result                                                |
+| ---------------------------- | ----------------------------------------------------- |
+| `uv run ruff format .`       | Pass                                                  |
+| `uv run ruff check .`        | Pass                                                  |
+| `uv run mypy ...`            | Pass — 53 source files                                |
+| `uv run pytest -q`           | 190 passed, 78 skipped locally due sandboxed Postgres |
+| `pnpm run format:check`      | Pass                                                  |
+| `pnpm run lint`              | Pass                                                  |
+| `pnpm run typecheck`         | Pass                                                  |
+| `pnpm run test`              | Pass — 34 JS tests                                    |
+| `scripts/export_openapi.py`  | Pass                                                  |
+| `@agentrail/contracts check` | Pass                                                  |
+
 ---
 
 ## Known limitations
@@ -142,7 +169,7 @@ Latest Phase 2 branch checks, run locally on 2026-07-26:
   there; RLS as defence in depth is Phase 14.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
 - **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
-- The sandbox now exposes Phase 2's synthetic tool surface, but no agent runtime consumes it yet.
+- The registry stores agent versions, but no runtime executes those versions yet.
 - Failed jobs remain terminal — no retry budget, leases or outbox (Phase 5).
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
 - `dependency-review` warns and skips while the dependency graph is disabled, and is excluded from
@@ -168,16 +195,13 @@ Latest Phase 2 branch checks, run locally on 2026-07-26:
 
 ---
 
-## Next tasks (Phase 2 — CloudOps sandbox and contracts)
+## Next tasks (Phase 3 — Agent registry and immutable versions)
 
-1. Decide whether the sandbox OpenAPI should become a committed generated contract beside the
-   platform API snapshot, or whether the current tool-contract endpoint is the only Phase 2 contract
-   artifact.
-2. Run full-repo verification after the Phase 2 docs and sandbox changes.
-3. Open the Phase 2 pull request once verification is green.
+1. Run the full verification set after generated contracts and docs are updated.
+2. Let CI run the new PostgreSQL-backed registry integration tests.
+3. Open and merge the Phase 3 pull request once CI is green.
 
-**Exit criteria:** 25 deterministic scenarios; a duplicate side-effect key returns the original
-result; green PR.
+**Exit criteria:** versions are immutable and content-addressed; green PR.
 
 ---
 

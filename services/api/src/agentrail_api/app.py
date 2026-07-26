@@ -20,7 +20,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from agentrail_api import __version__
-from agentrail_api.routers import auth, health, jobs, organisations
+from agentrail_api.routers import agents, auth, health, jobs, organisations
 from agentrail_api.settings import ApiSettings, api_settings
 from agentrail_core.correlation import CorrelationContext, new_correlation_id
 from agentrail_core.db import create_database_engine, create_session_factory
@@ -138,6 +138,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(organisations.router)
+    app.include_router(agents.router)
     app.include_router(jobs.router)
     _use_route_names_as_operation_ids(app)
 
