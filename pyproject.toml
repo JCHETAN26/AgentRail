@@ -18,11 +18,11 @@ dev = [
     "agentrail-cloudops-sandbox",
     "agentrail-core",
     "agentrail-worker",
-    "mypy==1.14.1",
+    "mypy==2.3.0",
     "pytest==8.3.4",
     "pytest-asyncio==0.25.2",
-    "pytest-cov==6.0.0",
-    "ruff==0.9.2",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.0",
     "types-psycopg2==2.9.21.20250121",
 ]
 
