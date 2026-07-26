@@ -1,0 +1,14 @@
+node_modules/
+.next/
+dist/
+build/
+coverage/
+pnpm-lock.yaml
+uv.lock
+.venv/
+# Generated artefacts. Reformatting these would break the drift check that
+# compares them byte-for-byte against a freshly generated copy.
+packages/contracts/src/generated/
+packages/contracts/openapi.json
+playwright-report/
+test-results/
