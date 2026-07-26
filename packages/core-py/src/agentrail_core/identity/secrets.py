@@ -1,13 +1,13 @@
 """Generation and verification of session tokens and API keys.
 
 Neither a session token nor an API key is ever stored in a form that could be
-replayed if the database leaked. Only a SHA-256 digest is persisted, and every
-comparison uses :func:`hmac.compare_digest`.
+replayed if the database leaked. Only a one-way BLAKE2b digest is persisted,
+and every comparison uses :func:`hmac.compare_digest`.
 
-SHA-256 rather than a password KDF is deliberate: these are 256-bit
-machine-generated secrets, not user-chosen passwords, so there is nothing to
-brute-force and no benefit to a slow hash. Human passwords are not part of this
-system — sign-in is delegated to an OAuth provider.
+BLAKE2b rather than a password KDF is deliberate: these are 256-bit
+machine-generated bearer tokens, not user-chosen passwords, so there is nothing
+practical to brute-force and no benefit to a slow hash. Human passwords are not
+part of this system — sign-in is delegated to an OAuth provider.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ KEY_ID_LENGTH = 16
 
 
 def _digest(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+    return hashlib.blake2b(value.encode("utf-8"), digest_size=32).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)

@@ -56,7 +56,7 @@ and the test that covers it.
 
 - Secrets are never logged: the JSON formatter redacts sensitive keys before serialisation.
 - `.env.example` contains only values that are valid on a local machine and nowhere else.
-- API keys are stored only as SHA-256 digests, scoped to one organisation, bounded by a role and
+- API keys are stored only as one-way digests, scoped to one organisation, bounded by a role and
   optional scopes, and revocable immediately.
 - Session tokens are opaque, stored only as digests, `HttpOnly`, `SameSite=Lax`, `Secure` when
   deployed, and revoked server-side on sign-out.

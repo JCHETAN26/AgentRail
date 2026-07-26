@@ -35,7 +35,7 @@ applied branch protection, Dependabot triage) in [#19](https://github.com/JCHETA
 - **Delegated authentication** with two providers behind one protocol: a deterministic dev provider
   (no credentials, no network — used by local development, CI and the demo) and GitHub OAuth with
   `state` verification for deployed environments.
-- **Opaque server-side sessions**: 256-bit tokens stored only as SHA-256 digests, `HttpOnly`,
+- **Opaque server-side sessions**: 256-bit tokens stored only as one-way digests, `HttpOnly`,
   `SameSite=Lax`, `Secure` when deployed, revoked on sign-out.
 - **Organisations, memberships and projects**, with five roles (owner, admin, developer, reviewer,
   viewer) that form a strict capability ladder.

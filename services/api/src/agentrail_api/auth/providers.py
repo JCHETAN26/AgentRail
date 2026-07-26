@@ -14,7 +14,6 @@ The domain never learns which one authenticated a user; it receives an
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlencode
@@ -22,8 +21,6 @@ from urllib.parse import urlencode
 import httpx
 
 from agentrail_core.errors import PlatformError, ValidationFailedError
-
-_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +70,7 @@ class DevAuthProvider:
     async def exchange(self, *, code: str, redirect_uri: str) -> ExternalIdentity:
         del redirect_uri
         email = code.strip().lower()
-        if not _EMAIL_PATTERN.match(email) or len(email) > 320:
+        if not _looks_like_email(email):
             raise ValidationFailedError(
                 "Provide a valid email address to sign in.", details={"field": "email"}
             )
@@ -191,3 +188,19 @@ class GitHubOAuthProvider:
             if entry.get("primary") and entry.get("verified"):
                 return str(entry["email"])
         return None
+
+
+def _looks_like_email(value: str) -> bool:
+    """Bounded validation for the dev provider's deterministic identifier."""
+
+    if len(value) > 320 or any(character.isspace() for character in value):
+        return False
+    if value.count("@") != 1:
+        return False
+
+    local_part, domain = value.split("@", 1)
+    if not local_part or not domain or "." not in domain:
+        return False
+
+    labels = domain.split(".")
+    return all(labels)

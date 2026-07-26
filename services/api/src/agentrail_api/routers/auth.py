@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Request, Response, status
@@ -20,7 +21,7 @@ from agentrail_api.identity.schemas import (
 )
 from agentrail_api.settings import ApiSettings
 from agentrail_core.errors import ProblemDetail, UnauthenticatedError, ValidationFailedError
-from agentrail_core.identity import generate_oauth_state
+from agentrail_core.identity import generate_oauth_state, hash_session_token
 from agentrail_core.logging import get_logger
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -130,6 +131,7 @@ async def github_authorize(request: Request, settings: SettingsDep) -> RedirectR
 
     provider = build_auth_provider(settings, "github")
     state = generate_oauth_state()
+    state_digest = hash_session_token(state)
     redirect_uri = str(request.url_for("github_callback"))
 
     response = RedirectResponse(
@@ -137,10 +139,10 @@ async def github_authorize(request: Request, settings: SettingsDep) -> RedirectR
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
     )
     # The state is echoed back by GitHub and compared against this cookie, which
-    # is what stops an attacker replaying their own callback into your session.
+    # stores only a digest so a browser-side cookie dump cannot replay the value.
     response.set_cookie(
         OAUTH_STATE_COOKIE,
-        state,
+        state_digest,
         max_age=_OAUTH_STATE_TTL_SECONDS,
         httponly=True,
         secure=settings.cookies_are_secure,
@@ -158,8 +160,8 @@ async def github_callback(
     code: Annotated[str, Query(min_length=1, max_length=512)],
     state: Annotated[str, Query(min_length=1, max_length=512)],
 ) -> RedirectResponse:
-    expected = request.cookies.get(OAUTH_STATE_COOKIE)
-    if not expected or expected != state:
+    expected_digest = request.cookies.get(OAUTH_STATE_COOKIE)
+    if not expected_digest or not hmac.compare_digest(hash_session_token(state), expected_digest):
         raise UnauthenticatedError("Sign-in could not be verified. Start again.")
 
     provider = build_auth_provider(settings, "github")

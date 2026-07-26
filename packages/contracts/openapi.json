@@ -327,7 +327,7 @@
         "type": "object"
       },
       "CreatedApiKeyResponse": {
-        "description": "Returned once, at creation.\n\n``token`` is the only time the full credential exists anywhere; the platform\nstores only its SHA-256 digest and cannot show it again.",
+        "description": "Returned once, at creation.\n\n``token`` is the only time the full credential exists anywhere; the platform\nstores only its one-way digest and cannot show it again.",
         "properties": {
           "key": {
             "$ref": "#/components/schemas/ApiKeyResponse"

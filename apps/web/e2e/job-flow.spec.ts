@@ -29,6 +29,10 @@ async function signIn(page: Page, email: string, organisationName: string): Prom
   await expect(runAJob).toBeVisible();
 }
 
+function uniqueOrganisationName(base: string): string {
+  return `${base} ${Date.now()} ${Math.random().toString(36).slice(2, 8)}`;
+}
+
 test.describe('authentication', () => {
   test('an anonymous visitor is asked to sign in', async ({ page }) => {
     await page.goto('/');
@@ -38,7 +42,7 @@ test.describe('authentication', () => {
   });
 
   test('signing in reveals the workspace, and signing out hides it again', async ({ page }) => {
-    await signIn(page, `e2e-${Date.now()}@example.com`, 'E2E Labs');
+    await signIn(page, `e2e-${Date.now()}@example.com`, uniqueOrganisationName('E2E Labs'));
 
     await page.getByRole('button', { name: 'Sign out' }).click();
 
@@ -56,7 +60,7 @@ test.describe('authentication', () => {
 
 test.describe('deterministic job path', () => {
   test('a submitted job is executed by a worker and its result is displayed', async ({ page }) => {
-    await signIn(page, `e2e-${Date.now()}@example.com`, 'E2E Labs');
+    await signIn(page, `e2e-${Date.now()}@example.com`, uniqueOrganisationName('E2E Labs'));
 
     await expect(page.getByRole('heading', { name: 'Deterministic request path' })).toBeVisible();
     await expect(page.getByText('No job yet.')).toBeVisible();
@@ -75,7 +79,7 @@ test.describe('deterministic job path', () => {
   });
 
   test('a validation failure shows a correlation id the user can quote', async ({ page }) => {
-    await signIn(page, `e2e-${Date.now()}@example.com`, 'E2E Labs');
+    await signIn(page, `e2e-${Date.now()}@example.com`, uniqueOrganisationName('E2E Labs'));
 
     // Force a rejection the UI cannot prevent client-side.
     await page.route('**/api/v1/projects/*/jobs', async (route) => {
@@ -108,7 +112,7 @@ test.describe('deterministic job path', () => {
 test.describe('tenant isolation', () => {
   test('a second tenant cannot see the first tenant’s jobs', async ({ page, browser }) => {
     const first = `e2e-a-${Date.now()}@example.com`;
-    await signIn(page, first, 'Tenant A');
+    await signIn(page, first, uniqueOrganisationName('Tenant A'));
     await page.getByLabel('Message').fill('tenant a secret');
     await page.getByRole('button', { name: 'Submit job' }).click();
     await expect(page.getByTestId('job-state')).toHaveText('Completed', { timeout: 30_000 });
@@ -117,7 +121,11 @@ test.describe('tenant isolation', () => {
     const otherContext = await browser.newContext();
     const otherPage = await otherContext.newPage();
     try {
-      await signIn(otherPage, `e2e-b-${Date.now()}@example.com`, 'Tenant B');
+      await signIn(
+        otherPage,
+        `e2e-b-${Date.now()}@example.com`,
+        uniqueOrganisationName('Tenant B'),
+      );
 
       await expect(otherPage.getByText('No job yet.')).toBeVisible();
       await expect(otherPage.locator('body')).not.toContainText('tenant a secret');

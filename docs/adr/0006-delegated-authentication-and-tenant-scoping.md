@@ -43,7 +43,7 @@ additionally required to be `primary` **and** `verified`.
 
 ### Sessions are opaque and server-side
 
-The session cookie holds a 256-bit random token. Only its SHA-256 digest is stored. The cookie is
+The session cookie holds a 256-bit random token. Only its one-way digest is stored. The cookie is
 `HttpOnly` (so XSS cannot read it), `SameSite=Lax` (so a cross-site POST cannot carry it), and
 `Secure` in deployed environments.
 
@@ -52,7 +52,7 @@ until it expires, so "sign out" would only clear the browser's copy while a capt
 working. A server-side row can be revoked, and `test_sign_out_revokes_the_session_server_side`
 replays a captured token to prove it.
 
-SHA-256 rather than a password KDF is deliberate: these are machine-generated 256-bit secrets, not
+BLAKE2b rather than a password KDF is deliberate: these are machine-generated 256-bit secrets, not
 user-chosen passwords. There is nothing to brute-force, and a slow hash on every request would only
 cost latency.
 

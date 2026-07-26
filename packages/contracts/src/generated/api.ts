@@ -449,7 +449,7 @@ export interface components {
          * @description Returned once, at creation.
          *
          *     ``token`` is the only time the full credential exists anywhere; the platform
-         *     stores only its SHA-256 digest and cannot show it again.
+         *     stores only its one-way digest and cannot show it again.
          */
         CreatedApiKeyResponse: {
             key: components["schemas"]["ApiKeyResponse"];

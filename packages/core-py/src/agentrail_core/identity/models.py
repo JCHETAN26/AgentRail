@@ -117,7 +117,7 @@ class Project(Base):
 
 
 class Session(Base):
-    """A browser session. Only the token's SHA-256 digest is stored."""
+    """A browser session. Only the token's one-way digest is stored."""
 
     __tablename__ = "sessions"
     __table_args__ = (Index("ix_sessions_user_id", "user_id"),)

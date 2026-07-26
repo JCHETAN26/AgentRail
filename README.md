@@ -143,7 +143,7 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
   and exhaustively tested. Tenancy is checked before permission, and both failures are
   indistinguishable from the outside, so the API is not an enumeration oracle.
 - **Credentials are never stored in a replayable form.** Sessions and API keys are persisted only as
-  SHA-256 digests, and comparison is constant-time.
+  one-way digests, and comparison is constant-time.
 
 ---
 
