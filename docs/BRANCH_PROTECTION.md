@@ -66,10 +66,10 @@ other open pull request, and each must be rebased before it can merge. With Depe
 grouped updates weekly, that is a rebase treadmill for one person. The mitigation is that CI runs on
 the merge result, not just the branch tip. Turn this on together with a merge queue, not before.
 
-**`dependency-review` is not a required check.** It currently fails on every pull request with
-_"Dependency review is not supported on this repository"_ because the dependency graph is disabled.
-Requiring a check that cannot pass would block all merges. **Add it to the required list immediately
-after enabling the dependency graph** (below).
+**`dependency-review` is not a required check.** It currently warns and skips because the dependency
+graph is disabled. Requiring it before the graph is enabled would create a gate that cannot enforce
+advisories or licences. **Add it to the required list immediately after enabling the dependency
+graph** (below).
 
 **"Include administrators" is on, and matters more than it looks.** With it off, an administrator's
 `git push origin main` succeeds and GitHub merely logs `Bypassed rule violations`. That is not a
@@ -93,9 +93,8 @@ setting is now on and why the empty commit `565bc7c` exists in the history.
   `dependency_graph`. Confirm the current state with
   `gh api repos/JCHETAN26/AgentRail/dependency-graph/sbom` — a `404` means it is off.
 
-  Until it is enabled, `dependency-review` fails on every pull request with _"Dependency review is
-  not supported on this repository"_, and `dependabot_security_updates` cannot be turned on either,
-  because it depends on the graph. Enable it at
+  Until it is enabled, `dependency-review` warns and skips, and `dependabot_security_updates` cannot
+  be turned on either, because it depends on the graph. Enable it at
   [`settings/security_analysis`](https://github.com/JCHETAN26/AgentRail/settings/security_analysis),
   then add `dependency-review` to the required-checks list above.
 
@@ -130,8 +129,8 @@ Verified on 2026-07-26:
    Do not accept a `Bypassed rule violations` message as a pass — that means the push _succeeded_
    and "Include administrators" is off.
 
-2. A pull request cannot be merged while a required check is failing. `dependency-review` is
-   currently failing but is deliberately not in the required list, so it does not block merges.
+2. A pull request cannot be merged while a required check is failing. `dependency-review` currently
+   skips while the dependency graph is off and is deliberately not in the required list.
 
 3. Approval dismissal is not observable at 0 required approvals. Re-verify when the requirement is
    raised to 1.

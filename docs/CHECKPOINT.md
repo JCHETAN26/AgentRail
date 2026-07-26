@@ -111,8 +111,8 @@ No benchmark numbers exist and none may be quoted. Benchmarks are Phase 17.
 - The sandbox still runs one deterministic no-op task (Phase 2).
 - Failed jobs remain terminal — no retry budget, leases or outbox (Phase 5).
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
-- `dependency-review` still fails on every PR and is excluded from the required checks — blocked on
-  the dependency graph, which is a browser-only repository setting.
+- `dependency-review` warns and skips while the dependency graph is disabled, and is excluded from
+  the required checks until that browser-only repository setting is enabled.
 
 ---
 
@@ -158,6 +158,7 @@ result; green PR.
 1. **Enable the dependency graph** at
    [`Settings → Code security and analysis`](https://github.com/JCHETAN26/AgentRail/settings/security_analysis).
    Still the only outstanding item, and still browser-only — there is no REST field for it. Enabling
-   it unblocks `dependency-review`, Dependabot security alerts, and adding that check to the required
-   list in `docs/BRANCH_PROTECTION.md`.
+   it turns `dependency-review` from a warning-only skip into a real advisory/licence gate, unblocks
+   Dependabot security alerts, and allows adding that check to the required list in
+   `docs/BRANCH_PROTECTION.md`.
 2. Review and merge the Phase 1 pull request.

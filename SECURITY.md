@@ -64,7 +64,7 @@ and the test that covers it.
 - Container images run as an unprivileged user, asserted in CI.
 - Dependencies are installed from committed lockfiles with frozen installs, so the dependency set is
   reproducible, and Dependabot raises version updates weekly.
-- **The `dependency-review` gate is not yet in force.** It fails on every pull request because the
-  repository's dependency graph is disabled, so it is excluded from the required status checks — a
-  change introducing a moderate-or-higher advisory can currently merge. This is tracked as T12 in
+- **The `dependency-review` gate is not yet in force.** It warns and skips while the repository's
+  dependency graph is disabled, so it is excluded from the required status checks — a change
+  introducing a moderate-or-higher advisory can currently merge. This is tracked as T12 in
   `docs/security/THREAT_MODEL.md` and closes as soon as the dependency graph is enabled.
