@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a capability for AgentRail.
+labels: ['enhancement', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        AgentRail is built phase by phase. Check `BUILDPLAN.md` first — the
+        capability you want may already be scheduled.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the engineering problem, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed capability
+    validations:
+      required: true
+
+  - type: input
+    id: phase
+    attributes:
+      label: Related build phase
+      placeholder: 'Phase 7 — Evaluators and comparison'
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      options:
+        - label: This does not require a paid model key for the deterministic demo path
+        - label: This does not weaken tenant isolation or side-effect safety

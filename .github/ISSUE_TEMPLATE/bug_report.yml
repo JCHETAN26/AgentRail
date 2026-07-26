@@ -1,0 +1,61 @@
+name: Bug report
+description: Something in AgentRail behaves incorrectly.
+labels: ['bug', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please include the correlation id shown in the UI or returned in the
+        `x-correlation-id` header. It is the fastest route to the exact request.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you observe, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: input
+    id: correlation-id
+    attributes:
+      label: Correlation id
+      placeholder: cid_0f3c...
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. make compose-up-apps
+        2. Open http://localhost:3000
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web console
+        - Platform API
+        - Worker
+        - CloudOps sandbox
+        - Infrastructure / CI
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Output of `git rev-parse HEAD`, your OS, and how you are running AgentRail.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact anything sensitive before pasting.
+      render: text

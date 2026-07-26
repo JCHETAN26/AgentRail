@@ -1,0 +1,41 @@
+# Shared image definition for every AgentRail Python service.
+#
+# One Dockerfile, one build argument: which workspace member to install. This
+# keeps dependency resolution identical across services and means there is a
+# single place to patch the base image.
+
+FROM ghcr.io/astral-sh/uv:0.11.8 AS uv
+
+FROM python:3.12.8-slim-bookworm AS runtime
+
+ARG SERVICE_PACKAGE
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    PATH="/app/.venv/bin:${PATH}"
+
+COPY --from=uv /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+# Dependency layer: the manifests change far less often than the source.
+COPY pyproject.toml uv.lock ./
+COPY packages/core-py/pyproject.toml ./packages/core-py/
+COPY services/api/pyproject.toml ./services/api/
+COPY services/worker/pyproject.toml ./services/worker/
+COPY services/cloudops-sandbox/pyproject.toml ./services/cloudops-sandbox/
+
+COPY packages ./packages
+COPY services ./services
+
+RUN test -n "${SERVICE_PACKAGE}" \
+    && uv sync --frozen --no-dev --package "${SERVICE_PACKAGE}"
+
+# Services run unprivileged. Nothing in the image needs write access at runtime.
+RUN useradd --create-home --uid 10001 agentrail \
+    && chown -R agentrail:agentrail /app
+USER agentrail
+
+# Overridden per service in docker-compose.yml.
+CMD ["python", "-c", "raise SystemExit('set an explicit command for this service')"]

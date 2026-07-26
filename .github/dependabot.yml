@@ -1,0 +1,46 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # One PR per ecosystem area keeps the review surface small.
+      react:
+        patterns:
+          ['react', 'react-dom', '@types/react', '@types/react-dom', 'next', 'eslint-config-next']
+      tooling:
+        patterns: ['eslint*', 'prettier', 'typescript', 'vitest', '@vitejs/*', '@testing-library/*']
+    commit-message:
+      prefix: 'chore(deps)'
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      python-tooling:
+        patterns: ['ruff', 'mypy', 'pytest*']
+    commit-message:
+      prefix: 'chore(deps)'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: 'chore(ci)'
+
+  - package-ecosystem: docker
+    directory: /infra/compose
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: 'chore(deps)'

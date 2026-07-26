@@ -1,0 +1,197 @@
+name: agentrail
+
+# Local development stack.
+#
+# Profiles:
+#   (default)       PostgreSQL, Redis and MinIO — the dependencies needed to run
+#                   the Python services and the integration test suite.
+#   apps            The AgentRail services themselves, built from source.
+#   observability   OpenTelemetry Collector. A placeholder in Phase 0; the
+#                   dashboards and exporters land in Phase 13.
+#
+# Ports are deliberately non-default so the stack can run alongside other local
+# projects without collisions.
+
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agentrail
+      # Local-only credential. Never reuse outside Docker Compose.
+      POSTGRES_PASSWORD: agentrail_local_dev
+      POSTGRES_DB: agentrail
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    ports:
+      - '${AGENTRAIL_POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U agentrail -d agentrail']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--save', '']
+    ports:
+      - '${AGENTRAIL_REDIS_PORT:-6381}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: agentrail
+      # Local-only credential. Never reuse outside Docker Compose.
+      MINIO_ROOT_PASSWORD: agentrail_local_dev
+    ports:
+      - '${AGENTRAIL_MINIO_PORT:-9002}:9000'
+      - '${AGENTRAIL_MINIO_CONSOLE_PORT:-9003}:9001'
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  cloudops-sandbox:
+    profiles: ['apps']
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+      args:
+        SERVICE_PACKAGE: agentrail-cloudops-sandbox
+    command: ['agentrail-cloudops-sandbox']
+    restart: unless-stopped
+    environment:
+      AGENTRAIL_ENVIRONMENT: local
+      AGENTRAIL_LOG_LEVEL: INFO
+    ports:
+      - '${AGENTRAIL_SANDBOX_PORT:-8100}:8100'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request;urllib.request.urlopen('http://localhost:8100/healthz')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Migrations run as a separate one-shot job, never as a side effect of an API
+  # process starting. This is the same shape the deployment pipeline uses.
+  migrate:
+    profiles: ['apps']
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+      args:
+        SERVICE_PACKAGE: agentrail-api
+    command: ['alembic', '-c', '/app/services/api/alembic.ini', 'upgrade', 'head']
+    restart: 'no'
+    environment:
+      AGENTRAIL_ENVIRONMENT: local
+      AGENTRAIL_DATABASE_URL: postgresql+psycopg://agentrail:agentrail_local_dev@postgres:5432/agentrail
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    profiles: ['apps']
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+      args:
+        SERVICE_PACKAGE: agentrail-api
+    command: ['agentrail-api']
+    restart: unless-stopped
+    environment:
+      AGENTRAIL_ENVIRONMENT: local
+      AGENTRAIL_DATABASE_URL: postgresql+psycopg://agentrail:agentrail_local_dev@postgres:5432/agentrail
+      AGENTRAIL_REDIS_URL: redis://redis:6379/0
+      AGENTRAIL_CORS_ALLOW_ORIGINS: '["http://localhost:3000"]'
+    ports:
+      - '${AGENTRAIL_API_PORT:-8000}:8000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    profiles: ['apps']
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+      args:
+        SERVICE_PACKAGE: agentrail-worker
+    command: ['agentrail-worker']
+    restart: unless-stopped
+    environment:
+      AGENTRAIL_ENVIRONMENT: local
+      AGENTRAIL_DATABASE_URL: postgresql+psycopg://agentrail:agentrail_local_dev@postgres:5432/agentrail
+      AGENTRAIL_REDIS_URL: redis://redis:6379/0
+      AGENTRAIL_SANDBOX_BASE_URL: http://cloudops-sandbox:8100
+    ports:
+      - '${AGENTRAIL_WORKER_HEALTH_PORT:-8200}:8200'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      cloudops-sandbox:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request;urllib.request.urlopen('http://localhost:8200/healthz')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  otel-collector:
+    profiles: ['observability']
+    image: otel/opentelemetry-collector-contrib:0.117.0
+    restart: unless-stopped
+    command: ['--config=/etc/otel/config.yaml']
+    volumes:
+      - ../observability/otel-collector.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - '${AGENTRAIL_OTLP_GRPC_PORT:-4317}:4317'
+      - '${AGENTRAIL_OTLP_HTTP_PORT:-4318}:4318'
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
