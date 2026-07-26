@@ -12,6 +12,7 @@
 
 import type {
   ApiKey,
+  AuthProviderInfo,
   CreateJobRequest,
   CreatedApiKey,
   Job,
@@ -122,6 +123,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export async function getMe(): Promise<Me> {
   return request<Me>('/api/v1/auth/me');
+}
+
+export async function listAuthProviders(): Promise<AuthProviderInfo[]> {
+  const response = await request<{ providers: AuthProviderInfo[] }>('/api/v1/auth/providers');
+  return response.providers;
 }
 
 export async function signInWithEmail(email: string): Promise<Me> {

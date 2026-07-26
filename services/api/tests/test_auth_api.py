@@ -6,10 +6,12 @@ import httpx
 import pytest
 from api_test_support import Tenant, sign_in
 from fastapi import FastAPI
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentrail_api.app import attach_infrastructure, create_app
 from agentrail_api.settings import ApiSettings
-from agentrail_core.identity import Role
+from agentrail_core.identity import ApiKey, Role
 
 pytestmark = pytest.mark.integration
 
@@ -163,6 +165,18 @@ class TestApiKeys:
         assert [o["organisation"]["id"] for o in me.json()["organisations"]] == [
             tenant.organisation_id
         ]
+
+    async def test_read_only_api_key_use_persists_last_used_at(
+        self, api_key_client: httpx.AsyncClient, db_session: AsyncSession, tenant: Tenant
+    ) -> None:
+        response = await api_key_client.get("/api/v1/auth/me")
+
+        assert response.status_code == 200
+        key = await db_session.scalar(
+            select(ApiKey).where(ApiKey.organisation_id == tenant.organisation_id)
+        )
+        assert key is not None
+        assert key.last_used_at is not None
 
     async def test_the_token_is_returned_once_and_never_listed(self, tenant: Tenant) -> None:
         created = await tenant.client.post(

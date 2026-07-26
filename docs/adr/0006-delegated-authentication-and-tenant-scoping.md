@@ -92,6 +92,11 @@ Phase 0 made `jobs.idempotency_key` globally unique. Under tenancy that is a lea
 tenants could collide on an ordinary key like `nightly-run`, and the resulting 409 would reveal that
 somebody else had used it. The constraint is now `(project_id, idempotency_key)`.
 
+Existing Phase 0 jobs are adopted into a deterministic Legacy organisation and project during
+migration. Because Phase 0 had no users, the Legacy organisation cannot be mapped to a historical
+owner. To avoid orphaning migrated jobs forever, the first authenticated user after upgrade receives
+owner membership if, and only if, the Legacy organisation exists and still has no members.
+
 ## Alternatives considered
 
 - **JWT sessions.** Rejected — see above; revocation is the deciding factor.

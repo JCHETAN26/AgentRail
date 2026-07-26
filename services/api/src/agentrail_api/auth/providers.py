@@ -46,11 +46,11 @@ class AuthProvider(Protocol):
 
     def authorize_url(self, *, state: str, redirect_uri: str) -> str:
         """Where to send the browser to begin sign-in."""
-        ...
+        raise NotImplementedError
 
     async def exchange(self, *, code: str, redirect_uri: str) -> ExternalIdentity:
         """Turn a callback code into a verified identity."""
-        ...
+        raise NotImplementedError
 
 
 class DevAuthProvider:

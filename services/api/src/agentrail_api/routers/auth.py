@@ -100,6 +100,7 @@ async def dev_sign_in(
     identity = await provider.exchange(code=body.email, redirect_uri=settings.web_base_url)
 
     user = await auth_service.upsert_user(session, identity)
+    await auth_service.claim_legacy_organisation_if_unowned(session, user)
     _, token = await auth_service.create_session(
         session, user, ttl_seconds=settings.session_ttl_seconds
     )
@@ -170,6 +171,7 @@ async def github_callback(
     )
 
     user = await auth_service.upsert_user(session, identity)
+    await auth_service.claim_legacy_organisation_if_unowned(session, user)
     _, token = await auth_service.create_session(
         session, user, ttl_seconds=settings.session_ttl_seconds
     )

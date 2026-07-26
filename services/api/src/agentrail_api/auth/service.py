@@ -24,6 +24,7 @@ from agentrail_core.errors import ForbiddenError, UnauthenticatedError
 from agentrail_core.identity import (
     ApiKey,
     Membership,
+    Organisation,
     Permission,
     Principal,
     PrincipalKind,
@@ -41,6 +42,7 @@ from agentrail_core.ids import new_sortable_id
 
 SESSION_COOKIE_NAME = "agentrail_session"
 BEARER_PREFIX = "bearer "
+LEGACY_ORGANISATION_ID = "01KYC7S3G00000000000000000"
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +118,37 @@ async def create_session(
     return record, token
 
 
+async def claim_legacy_organisation_if_unowned(session: AsyncSession, user: User) -> None:
+    """Give the first signed-in user access to jobs adopted from Phase 0.
+
+    Phase 0 jobs had no tenant owner. The migration places them in a deterministic
+    Legacy organisation; this hook prevents that organisation from being
+    permanently orphaned after upgrade.
+    """
+
+    legacy_exists = await session.scalar(
+        select(Organisation.id).where(Organisation.id == LEGACY_ORGANISATION_ID)
+    )
+    if legacy_exists is None:
+        return
+
+    existing_owner = await session.scalar(
+        select(Membership.id).where(Membership.organisation_id == LEGACY_ORGANISATION_ID)
+    )
+    if existing_owner is not None:
+        return
+
+    session.add(
+        Membership(
+            id=new_sortable_id(),
+            user_id=user.id,
+            organisation_id=LEGACY_ORGANISATION_ID,
+            role=Role.OWNER,
+        )
+    )
+    await session.flush()
+
+
 async def revoke_session(session: AsyncSession, token: str) -> bool:
     record = await session.scalar(
         select(Session).where(Session.token_hash == hash_session_token(token))
@@ -160,6 +193,7 @@ async def _actor_from_api_key(session: AsyncSession, token: str) -> Actor | None
         return None
 
     record.last_used_at = now
+    await session.commit()
     return Actor(api_key=record)
 
 

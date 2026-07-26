@@ -55,22 +55,45 @@ const ME_WITH_ORG = {
 
 describe('SignIn', () => {
   it('signs in and notifies the shell', async () => {
-    vi.mocked(fetch).mockResolvedValue(json(ME_WITH_ORG));
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        json({ providers: [{ name: 'dev', label: 'Continue with email', deterministic: true }] }),
+      )
+      .mockResolvedValue(json(ME_WITH_ORG));
     const onSignedIn = vi.fn();
 
     renderWithQueryClient(<SignIn onSignedIn={onSignedIn} />);
-    await userEvent.click(screen.getByRole('button', { name: /continue/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /continue with email/i }));
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
   });
 
   it('shows the correlation id when sign-in is rejected', async () => {
-    vi.mocked(fetch).mockResolvedValue(problem('validation_failed', 422, 'cid_rejected'));
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        json({ providers: [{ name: 'dev', label: 'Continue with email', deterministic: true }] }),
+      )
+      .mockResolvedValue(problem('validation_failed', 422, 'cid_rejected'));
 
     renderWithQueryClient(<SignIn onSignedIn={vi.fn()} />);
-    await userEvent.click(screen.getByRole('button', { name: /continue/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /continue with email/i }));
 
     expect(await screen.findByTestId('sign-in-error')).toHaveTextContent('cid_rejected');
+  });
+
+  it('offers GitHub when it is the configured provider', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { assign });
+    vi.mocked(fetch).mockResolvedValue(
+      json({
+        providers: [{ name: 'github', label: 'Continue with GitHub', deterministic: false }],
+      }),
+    );
+
+    renderWithQueryClient(<SignIn onSignedIn={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: /continue with github/i }));
+
+    expect(assign).toHaveBeenCalledWith('http://localhost:8000/api/v1/auth/github/authorize');
   });
 });
 
