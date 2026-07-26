@@ -1,0 +1,49 @@
+# Private planning documents (not published to the repository)
+BUILDPLAN.md
+SYSTEM_PROMPT.md
+CLAUDE_CODE_MASTER_PROMPT.md
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+coverage/
+.pnpm-store/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+
+# Local data volumes and artefacts
+.data/
+artifacts/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
