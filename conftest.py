@@ -58,7 +58,11 @@ def queue_settings() -> QueueSettings:
     Isolating the key means the suite never consumes or deletes messages
     belonging to a developer's running stack.
     """
-    return QueueSettings(job_queue_key=f"agentrail:test:{uuid.uuid4().hex}:jobs")
+    suffix = uuid.uuid4().hex
+    return QueueSettings(
+        job_queue_key=f"agentrail:test:{suffix}:jobs",
+        run_queue_key=f"agentrail:test:{suffix}:runs",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -87,7 +91,8 @@ async def db_engine(
             # a table added in a later phase does not silently survive.
             await connection.execute(
                 text(
-                    "TRUNCATE TABLE jobs, evaluation_suites, dataset_versions, datasets, "
+                    "TRUNCATE TABLE jobs, outbox_events, run_items, evaluation_runs, "
+                    "evaluation_suites, dataset_versions, datasets, "
                     "audit_events, api_keys, sessions, "
                     "memberships, projects, organisations, users CASCADE"
                 )

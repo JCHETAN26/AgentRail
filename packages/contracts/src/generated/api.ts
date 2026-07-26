@@ -188,6 +188,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluation-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an evaluation run */
+        post: operations["create_evaluation_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluation-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch an evaluation run */
+        get: operations["get_evaluation_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluation-runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel an evaluation run */
+        post: operations["cancel_evaluation_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluation-runs/{run_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream evaluation-run progress */
+        get: operations["stream_evaluation_run_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evaluation-suites/{suite_id}/freeze": {
         parameters: {
             query?: never;
@@ -662,6 +730,21 @@ export interface components {
             /** Storage Uri */
             storage_uri?: string | null;
         };
+        /** CreateEvaluationRunRequest */
+        CreateEvaluationRunRequest: {
+            /** Baseline Agent Version Id */
+            baseline_agent_version_id?: string | null;
+            /** Candidate Agent Version Id */
+            candidate_agent_version_id: string;
+            /** Evaluation Suite Id */
+            evaluation_suite_id: string;
+            /**
+             * Execution Mode
+             * @default recorded
+             * @constant
+             */
+            execution_mode: "recorded";
+        };
         /** CreateEvaluationSuiteRequest */
         CreateEvaluationSuiteRequest: {
             /** Dataset Version Id */
@@ -810,6 +893,59 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "idempotency_key_reused" | "payload_too_large" | "dependency_unavailable" | "internal_error";
+        /** EvaluationRunResponse */
+        EvaluationRunResponse: {
+            /** Baseline Agent Version Id */
+            baseline_agent_version_id?: string | null;
+            /** Cancelled At */
+            cancelled_at?: string | null;
+            /** Candidate Agent Version Id */
+            candidate_agent_version_id: string;
+            /** Completed At */
+            completed_at?: string | null;
+            /** Completed Count */
+            completed_count: number;
+            /** Correlation Id */
+            correlation_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Code */
+            error_code?: string | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Evaluation Suite Id */
+            evaluation_suite_id: string;
+            /** Execution Mode */
+            execution_mode: string;
+            /** Failed Count */
+            failed_count: number;
+            /** Id */
+            id: string;
+            /** Item Count */
+            item_count: number;
+            /** Project Id */
+            project_id: string;
+            /** Started At */
+            started_at?: string | null;
+            state: components["schemas"]["EvaluationRunState"];
+            /** Summary */
+            summary: Record<string, never>;
+            /** Trace Id */
+            trace_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * EvaluationRunState
+         * @enum {string}
+         */
+        EvaluationRunState: "CREATED" | "VALIDATING" | "QUEUING" | "RUNNING" | "AGGREGATING" | "PASSED" | "FAILED" | "CANCELLED" | "ERROR";
         /** EvaluationSuiteResponse */
         EvaluationSuiteResponse: {
             /**
@@ -986,7 +1122,7 @@ export interface components {
          * @description A single authorisable action. Values are stable and appear in audit logs.
          * @enum {string}
          */
-        Permission: "organisation:read" | "organisation:update" | "member:read" | "member:manage" | "api_key:read" | "api_key:manage" | "project:read" | "project:create" | "project:update" | "agent:read" | "agent:manage" | "dataset:read" | "dataset:manage" | "job:read" | "job:create" | "audit:read";
+        Permission: "organisation:read" | "organisation:update" | "member:read" | "member:manage" | "api_key:read" | "api_key:manage" | "project:read" | "project:create" | "project:update" | "agent:read" | "agent:manage" | "dataset:read" | "dataset:manage" | "run:read" | "run:create" | "run:cancel" | "job:read" | "job:create" | "audit:read";
         /**
          * ProblemDetail
          * @description The body returned for every non-2xx API response.
@@ -1570,6 +1706,283 @@ export interface operations {
             };
             /** @description Validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_evaluation_run: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEvaluationRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Idempotency key reused. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A required dependency is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_evaluation_run: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Idempotency key reused. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A required dependency is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    cancel_evaluation_run: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Idempotency key reused. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A required dependency is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    stream_evaluation_run_events: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Idempotency key reused. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A required dependency is unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

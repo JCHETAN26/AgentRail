@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 4 — Dataset ingestion and suite builder                                             |
-| **Status**     | In progress on branch `feat/p04-datasets-suites`                                    |
-| **Base**       | `main` @ `ab72b03` (Phase 3 merged)                                                 |
-| **Next phase** | 5 — Durable distributed execution, after Phase 4 exits                              |
+| **Phase**      | 5 — Durable distributed execution                                                   |
+| **Status**     | In progress on branch `feat/p05-durable-execution`                                  |
+| **Base**       | `main` @ `34dff81` (Phase 4 merged)                                                 |
+| **Next phase** | 6 — Trajectory capture, after Phase 5 exits                                         |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -19,21 +19,22 @@ applied branch protection, Dependabot triage) in [#19](https://github.com/JCHETA
 Phase 1 shipped in PR [#20](https://github.com/JCHETAN26/AgentRail/pull/20).
 Phase 2 shipped in PR [#21](https://github.com/JCHETAN26/AgentRail/pull/21).
 Phase 3 shipped in PR [#22](https://github.com/JCHETAN26/AgentRail/pull/22).
+Phase 4 shipped in PR [#23](https://github.com/JCHETAN26/AgentRail/pull/23).
 
 ---
 
 ## Read these first
 
-1. `BUILDPLAN.md` §10 and Phase 4 — dataset/suite model and exit criteria
-2. `packages/core-py/src/agentrail_core/datasets.py` — dataset persistence models
-3. `services/api/src/agentrail_api/datasets/service.py` — validation, digesting and freeze logic
-4. `services/api/src/agentrail_api/routers/datasets.py` — public dataset/suite API surface
-5. `services/api/tests/test_datasets_api.py` — dataset and suite integration coverage
-6. `services/api/tests/test_dataset_validation.py` — parser and rejection-report unit coverage
+1. `BUILDPLAN.md` Phase 5 — durable distributed execution exit criteria
+2. `packages/core-py/src/agentrail_core/execution/state.py` — run and run-item state machines
+3. `packages/core-py/src/agentrail_core/execution/models.py` — execution persistence models
+4. `services/api/src/agentrail_api/execution/service.py` — run creation, outbox and cancellation
+5. `services/worker/src/agentrail_worker/run_runner.py` — lease, retry and aggregation worker
+6. `services/api/tests/test_execution_api.py` and `services/worker/tests/test_run_runner.py`
 
 ---
 
-## Completed capabilities (through Phase 3)
+## Completed capabilities (through Phase 4)
 
 - **Delegated authentication** with two providers behind one protocol: a deterministic dev provider
   (no credentials, no network — used by local development, CI and the demo) and GitHub OAuth with
@@ -95,6 +96,20 @@ Phase 3 shipped in PR [#22](https://github.com/JCHETAN26/AgentRail/pull/22).
 - Evaluation suites bind one dataset version to evaluator settings, thresholds, fault profiles and a
   preview summary. Freezing is idempotent and preserves the first `frozen_at` timestamp.
 
+## Phase 5 progress
+
+- Added evaluation-run and run-item state machines with terminal-state guards.
+- Added `EvaluationRun`, `RunItem` and `OutboxEvent` persistence models.
+- Added Alembic revision `0005_durable_execution`.
+- Added `run:read`, `run:create` and `run:cancel` permissions.
+- Added APIs to create evaluation runs from frozen suites, fetch runs, cancel runs and stream
+  progress snapshots over SSE.
+- Run creation validates tenant scope, frozen-suite status and agent-version project ownership, then
+  creates the run, items and outbox event in one transaction.
+- Worker now consumes both the legacy job queue and the evaluation-run queue, claims runs with
+  conditional updates, leases run items, checkpoints progress, recovers expired leases and aggregates
+  final run outcomes.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -110,12 +125,13 @@ Phase 3 shipped in PR [#22](https://github.com/JCHETAN26/AgentRail/pull/22).
 
 ## Migrations
 
-| Revision               | Description                                                                                                                                                                      |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0001_create_jobs`     | Creates `jobs` with check constraints and `ix_jobs_state_created_at`                                                                                                             |
-| `0002_identity`        | Adds users, organisations, memberships, projects, sessions, api_keys, audit_events; retrofits `jobs.project_id`; moves idempotency uniqueness to `(project_id, idempotency_key)` |
-| `0003_agent_registry`  | Adds project-scoped agent definitions and immutable agent versions with per-agent version and digest uniqueness                                                                  |
-| `0004_datasets_suites` | Adds project-scoped datasets, immutable dataset versions with validation metadata and freezable evaluation suites                                                                |
+| Revision                 | Description                                                                                                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_create_jobs`       | Creates `jobs` with check constraints and `ix_jobs_state_created_at`                                                                                                             |
+| `0002_identity`          | Adds users, organisations, memberships, projects, sessions, api_keys, audit_events; retrofits `jobs.project_id`; moves idempotency uniqueness to `(project_id, idempotency_key)` |
+| `0003_agent_registry`    | Adds project-scoped agent definitions and immutable agent versions with per-agent version and digest uniqueness                                                                  |
+| `0004_datasets_suites`   | Adds project-scoped datasets, immutable dataset versions with validation metadata and freezable evaluation suites                                                                |
+| `0005_durable_execution` | Adds evaluation runs, run items, retry/lease metadata and durable outbox events                                                                                                  |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -186,6 +202,27 @@ Latest Phase 4 branch checks, run locally on 2026-07-26:
 | `@agentrail/contracts check`                        | Pass                                                  |
 | `@agentrail/contracts test`                         | Pass — 10 tests                                       |
 
+Latest Phase 5 branch checks, run locally on 2026-07-26:
+
+| Command                                                 | Result                                                |
+| ------------------------------------------------------- | ----------------------------------------------------- |
+| `uv run ruff check .`                                   | Pass                                                  |
+| `uv run mypy packages/core-py/src services/api/src ...` | Pass — 66 source files                                |
+| `uv run pytest -q`                                      | 196 passed, 94 skipped locally due sandboxed Postgres |
+| `uv run python scripts/export_openapi.py --check`       | Pass                                                  |
+| `pnpm run format:check`                                 | Pass                                                  |
+| `pnpm run lint`                                         | Pass                                                  |
+| `pnpm run typecheck`                                    | Pass                                                  |
+| `pnpm run test`                                         | Pass — 34 JS tests                                    |
+| `@agentrail/contracts check`                            | Pass                                                  |
+| `@agentrail/contracts test`                             | Pass — 10 tests                                       |
+| `pnpm build`                                            | Pass — web production build                           |
+| `uv build --all-packages`                               | Pass                                                  |
+
+`AGENTRAIL_REQUIRE_INTEGRATION=1` was attempted locally after escalation, but Docker was not running
+and PostgreSQL on localhost:5433 refused connections. CI must run the real PostgreSQL/Redis
+integration suite before landing.
+
 ---
 
 ## Known limitations
@@ -195,9 +232,10 @@ Latest Phase 4 branch checks, run locally on 2026-07-26:
   there; RLS as defence in depth is Phase 14.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
 - **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
-- The registry stores agent versions, but no runtime executes those versions yet.
-- Dataset versions and suites exist, but no distributed evaluator execution consumes them yet.
-- Failed jobs remain terminal — no retry budget, leases or outbox (Phase 5).
+- The execution runtime is deterministic/recorded and uses suite item counts; it does not capture
+  trajectories or invoke real evaluators yet.
+- Failed legacy jobs remain terminal; retry budgets, leases and outbox are implemented for
+  evaluation run items.
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
 - `dependency-review` warns and skips while the dependency graph is disabled, and is excluded from
   the required checks until that browser-only repository setting is enabled.
@@ -222,13 +260,12 @@ Latest Phase 4 branch checks, run locally on 2026-07-26:
 
 ---
 
-## Next tasks (Phase 4 — Dataset ingestion and suite builder)
+## Next tasks (Phase 5 — Durable distributed execution)
 
-1. Run the remaining frontend/typecheck verification after docs and contracts are finalized.
-2. Let CI run the new PostgreSQL-backed dataset/suite integration tests.
-3. Open and merge the Phase 4 pull request once CI is green.
+1. Let CI run the PostgreSQL-backed execution integration tests.
+2. Open and merge the Phase 5 pull request once CI is green.
 
-**Exit criteria:** malformed input is actionable; frozen suite cannot change; green PR.
+**Exit criteria:** 100-item suite completes; killed workers recover; duplicates harmless; green PR.
 
 ---
 

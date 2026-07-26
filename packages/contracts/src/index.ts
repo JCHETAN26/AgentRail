@@ -57,6 +57,11 @@ export type DatasetValidation = Schemas['DatasetValidationResponse'];
 export type EvaluationSuite = Schemas['EvaluationSuiteResponse'];
 export type CreateEvaluationSuiteRequest = Schemas['CreateEvaluationSuiteRequest'];
 
+/** Durable evaluation execution. */
+export type CreateEvaluationRunRequest = Schemas['CreateEvaluationRunRequest'];
+export type EvaluationRun = Schemas['EvaluationRunResponse'];
+export type EvaluationRunState = Schemas['EvaluationRunState'];
+
 /** Terminal job states. A job in one of these will never change again. */
 export const TERMINAL_JOB_STATES = ['COMPLETED', 'FAILED'] as const satisfies readonly JobState[];
 

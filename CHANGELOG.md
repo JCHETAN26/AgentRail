@@ -6,6 +6,20 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 5: durable distributed execution
+
+- Evaluation run and run-item state machines with terminal-state guards, retryable item failures and
+  cancellation semantics.
+- PostgreSQL-backed `evaluation_runs`, `run_items` and `outbox_events` tables, plus Alembic revision
+  `0005_durable_execution`.
+- Idempotent run creation from frozen evaluation suites, with transactional run-item expansion and a
+  durable outbox event committed before Redis delivery.
+- Evaluation-run APIs for create, fetch, cancellation and server-sent progress snapshots.
+- Worker support for the run queue, duplicate-safe run claims, item leases, retry-budget recovery,
+  PostgreSQL checkpoints and aggregation into passed/failed/cancelled outcomes.
+- Contract and integration coverage for idempotency replay, frozen-suite enforcement, tenant denial,
+  100-item completion, duplicate delivery and expired-lease recovery.
+
 ### Added — Phase 4: dataset ingestion and suite builder
 
 - Project-scoped datasets with stable slugs and tenant-aware create/list APIs.

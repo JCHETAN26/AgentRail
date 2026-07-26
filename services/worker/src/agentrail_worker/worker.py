@@ -21,8 +21,14 @@ from sqlalchemy import select
 from agentrail_core.db import create_database_engine, create_session_factory
 from agentrail_core.jobs import Job, JobState
 from agentrail_core.logging import configure_logging, get_logger
-from agentrail_core.queue import consume_job, create_redis_client, publish_job
+from agentrail_core.queue import create_redis_client, publish_job
 from agentrail_worker.health_app import create_health_app
+from agentrail_worker.run_runner import (
+    EvaluationRunRunner,
+    RunOutcome,
+    mark_outbox_published,
+    pending_outbox_run_ids,
+)
 from agentrail_worker.runner import JobOutcome, JobRunner
 from agentrail_worker.sandbox_client import SandboxClient
 from agentrail_worker.settings import WorkerSettings
@@ -54,6 +60,11 @@ class Worker:
             str(settings.sandbox_base_url), timeout_seconds=settings.sandbox_timeout_seconds
         )
         self._runner = JobRunner(self._session_factory, self._sandbox, worker_id=settings.worker_id)
+        self._run_runner = EvaluationRunRunner(
+            self._session_factory,
+            worker_id=settings.worker_id,
+            lease_seconds=settings.run_item_lease_seconds,
+        )
 
     def request_stop(self) -> None:
         if not self._stop.is_set():
@@ -101,19 +112,29 @@ class Worker:
 
     async def _consume_loop(self) -> None:
         while not self._stop.is_set():
-            job_id = await consume_job(
-                self._redis,
-                self._settings.job_queue_key,
-                block_timeout_seconds=self._settings.queue_block_timeout_seconds,
-            )
-            if job_id is None:
+            work = await self._consume_work()
+            if work is None:
                 continue  # Idle timeout; re-check the stop flag.
+            queue_key, identifier = work
 
-            outcome = await self._runner.process(job_id)
-            if outcome is JobOutcome.MISSING:
-                # The row does not exist. Dropping the message is correct: the
-                # identifier can never become valid.
-                continue
+            if queue_key == self._settings.job_queue_key:
+                job_outcome = await self._runner.process(identifier)
+                if job_outcome is JobOutcome.MISSING:
+                    continue
+            else:
+                run_outcome = await self._run_runner.process(identifier)
+                if run_outcome is RunOutcome.MISSING:
+                    continue
+
+    async def _consume_work(self) -> tuple[str, str] | None:
+        result = await self._redis.blpop(  # type: ignore[misc]
+            [self._settings.job_queue_key, self._settings.run_queue_key],
+            timeout=self._settings.queue_block_timeout_seconds,
+        )
+        if result is None:
+            return None
+        queue_key, identifier = result
+        return str(queue_key), str(identifier)
 
     async def _recovery_loop(self) -> None:
         """Re-publish jobs stranded in PENDING.
@@ -131,7 +152,7 @@ class Worker:
             if self._stop.is_set():
                 return
             try:
-                requeued = await self._requeue_stale_pending()
+                requeued = await self._recover_pending_work()
             except Exception:
                 logger.exception("recovery_sweep_failed")
                 continue
@@ -152,6 +173,35 @@ class Worker:
         for job_id in job_ids:
             await publish_job(self._redis, self._settings.job_queue_key, job_id)
         return len(job_ids)
+
+    async def _recover_pending_work(self) -> int:
+        requeued = await self._requeue_stale_pending()
+        requeued += await self._publish_pending_outbox()
+        recovered_leases = await EvaluationRunRunner.recover_expired_leases(
+            self._session_factory, now=datetime.now(UTC)
+        )
+        requeued += await self._requeue_recoverable_runs()
+        if recovered_leases:
+            logger.info("evaluation_run_leases_recovered", extra={"item_count": recovered_leases})
+        return requeued
+
+    async def _publish_pending_outbox(self) -> int:
+        pending = await pending_outbox_run_ids(
+            self._session_factory, limit=self._settings.recovery_sweep_batch_size
+        )
+        for event_id, run_id in pending:
+            await publish_job(self._redis, self._settings.run_queue_key, run_id)
+            await mark_outbox_published(self._session_factory, event_id=event_id)
+        return len(pending)
+
+    async def _requeue_recoverable_runs(self) -> int:
+        cutoff = datetime.now(UTC) - timedelta(seconds=self._settings.stale_pending_seconds)
+        run_ids = await EvaluationRunRunner.recoverable_run_ids(
+            self._session_factory, before=cutoff, limit=self._settings.recovery_sweep_batch_size
+        )
+        for run_id in run_ids:
+            await publish_job(self._redis, self._settings.run_queue_key, run_id)
+        return len(run_ids)
 
 
 async def run_worker(settings: WorkerSettings) -> None:

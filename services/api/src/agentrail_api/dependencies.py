@@ -60,6 +60,7 @@ async def get_session(
 
 
 SettingsDep = Annotated[ApiSettings, Depends(get_settings)]
+SessionFactoryDep = Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 RedisDep = Annotated[redis.Redis, Depends(get_redis)]
 ContextDep = Annotated[CorrelationContext, Depends(get_correlation_context)]

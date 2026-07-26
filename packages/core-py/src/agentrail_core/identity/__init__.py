@@ -7,6 +7,7 @@ per endpoint.
 
 from agentrail_core.agents import AgentDefinition, AgentVersion
 from agentrail_core.datasets import Dataset, DatasetVersion, EvaluationSuite
+from agentrail_core.execution import EvaluationRun, OutboxEvent, RunItem
 from agentrail_core.identity.models import (
     ApiKey,
     AuditEvent,
@@ -44,15 +45,18 @@ __all__ = [
     "AuthorisationError",
     "Dataset",
     "DatasetVersion",
+    "EvaluationRun",
     "EvaluationSuite",
     "GeneratedApiKey",
     "Membership",
     "Organisation",
+    "OutboxEvent",
     "Permission",
     "Principal",
     "PrincipalKind",
     "Project",
     "Role",
+    "RunItem",
     "Session",
     "User",
     "authorize",
