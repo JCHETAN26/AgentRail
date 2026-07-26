@@ -150,7 +150,11 @@ complete states; the pull request is green.
 
 ## Owner actions required
 
-1. Review and merge the Phase 0 pull request.
-2. Apply the settings in `docs/BRANCH_PROTECTION.md` once CI has run at least once, so the checks can
+1. **Enable the dependency graph** at
+   [`Settings → Code security and analysis`](https://github.com/JCHETAN26/AgentRail/settings/security_analysis).
+   The `dependency-review` check fails until it is on — this is a repository setting, not a code
+   problem, and repository settings are not changed automatically.
+2. Review and merge the Phase 0 pull request.
+3. Apply the settings in `docs/BRANCH_PROTECTION.md` once CI has run at least once, so the checks can
    be selected.
-3. Decide on a licence and add a `LICENSE` file.
+4. Decide on a licence and add a `LICENSE` file.
