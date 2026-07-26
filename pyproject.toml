@@ -1,0 +1,117 @@
+[tool.uv.workspace]
+members = [
+    "packages/core-py",
+    "services/api",
+    "services/worker",
+    "services/cloudops-sandbox",
+]
+
+[tool.uv.sources]
+agentrail-core = { workspace = true }
+agentrail-api = { workspace = true }
+agentrail-worker = { workspace = true }
+agentrail-cloudops-sandbox = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "agentrail-api",
+    "agentrail-cloudops-sandbox",
+    "agentrail-core",
+    "agentrail-worker",
+    "mypy==1.14.1",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.2",
+    "pytest-cov==6.0.0",
+    "ruff==0.9.2",
+    "types-psycopg2==2.9.21.20250121",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff — formatting and linting for every Python package in the workspace.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", "**/alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # bugbear
+    "C4",   # comprehensions
+    "UP",   # pyupgrade
+    "ASYNC",# async correctness
+    "BLE",  # no blind `except Exception` without justification
+    "S",    # bandit security rules
+    "T20",  # no print()
+    "SIM",  # simplify
+    "RUF",
+]
+ignore = [
+    "S101", # assert is expected in tests; see per-file ignores for source rules
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106"]
+"**/conftest.py" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agentrail_core", "agentrail_api", "agentrail_worker", "agentrail_cloudops_sandbox"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict type checking across the workspace.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+disallow_any_generics = true
+no_implicit_reexport = true
+show_error_codes = true
+pretty = true
+mypy_path = [
+    "packages/core-py/src",
+    "services/api/src",
+    "services/worker/src",
+    "services/cloudops-sandbox/src",
+]
+exclude = ["(^|/)alembic/versions/"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --strict-config"
+testpaths = [
+    "packages/core-py/tests",
+    "services/api/tests",
+    "services/worker/tests",
+    "services/cloudops-sandbox/tests",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: requires real PostgreSQL and Redis (see make integration)",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "packages/core-py/src",
+    "services/api/src",
+    "services/worker/src",
+    "services/cloudops-sandbox/src",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

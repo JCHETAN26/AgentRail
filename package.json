@@ -1,0 +1,23 @@
+{
+  "name": "agentrail",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AgentRail — evaluate, debug, govern and safely release tool-using AI agents",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build",
+    "e2e": "pnpm --filter @agentrail/web e2e"
+  },
+  "devDependencies": {
+    "prettier": "3.4.2",
+    "typescript": "5.7.2"
+  }
+}
