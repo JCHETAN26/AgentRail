@@ -8,29 +8,32 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 1 — Authentication, organisations and tenancy                                       |
-| **Status**     | Complete, in review on branch `feat/p01-auth-and-tenancy`                           |
-| **Base**       | `main` @ `77e20f6` (Phase 0 merged, plus licence and guardrails)                    |
-| **Next phase** | 2 — CloudOps sandbox and contracts. **Do not start until this PR is merged.**       |
+| **Phase**      | 2 — CloudOps sandbox and contracts                                                  |
+| **Status**     | In progress on branch `feat/p02-cloudops-sandbox`                                   |
+| **Base**       | `main` @ `a37e1f0` (Phase 1 merged)                                                 |
+| **Next phase** | 3 — Agent registry, after Phase 2 exits                                             |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
 applied branch protection, Dependabot triage) in [#19](https://github.com/JCHETAN26/AgentRail/pull/19).
+Phase 1 shipped in PR [#20](https://github.com/JCHETAN26/AgentRail/pull/20).
 
 ---
 
 ## Read these first
 
-1. `docs/adr/0006-delegated-authentication-and-tenant-scoping.md` — the whole Phase 1 design
-2. `packages/core-py/src/agentrail_core/identity/roles.py` — the one function that decides access
-3. `services/api/src/agentrail_api/auth/service.py` — credential → actor → principal
-4. `services/api/tests/test_tenancy.py` — the isolation guarantee, asserted
-5. `docs/security/THREAT_MODEL.md` — 27 threats, with what is _not_ mitigated stated plainly
-6. `docs/adr/0002-postgresql-authoritative-redis-delivery.md` — still the core reliability decision
+1. `BUILDPLAN.md` §4 — CloudOps tool list, incident families and ground-truth requirements
+2. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/cloudops.py` — Phase 2 synthetic data,
+   tool contracts, scenarios and idempotency behavior
+3. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/app.py` — HTTP surface for the sandbox
+4. `services/cloudops-sandbox/tests/test_app.py` — contract tests for tools, scenarios, faults and
+   idempotency
+5. `docs/adr/0006-delegated-authentication-and-tenant-scoping.md` — still the auth/tenant boundary
+6. `docs/security/THREAT_MODEL.md` — 27 threats, with what is _not_ mitigated stated plainly
 
 ---
 
-## Completed capabilities (Phase 1)
+## Completed capabilities (through Phase 1)
 
 - **Delegated authentication** with two providers behind one protocol: a deterministic dev provider
   (no credentials, no network — used by local development, CI and the demo) and GitHub OAuth with
@@ -49,6 +52,22 @@ applied branch protection, Dependabot triage) in [#19](https://github.com/JCHETA
   signed-out / loading / empty / permission-denied states.
 
 ---
+
+## Phase 2 progress
+
+- Added the ten CloudOps tool contracts:
+  `get_service_health`, `query_metrics`, `search_logs`, `get_dependency_graph`, `get_runbook`,
+  `restart_service`, `scale_service`, `create_incident`, `notify_oncall` and
+  `escalate_to_human`.
+- Added risk, side-effect class, approval requirement and idempotency-key metadata for each tool.
+- Added deterministic synthetic service health, metrics, logs, dependency graphs and runbooks.
+- Added in-process idempotency records for side-effecting tools. Duplicate keys return the original
+  result with `idempotent_replay = true`.
+- Added reset and seed endpoints.
+- Added fault hooks for latency, timeout, HTTP 500, malformed, stale, rate limit and unavailable.
+- Added 25 deterministic scenario manifests covering the 16 build-plan incident families, with
+  ground truth for diagnosis, allowed/forbidden tools, expected arguments, remediation/approval,
+  evidence and budgets.
 
 ## Architecture decisions taken
 
@@ -99,6 +118,21 @@ can reach the other's organisation, members, projects, audit log, jobs by identi
 
 No benchmark numbers exist and none may be quoted. Benchmarks are Phase 17.
 
+Latest Phase 2 branch checks, run locally on 2026-07-26:
+
+| Command                        | Result                                                |
+| ------------------------------ | ----------------------------------------------------- |
+| `uv run ruff format --check .` | Pass                                                  |
+| `uv run ruff check .`          | Pass                                                  |
+| `uv run mypy ...`              | Pass — 48 source files                                |
+| `uv run pytest -q`             | 190 passed, 71 skipped locally due sandboxed Postgres |
+| `pnpm run format:check`        | Pass                                                  |
+| `pnpm run lint`                | Pass                                                  |
+| `pnpm run typecheck`           | Pass                                                  |
+| `pnpm run test`                | Pass — 34 JS tests                                    |
+| `scripts/export_openapi.py`    | Pass — API snapshot unchanged                         |
+| `@agentrail/contracts check`   | Pass                                                  |
+
 ---
 
 ## Known limitations
@@ -108,7 +142,7 @@ No benchmark numbers exist and none may be quoted. Benchmarks are Phase 17.
   there; RLS as defence in depth is Phase 14.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
 - **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
-- The sandbox still runs one deterministic no-op task (Phase 2).
+- The sandbox now exposes Phase 2's synthetic tool surface, but no agent runtime consumes it yet.
 - Failed jobs remain terminal — no retry budget, leases or outbox (Phase 5).
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
 - `dependency-review` warns and skips while the dependency graph is disabled, and is excluded from
@@ -136,17 +170,11 @@ No benchmark numbers exist and none may be quoted. Benchmarks are Phase 17.
 
 ## Next tasks (Phase 2 — CloudOps sandbox and contracts)
 
-Only after this pull request is merged:
-
-1. Branch `feat/p02-cloudops-sandbox` from the merged `main`.
-2. Synthetic services, metrics, logs, runbooks and incidents in the sandbox.
-3. The ten tool schemas from the build plan, with risk and side-effect classifications.
-4. Idempotent writes with an idempotency key on every side-effecting tool.
-5. Fault-injection hooks (latency, timeout, 500, malformed, stale, rate limit, unavailable).
-6. Scenario manifests and ground truth: expected diagnosis, allowed and forbidden tools, expected
-   arguments, whether remediation is permitted, approval requirements, evidence, budgets.
-7. Reset and seed commands.
-8. At least 25 deterministic scenarios.
+1. Decide whether the sandbox OpenAPI should become a committed generated contract beside the
+   platform API snapshot, or whether the current tool-contract endpoint is the only Phase 2 contract
+   artifact.
+2. Run full-repo verification after the Phase 2 docs and sandbox changes.
+3. Open the Phase 2 pull request once verification is green.
 
 **Exit criteria:** 25 deterministic scenarios; a duplicate side-effect key returns the original
 result; green PR.
@@ -161,4 +189,3 @@ result; green PR.
    it turns `dependency-review` from a warning-only skip into a real advisory/licence gate, unblocks
    Dependabot security alerts, and allows adding that check to the required list in
    `docs/BRANCH_PROTECTION.md`.
-2. Review and merge the Phase 1 pull request.

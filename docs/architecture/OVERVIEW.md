@@ -1,16 +1,16 @@
 # Architecture overview
 
-Scope: the system as it exists after Phase 0. Components scheduled for later phases are named where
+Scope: the system as it exists during Phase 2. Components scheduled for later phases are named where
 a current decision was made to accommodate them, and are marked as not built.
 
 ## Services
 
-| Service                     | Runtime               | Port               | Responsibility                                                   |
-| --------------------------- | --------------------- | ------------------ | ---------------------------------------------------------------- |
-| `apps/web`                  | Next.js 15 / React 19 | 3000               | Developer console. No business logic in components.              |
-| `services/api`              | FastAPI (Python 3.12) | 8000               | The only writer of new jobs. Owns the schema and its migrations. |
-| `services/worker`           | Python 3.12           | 8200 (health only) | The only executor of jobs. Consumes from Redis.                  |
-| `services/cloudops-sandbox` | FastAPI               | 8100               | Synthetic, deterministic tool surface. Holds no state.           |
+| Service                     | Runtime               | Port               | Responsibility                                                    |
+| --------------------------- | --------------------- | ------------------ | ----------------------------------------------------------------- |
+| `apps/web`                  | Next.js 15 / React 19 | 3000               | Developer console. No business logic in components.               |
+| `services/api`              | FastAPI (Python 3.12) | 8000               | The only writer of new jobs. Owns the schema and its migrations.  |
+| `services/worker`           | Python 3.12           | 8200 (health only) | The only executor of jobs. Consumes from Redis.                   |
+| `services/cloudops-sandbox` | FastAPI               | 8100               | Synthetic, deterministic tool surface with in-process test state. |
 
 Shared code lives in `packages/core-py` (settings, logging, correlation, infrastructure clients and
 the job table) and `packages/contracts` (OpenAPI snapshot and the TypeScript types generated from
@@ -59,7 +59,16 @@ in review.
 | Domain state machine | `packages/core-py/src/agentrail_core/jobs/state.py`  | SQLAlchemy, FastAPI, Redis                                    |
 | Persistence          | `packages/core-py/src/agentrail_core/jobs/models.py` | Decisions about _when_ a transition is legal                  |
 | Delivery             | `packages/core-py/src/agentrail_core/queue.py`       | Authoritative state                                           |
-| Tool surface         | `services/cloudops-sandbox`                          | Clocks, randomness, I/O — it must stay deterministic          |
+| Tool surface         | `services/cloudops-sandbox`                          | Real infrastructure I/O — all output must stay synthetic      |
+
+## CloudOps sandbox
+
+The sandbox exposes the Phase 2 reference workload beside the original no-op task. It includes the
+ten CloudOps tool contracts from the build plan, deterministic service health, metric, log,
+dependency and runbook reads, idempotent side-effecting tools for restarts, scaling, incidents and
+notifications, a human-escalation tool, reset/seed endpoints, fault-injection hooks and 25 scenario
+manifests with ground truth. All state is in process and resettable; nothing represents real
+production telemetry.
 
 ## State machine
 
@@ -96,8 +105,7 @@ identifier plumbing exists now so that work is an addition rather than a retrofi
 
 ## Not built yet
 
-Authentication and tenancy (Phase 1), the full CloudOps sandbox (Phase 2), agent registry (Phase 3),
-datasets and suites (Phase 4), durable distributed execution with a transactional outbox and leases
-(Phase 5), trajectories (Phase 6), evaluators (Phase 7), replay (Phase 8), failure injection
-(Phase 9), policy and approvals (Phase 10), release gates and GitHub Checks (Phase 11), canary and
-rollback (Phase 12).
+Agent registry (Phase 3), datasets and suites (Phase 4), durable distributed execution with a
+transactional outbox and leases (Phase 5), trajectories (Phase 6), evaluators (Phase 7), replay
+(Phase 8), the broader failure-injection product workflow (Phase 9), policy and approvals
+(Phase 10), release gates and GitHub Checks (Phase 11), canary and rollback (Phase 12).
