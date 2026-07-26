@@ -7,6 +7,7 @@ import json
 from typing import Any, cast
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentrail_api.agents.schemas import CreateAgentVersionRequest
@@ -67,7 +68,13 @@ async def create_agent_definition(
         created_by=actor.user.id if actor.user else None,
     )
     session.add(agent)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise ConflictError(
+            "An agent with that name already exists.", details={"slug": slug}
+        ) from exc
 
     await record_audit(
         session,
@@ -121,7 +128,12 @@ async def principal_for_agent_version(
 
 
 async def get_agent_definition(
-    session: AsyncSession, principal: Principal, *, agent_id: str, project_id: str | None = None
+    session: AsyncSession,
+    principal: Principal,
+    *,
+    agent_id: str,
+    project_id: str | None = None,
+    lock_for_update: bool = False,
 ) -> AgentDefinition:
     authorize(principal, Permission.AGENT_READ, organisation_id=principal.organisation_id)
     clauses: list[Any] = [
@@ -130,11 +142,14 @@ async def get_agent_definition(
     ]
     if project_id is not None:
         clauses.append(AgentDefinition.project_id == project_id)
-    agent = await session.scalar(
+    statement = (
         select(AgentDefinition)
         .join(Project, Project.id == AgentDefinition.project_id)
         .where(*clauses)
     )
+    if lock_for_update:
+        statement = statement.with_for_update(of=AgentDefinition)
+    agent = await session.scalar(statement)
     if agent is None:
         raise ForbiddenError()
     return agent
@@ -149,7 +164,7 @@ async def create_agent_version(
     request: CreateAgentVersionRequest,
 ) -> AgentVersion:
     authorize(principal, Permission.AGENT_MANAGE, organisation_id=principal.organisation_id)
-    agent = await get_agent_definition(session, principal, agent_id=agent_id)
+    agent = await get_agent_definition(session, principal, agent_id=agent_id, lock_for_update=True)
     digest = version_content_digest(request)
 
     duplicate_digest = await session.scalar(
@@ -180,7 +195,13 @@ async def create_agent_version(
         created_by=actor.user.id if actor.user else None,
     )
     session.add(version)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise ConflictError(
+            "That agent version already exists.", details={"agent_id": agent_id}
+        ) from exc
 
     await record_audit(
         session,

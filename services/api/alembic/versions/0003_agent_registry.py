@@ -18,10 +18,10 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0003_agent_registry"
-down_revision: str | None = "0002_identity"
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+revision: str = "0003_agent_registry"  # lgtm[py/unused-global-variable]
+down_revision: str | None = "0002_identity"  # lgtm[py/unused-global-variable]
+branch_labels: str | Sequence[str] | None = None  # lgtm[py/unused-global-variable]
+depends_on: str | Sequence[str] | None = None  # lgtm[py/unused-global-variable]
 
 
 def upgrade() -> None:
