@@ -70,6 +70,13 @@ notifications, a human-escalation tool, reset/seed endpoints, fault-injection ho
 manifests with ground truth. All state is in process and resettable; nothing represents real
 production telemetry.
 
+## Agent Registry
+
+Agent definitions are stable logical identities scoped to a project. Agent versions are immutable
+snapshots containing graph spec, prompt bundle, model configuration, tool contracts, policy bundle,
+optional source commit and a canonical content digest. The API exposes create/list/read operations
+only; changing an agent means creating another version.
+
 ## State machine
 
 ```text
@@ -105,7 +112,7 @@ identifier plumbing exists now so that work is an addition rather than a retrofi
 
 ## Not built yet
 
-Agent registry (Phase 3), datasets and suites (Phase 4), durable distributed execution with a
-transactional outbox and leases (Phase 5), trajectories (Phase 6), evaluators (Phase 7), replay
-(Phase 8), the broader failure-injection product workflow (Phase 9), policy and approvals
-(Phase 10), release gates and GitHub Checks (Phase 11), canary and rollback (Phase 12).
+Datasets and suites (Phase 4), durable distributed execution with a transactional outbox and leases
+(Phase 5), trajectories (Phase 6), evaluators (Phase 7), replay (Phase 8), the broader
+failure-injection product workflow (Phase 9), policy and approvals (Phase 10), release gates and
+GitHub Checks (Phase 11), canary and rollback (Phase 12).

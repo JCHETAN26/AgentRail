@@ -38,6 +38,8 @@ describe('the OpenAPI document', () => {
 
   it('exposes the expected surface and nothing more', () => {
     expect(Object.keys(document.paths).sort()).toEqual([
+      '/api/v1/agent-versions/{version_id}',
+      '/api/v1/agents/{agent_id}/versions',
       '/api/v1/auth/dev/session',
       '/api/v1/auth/github/authorize',
       '/api/v1/auth/github/callback',
@@ -52,6 +54,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/organisations/{organisation_id}/audit-events',
       '/api/v1/organisations/{organisation_id}/members',
       '/api/v1/organisations/{organisation_id}/projects',
+      '/api/v1/projects/{project_id}/agents',
       '/api/v1/projects/{project_id}/jobs',
       '/healthz',
       '/readyz',
@@ -63,14 +66,19 @@ describe('the OpenAPI document', () => {
       (path) => path.startsWith('/api/v1/') && !path.startsWith('/api/v1/auth/'),
     );
 
-    // `/api/v1/jobs/{job_id}` is the one exception: the job's own project
-    // supplies the scope, and the handler authorises against it.
+    // These bare-id paths resolve scope through their owning project, and the
+    // handlers authorise against that organisation before returning data.
+    const scopedByLookup = new Set([
+      '/api/v1/agent-versions/{version_id}',
+      '/api/v1/agents/{agent_id}/versions',
+      '/api/v1/jobs/{job_id}',
+    ]);
     const unscoped = tenantPaths.filter(
       (path) =>
         !path.includes('{organisation_id}') &&
         !path.includes('{project_id}') &&
         path !== '/api/v1/organisations' &&
-        path !== '/api/v1/jobs/{job_id}',
+        !scopedByLookup.has(path),
     );
 
     expect(unscoped).toEqual([]);

@@ -172,8 +172,8 @@ Deliberate, and scheduled:
 - The CloudOps sandbox is synthetic and deterministic. Phase 2 has added tool contracts, synthetic
   services, metrics, logs, runbooks, fault hooks and 25 scenario manifests; the agent runtime that
   consumes them is still scheduled for later phases.
-- No agent registry, evaluation suites, trajectories, replay, policy engine, release gates or canary
-  deployment yet (Phases 3–12).
+- Agent definitions and immutable versions exist, but no evaluation suites, trajectories, replay,
+  policy engine, release gates or canary deployment yet (Phases 4–12).
 - Correlation and trace identifiers are propagated, but no spans are exported. The OpenTelemetry SDK
   and Collector pipeline are Phase 13.
 - Failed jobs are terminal: there is no retry budget or transactional outbox yet (Phase 5). A

@@ -6,6 +6,18 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 3: agent registry and immutable versions
+
+- Project-scoped agent definitions with stable slugs and tenant-aware create/list APIs.
+- Immutable agent versions with graph spec, prompt bundle, model configuration, tool contracts,
+  policy bundle, optional source commit and a canonical SHA-256 content digest.
+- Agent registry APIs:
+  `/api/v1/projects/{project_id}/agents`, `/api/v1/agents/{agent_id}/versions` and
+  `/api/v1/agent-versions/{version_id}`.
+- Registry audit events for created agents and versions.
+- Contract and integration tests for version numbering, duplicate-content rejection and
+  cross-tenant denial.
+
 ### Added — Phase 2: CloudOps sandbox and contracts
 
 - CloudOps sandbox tool contracts for all ten build-plan tools, including risk, side-effect class,

@@ -5,6 +5,7 @@ pure — no database, no HTTP — so it can be exhaustively tested and cannot dr
 per endpoint.
 """
 
+from agentrail_core.agents import AgentDefinition, AgentVersion
 from agentrail_core.identity.models import (
     ApiKey,
     AuditEvent,
@@ -35,6 +36,8 @@ from agentrail_core.identity.secrets import (
 
 __all__ = [
     "ROLE_PERMISSIONS",
+    "AgentDefinition",
+    "AgentVersion",
     "ApiKey",
     "AuditEvent",
     "AuthorisationError",

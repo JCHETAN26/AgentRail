@@ -37,6 +37,8 @@ class Permission(StrEnum):
     PROJECT_READ = "project:read"
     PROJECT_CREATE = "project:create"
     PROJECT_UPDATE = "project:update"
+    AGENT_READ = "agent:read"
+    AGENT_MANAGE = "agent:manage"
     JOB_READ = "job:read"
     JOB_CREATE = "job:create"
     AUDIT_READ = "audit:read"
@@ -47,6 +49,7 @@ _VIEWER: frozenset[Permission] = frozenset(
         Permission.ORGANISATION_READ,
         Permission.MEMBER_READ,
         Permission.PROJECT_READ,
+        Permission.AGENT_READ,
         Permission.JOB_READ,
     }
 )
@@ -60,6 +63,7 @@ _DEVELOPER: frozenset[Permission] = _REVIEWER | frozenset(
     {
         Permission.PROJECT_CREATE,
         Permission.PROJECT_UPDATE,
+        Permission.AGENT_MANAGE,
         Permission.JOB_CREATE,
         Permission.API_KEY_READ,
     }
