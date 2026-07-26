@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port ${AGENTRAIL_WEB_PORT:-3737}",
     "build": "next build",
-    "start": "next start --port 3000",
+    "start": "next start --port ${AGENTRAIL_WEB_PORT:-3737}",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

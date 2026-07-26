@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentrail_api.jobs.schemas import CreateJobRequest
 from agentrail_core.correlation import CorrelationContext
-from agentrail_core.errors import IdempotencyKeyReusedError, NotFoundError
+from agentrail_core.errors import ForbiddenError, IdempotencyKeyReusedError, NotFoundError
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.jobs import Job, JobState
 
@@ -35,23 +35,41 @@ def request_fingerprint(request: CreateJobRequest) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-async def get_job(session: AsyncSession, job_id: str) -> Job:
+async def get_job_unscoped(session: AsyncSession, job_id: str) -> Job:
+    """Load a job by identifier without a tenancy check.
+
+    The caller **must** immediately authorise against the returned
+    ``project_id``. This exists because the tenancy check needs the row in order
+    to know which organisation to check against; it is not a general-purpose
+    accessor. A missing job raises :class:`ForbiddenError`, identical to a job
+    belonging to another tenant, so the two are indistinguishable.
+    """
     job = await session.get(Job, job_id)
+    if job is None:
+        raise ForbiddenError()
+    return job
+
+
+async def get_job(session: AsyncSession, job_id: str, *, project_id: str) -> Job:
+    job = await session.scalar(select(Job).where(Job.id == job_id, Job.project_id == project_id))
     if job is None:
         raise NotFoundError("Job not found", details={"job_id": job_id})
     return job
 
 
 async def list_jobs(
-    session: AsyncSession, *, limit: int = 20, cursor: str | None = None
+    session: AsyncSession, *, project_id: str, limit: int = 20, cursor: str | None = None
 ) -> tuple[list[Job], str | None]:
-    """Return a page of jobs, newest first, using keyset pagination.
+    """Return a page of a project's jobs, newest first, using keyset pagination.
 
     Job identifiers are ULIDs, so the primary key is already in creation order
-    and no secondary sort column is needed.
+    and no secondary sort column is needed. The project filter is a required
+    keyword argument: an unscoped listing must not be expressible.
     """
     bounded = max(1, min(limit, MAX_PAGE_SIZE))
-    statement = select(Job).order_by(Job.id.desc()).limit(bounded + 1)
+    statement = (
+        select(Job).where(Job.project_id == project_id).order_by(Job.id.desc()).limit(bounded + 1)
+    )
     if cursor is not None:
         statement = statement.where(Job.id < cursor)
 
@@ -62,8 +80,17 @@ async def list_jobs(
     return rows, None
 
 
-async def _find_by_idempotency_key(session: AsyncSession, key: str) -> Job | None:
-    job: Job | None = await session.scalar(select(Job).where(Job.idempotency_key == key))
+async def _find_by_idempotency_key(
+    session: AsyncSession, key: str, *, project_id: str
+) -> Job | None:
+    """Idempotency keys are looked up within a project, never globally.
+
+    A global lookup would let one tenant observe another's key by guessing it,
+    and would make two tenants' identical keys collide.
+    """
+    job: Job | None = await session.scalar(
+        select(Job).where(Job.idempotency_key == key, Job.project_id == project_id)
+    )
     return job
 
 
@@ -72,6 +99,7 @@ async def create_job(
     request: CreateJobRequest,
     context: CorrelationContext,
     *,
+    project_id: str,
     idempotency_key: str | None = None,
 ) -> tuple[Job, bool]:
     """Create a job, or return the existing one for a replayed idempotency key.
@@ -83,12 +111,13 @@ async def create_job(
     fingerprint = request_fingerprint(request)
 
     if idempotency_key is not None:
-        existing = await _find_by_idempotency_key(session, idempotency_key)
+        existing = await _find_by_idempotency_key(session, idempotency_key, project_id=project_id)
         if existing is not None:
             return _assert_same_request(existing, fingerprint, idempotency_key), False
 
     job = Job(
         id=new_sortable_id(),
+        project_id=project_id,
         kind=request.kind.value,
         state=JobState.PENDING,
         idempotency_key=idempotency_key,
@@ -109,7 +138,7 @@ async def create_job(
         await session.rollback()
         if idempotency_key is None:
             raise
-        winner = await _find_by_idempotency_key(session, idempotency_key)
+        winner = await _find_by_idempotency_key(session, idempotency_key, project_id=project_id)
         if winner is None:  # pragma: no cover - only reachable on an unrelated conflict
             raise
         return _assert_same_request(winner, fingerprint, idempotency_key), False

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from worker_test_support import WORKER_ID, JobFactory
 
 from agentrail_cloudops_sandbox.app import SandboxSettings, create_app
+from agentrail_core.identity import Organisation, Project
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.jobs import TERMINAL_STATES, Job, JobState
 from agentrail_worker.runner import JobRunner
@@ -48,7 +49,29 @@ def runner(session_factory: async_sessionmaker[AsyncSession], sandbox: SandboxCl
 
 
 @pytest.fixture
-def make_job(session_factory: async_sessionmaker[AsyncSession]) -> JobFactory:
+async def project_id(session_factory: async_sessionmaker[AsyncSession]) -> str:
+    """An organisation and project for jobs to belong to.
+
+    The worker never performs an authorisation check — it executes work that the
+    API already authorised — but every job still needs a tenant, so the tests
+    create a real one rather than a placeholder identifier.
+    """
+    organisation = Organisation(id=new_sortable_id(), name="Worker Tests", slug="worker-tests")
+    project = Project(
+        id=new_sortable_id(),
+        organisation_id=organisation.id,
+        name="Default",
+        slug="default",
+    )
+    async with session_factory() as session:
+        session.add(organisation)
+        session.add(project)
+        await session.commit()
+    return project.id
+
+
+@pytest.fixture
+def make_job(session_factory: async_sessionmaker[AsyncSession], project_id: str) -> JobFactory:
     """Insert a job row directly, bypassing the API."""
 
     async def _make_job(
@@ -60,6 +83,7 @@ def make_job(session_factory: async_sessionmaker[AsyncSession]) -> JobFactory:
     ) -> str:
         job = Job(
             id=new_sortable_id(),
+            project_id=project_id,
             kind=kind,
             state=state,
             correlation_id="cid_test",

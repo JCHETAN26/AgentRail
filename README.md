@@ -17,7 +17,18 @@ The question AgentRail exists to answer:
 
 ## What works today
 
-A single deterministic vertical slice, end to end:
+**Sign in, create an organisation, and run a deterministic job in one of its projects.**
+
+Authentication is delegated and pluggable: local development, CI and the demo use a deterministic
+provider that needs no credentials at all, while deployed environments use GitHub OAuth. Sessions are
+opaque server-side rows revoked on sign-out; API keys for CI are stored only as hashes and bounded by
+both a role and optional scopes.
+
+Every tenant-owned row belongs to an organisation, and one function decides every access question —
+including that another tenant's resource returns `403`, never `404`, so identifiers cannot be
+enumerated.
+
+Underneath that, the deterministic vertical slice from Phase 0:
 
 ```text
 Web console  ──POST /api/v1/jobs──▶  Platform API  ──row──▶  PostgreSQL   (authoritative)
@@ -56,7 +67,7 @@ make migrate          # apply database migrations
 make verify           # formatting, lint, strict types, unit tests, contract drift
 ```
 
-Run the whole stack in containers and open the console at <http://localhost:3000>:
+Run the whole stack in containers and open the console at <http://localhost:3737>:
 
 ```bash
 make compose-up-apps  # sandbox, migrations, API and worker
@@ -72,13 +83,22 @@ make dev              # sandbox + API + worker + web, all in the foreground
 ### Verifying the path by hand
 
 ```bash
-curl -s -X POST localhost:8000/api/v1/jobs \
-  -H 'content-type: application/json' \
-  -H 'Idempotency-Key: demo-1' \
-  -d '{"message":"phase zero"}'
+# Sign in (deterministic provider — any email works, no password)
+curl -s -c cookies.txt -X POST localhost:8000/api/v1/auth/dev/session \
+  -H 'content-type: application/json' -d '{"email":"ada@example.com"}'
 
-curl -s localhost:8000/api/v1/jobs/<returned id>
+# Create an organisation; a default project comes with it
+ORG=$(curl -s -b cookies.txt -X POST localhost:8000/api/v1/organisations \
+  -H 'content-type: application/json' -d '{"name":"Ada Labs"}' | jq -r .id)
+PROJECT=$(curl -s -b cookies.txt localhost:8000/api/v1/organisations/$ORG/projects | jq -r .items[0].id)
+
+# Run a job in it
+curl -s -b cookies.txt -X POST localhost:8000/api/v1/projects/$PROJECT/jobs \
+  -H 'content-type: application/json' -H 'Idempotency-Key: demo-1' \
+  -d '{"message":"phase one"}'
 ```
+
+Without the cookie, every one of those calls returns `401`.
 
 Replaying the same idempotency key returns `200` with the original job rather than creating a
 second one. Replaying it with a _different_ body returns `409 idempotency_key_reused`.
@@ -117,7 +137,13 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
   `code` and a `correlation_id`. Stack traces never reach a client.
 - **Secrets never reach logs.** The JSON log formatter redacts any field whose key looks sensitive
   before serialisation.
-- **The demo needs no paid key.** The deterministic path is the default, not a fallback.
+- **The demo needs no paid key.** The deterministic path is the default, not a fallback — including
+  sign-in, which is why the entire test suite runs without an OAuth application configured.
+- **One function decides access.** `authorize(principal, permission, organisation_id=...)` is pure
+  and exhaustively tested. Tenancy is checked before permission, and both failures are
+  indistinguishable from the outside, so the API is not an enumeration oracle.
+- **Credentials are never stored in a replayable form.** Sessions and API keys are persisted only as
+  one-way digests, and comparison is constant-time.
 
 ---
 
@@ -139,8 +165,10 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
 
 Deliberate, and scheduled:
 
-- No authentication, organisations or tenancy yet — everything is single-tenant and unauthenticated
-  (Phase 1).
+- No rate limiting or quotas: an authenticated caller can still create unbounded work (Phase 14).
+- No PostgreSQL row-level security beneath the application-level tenant scoping (Phase 14).
+- Members must have signed in once before they can be added to an organisation — there are no
+  invitations yet (Phase 18).
 - The CloudOps sandbox executes one deterministic no-op task. The synthetic services, metrics, logs,
   runbooks and 16 incident families are Phase 2.
 - No agent registry, evaluation suites, trajectories, replay, policy engine, release gates or canary

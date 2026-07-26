@@ -205,6 +205,7 @@ jobs:
         run: pnpm --filter @agentrail/web e2e
         env:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+          AGENTRAIL_WEB_PORT: '3737'
 
       - name: Collect service logs on failure
         if: failure()

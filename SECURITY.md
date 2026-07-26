@@ -2,9 +2,9 @@
 
 ## Project status
 
-AgentRail is at **Phase 0** of an eighteen-phase build. It has **no authentication, no authorisation
-and no tenant isolation**. It is not fit to be exposed to a network beyond your own machine, and it
-should not process real data.
+AgentRail is at **Phase 1** of an eighteen-phase build. It now has authentication, roles and tenant
+isolation, but it still has **no rate limiting, no quotas and no row-level security**, and it has
+never been penetration tested. It should not process real data.
 
 The CloudOps sandbox is synthetic. It models no real infrastructure, and it performs no real
 remediation.
@@ -40,9 +40,11 @@ Only `main` is supported. There are no releases yet.
 
 The following are **known and documented** gaps, tracked as build phases rather than vulnerabilities:
 
-- No authentication or authorisation on any endpoint (Phase 1).
-- No tenant isolation (Phase 1; PostgreSQL RLS in Phase 14).
-- No rate limiting or quotas (Phase 1 / 14).
+- No rate limiting or quotas — an authenticated caller can create unbounded work (Phase 14).
+- No PostgreSQL row-level security beneath the application-level tenant scoping (Phase 14).
+- No automatic API-key rotation and no anomaly detection on key use (Phase 14).
+- Audit events are append-only in application code, but nothing at the database level enforces it,
+  and there is no retention policy yet (Phase 13).
 - No policy engine or human approval for tool execution (Phase 10).
 - No webhook signature verification, because no webhook endpoint exists (Phase 11).
 - GitHub Actions pinned to major versions rather than immutable SHAs (Phase 14).
@@ -54,11 +56,15 @@ and the test that covers it.
 
 - Secrets are never logged: the JSON formatter redacts sensitive keys before serialisation.
 - `.env.example` contains only values that are valid on a local machine and nowhere else.
-- API keys, when they arrive in Phase 1, will be stored only as hashes.
+- API keys are stored only as one-way digests, scoped to one organisation, bounded by a role and
+  optional scopes, and revocable immediately.
+- Session tokens are opaque, stored only as digests, `HttpOnly`, `SameSite=Lax`, `Secure` when
+  deployed, and revoked server-side on sign-out.
+- Passwordless development sign-in is structurally unavailable in deployed environments.
 - Container images run as an unprivileged user, asserted in CI.
 - Dependencies are installed from committed lockfiles with frozen installs, so the dependency set is
   reproducible, and Dependabot raises version updates weekly.
-- **The `dependency-review` gate is not yet in force.** It fails on every pull request because the
-  repository's dependency graph is disabled, so it is excluded from the required status checks — a
-  change introducing a moderate-or-higher advisory can currently merge. This is tracked as T12 in
+- **The `dependency-review` gate is not yet in force.** It warns and skips while the repository's
+  dependency graph is disabled, so it is excluded from the required status checks — a change
+  introducing a moderate-or-higher advisory can currently merge. This is tracked as T12 in
   `docs/security/THREAT_MODEL.md` and closes as soon as the dependency graph is enabled.

@@ -36,13 +36,44 @@ describe('the OpenAPI document', () => {
     expect(document.info.title).toBe('AgentRail API');
   });
 
-  it('exposes the Phase 0 surface and nothing more', () => {
+  it('exposes the expected surface and nothing more', () => {
     expect(Object.keys(document.paths).sort()).toEqual([
-      '/api/v1/jobs',
+      '/api/v1/auth/dev/session',
+      '/api/v1/auth/github/authorize',
+      '/api/v1/auth/github/callback',
+      '/api/v1/auth/me',
+      '/api/v1/auth/providers',
+      '/api/v1/auth/signout',
       '/api/v1/jobs/{job_id}',
+      '/api/v1/organisations',
+      '/api/v1/organisations/{organisation_id}',
+      '/api/v1/organisations/{organisation_id}/api-keys',
+      '/api/v1/organisations/{organisation_id}/api-keys/{key_id}',
+      '/api/v1/organisations/{organisation_id}/audit-events',
+      '/api/v1/organisations/{organisation_id}/members',
+      '/api/v1/organisations/{organisation_id}/projects',
+      '/api/v1/projects/{project_id}/jobs',
       '/healthz',
       '/readyz',
     ]);
+  });
+
+  it('keeps every tenant-owned path scoped to an organisation or project', () => {
+    const tenantPaths = Object.keys(document.paths).filter(
+      (path) => path.startsWith('/api/v1/') && !path.startsWith('/api/v1/auth/'),
+    );
+
+    // `/api/v1/jobs/{job_id}` is the one exception: the job's own project
+    // supplies the scope, and the handler authorises against it.
+    const unscoped = tenantPaths.filter(
+      (path) =>
+        !path.includes('{organisation_id}') &&
+        !path.includes('{project_id}') &&
+        path !== '/api/v1/organisations' &&
+        path !== '/api/v1/jobs/{job_id}',
+    );
+
+    expect(unscoped).toEqual([]);
   });
 
   it('gives every operation a stable operationId for client generation', () => {
@@ -55,13 +86,15 @@ describe('the OpenAPI document', () => {
   });
 
   it('documents the problem detail contract on every job error response', () => {
-    const jobErrors = ['404', '409', '422', '503'];
     const getJob = document.paths['/api/v1/jobs/{job_id}']?.get;
 
     expect(getJob).toBeDefined();
-    for (const status of jobErrors) {
+    // 401 for anonymous, 403 for another tenant's job — and deliberately no 404,
+    // which would confirm that an identifier exists.
+    for (const status of ['401', '403', '409', '422', '503']) {
       expect(Object.keys(getJob!.responses)).toContain(status);
     }
+    expect(Object.keys(getJob!.responses)).not.toContain('404');
   });
 
   it('requires a correlation id on every error body', () => {

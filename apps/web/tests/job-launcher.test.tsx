@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { JobLauncher } from '@/components/job-launcher';
 
+const PROJECT_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAP';
+
 function renderWithQueryClient(ui: ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -48,7 +50,7 @@ const COMPLETED_JOB = {
 
 describe('JobLauncher', () => {
   it('shows an empty state before anything is submitted', () => {
-    renderWithQueryClient(<JobLauncher />);
+    renderWithQueryClient(<JobLauncher projectId={PROJECT_ID} />);
 
     expect(screen.getByRole('status')).toHaveTextContent('No job yet');
     expect(screen.queryByTestId('job-result')).not.toBeInTheDocument();
@@ -59,7 +61,7 @@ describe('JobLauncher', () => {
       .mockResolvedValueOnce(jsonResponse(PENDING_JOB, 201))
       .mockResolvedValue(jsonResponse(COMPLETED_JOB));
 
-    renderWithQueryClient(<JobLauncher />);
+    renderWithQueryClient(<JobLauncher projectId={PROJECT_ID} />);
     await userEvent.click(screen.getByRole('button', { name: /submit job/i }));
 
     await waitFor(() => {
@@ -73,7 +75,7 @@ describe('JobLauncher', () => {
       .mockResolvedValueOnce(jsonResponse(PENDING_JOB, 201))
       .mockResolvedValue(jsonResponse(PENDING_JOB));
 
-    renderWithQueryClient(<JobLauncher />);
+    renderWithQueryClient(<JobLauncher projectId={PROJECT_ID} />);
     await userEvent.click(screen.getByRole('button', { name: /submit job/i }));
 
     await waitFor(() => {
@@ -96,7 +98,7 @@ describe('JobLauncher', () => {
         }),
       );
 
-    renderWithQueryClient(<JobLauncher />);
+    renderWithQueryClient(<JobLauncher projectId={PROJECT_ID} />);
     await userEvent.click(screen.getByRole('button', { name: /submit job/i }));
 
     const alert = await screen.findByRole('alert');
@@ -117,7 +119,7 @@ describe('JobLauncher', () => {
       ),
     );
 
-    renderWithQueryClient(<JobLauncher />);
+    renderWithQueryClient(<JobLauncher projectId={PROJECT_ID} />);
     await userEvent.click(screen.getByRole('button', { name: /submit job/i }));
 
     const notice = await screen.findByTestId('error-notice');
@@ -128,7 +130,7 @@ describe('JobLauncher', () => {
   it('tells the user when the API cannot be reached', async () => {
     vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'));
 
-    renderWithQueryClient(<JobLauncher />);
+    renderWithQueryClient(<JobLauncher projectId={PROJECT_ID} />);
     await userEvent.click(screen.getByRole('button', { name: /submit job/i }));
 
     expect(await screen.findByTestId('error-notice')).toHaveTextContent(
@@ -137,7 +139,7 @@ describe('JobLauncher', () => {
   });
 
   it('disables submission when the message is blank', async () => {
-    renderWithQueryClient(<JobLauncher />);
+    renderWithQueryClient(<JobLauncher projectId={PROJECT_ID} />);
     const input = screen.getByLabelText(/message/i);
 
     await userEvent.clear(input);
@@ -146,7 +148,7 @@ describe('JobLauncher', () => {
   });
 
   it('labels the input so it is reachable by assistive technology', () => {
-    renderWithQueryClient(<JobLauncher />);
+    renderWithQueryClient(<JobLauncher projectId={PROJECT_ID} />);
 
     expect(screen.getByLabelText(/message/i)).toBeInTheDocument();
   });

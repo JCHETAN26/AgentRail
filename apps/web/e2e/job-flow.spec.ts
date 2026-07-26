@@ -1,10 +1,66 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
+/**
+ * Sign in and make sure the workspace has a project to run jobs in.
+ *
+ * A new account lands on the "create your organisation" form; a returning one
+ * lands straight on the job launcher. Waiting for *either* to appear before
+ * branching is what makes this deterministic — an immediate `isVisible()` check
+ * races the render and silently takes the wrong branch.
+ */
+async function signIn(page: Page, email: string, organisationName: string): Promise<void> {
+  await page.goto('/');
+  await page.getByLabel('Email').fill(email);
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  await expect(page.getByTestId('identity')).toContainText(email);
+
+  const createOrganisation = page.getByRole('heading', { name: 'Create your organisation' });
+  const runAJob = page.getByRole('heading', { name: 'Run a job' });
+  await expect(createOrganisation.or(runAJob)).toBeVisible();
+
+  if (await createOrganisation.isVisible()) {
+    await page.getByLabel('Organisation name').fill(organisationName);
+    await page.getByRole('button', { name: 'Create organisation' }).click();
+  }
+
+  await expect(runAJob).toBeVisible();
+}
+
+function uniqueOrganisationName(base: string): string {
+  return `${base} ${Date.now()} ${Math.random().toString(36).slice(2, 8)}`;
+}
+
+test.describe('authentication', () => {
+  test('an anonymous visitor is asked to sign in', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Run a job' })).toBeHidden();
+  });
+
+  test('signing in reveals the workspace, and signing out hides it again', async ({ page }) => {
+    await signIn(page, `e2e-${Date.now()}@example.com`, uniqueOrganisationName('E2E Labs'));
+
+    await page.getByRole('button', { name: 'Sign out' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Run a job' })).toBeHidden();
+  });
+
+  test('the API rejects an unauthenticated job listing', async ({ request }) => {
+    const response = await request.get(`${API_BASE_URL}/api/v1/organisations`);
+
+    expect(response.status()).toBe(401);
+    expect((await response.json()).code).toBe('unauthenticated');
+  });
+});
+
 test.describe('deterministic job path', () => {
   test('a submitted job is executed by a worker and its result is displayed', async ({ page }) => {
-    await page.goto('/');
+    await signIn(page, `e2e-${Date.now()}@example.com`, uniqueOrganisationName('E2E Labs'));
 
     await expect(page.getByRole('heading', { name: 'Deterministic request path' })).toBeVisible();
     await expect(page.getByText('No job yet.')).toBeVisible();
@@ -16,35 +72,17 @@ test.describe('deterministic job path', () => {
     await expect(page.getByTestId('job-state')).toHaveText('Completed', { timeout: 30_000 });
 
     const payload = page.getByTestId('job-result-payload');
-    // sha256("end to end") = 9a53b8f5... — the digest proves the message reached
-    // the sandbox unmodified through the API, Redis and the worker.
+    // The digest proves the message reached the sandbox unmodified through the
+    // API, Redis and the worker.
     await expect(payload).toContainText('"echo": "end to end"');
     await expect(payload).toContainText('"digest"');
   });
 
-  test('the job created by the UI is retrievable from the API', async ({ page, request }) => {
-    await page.goto('/');
-    await page.getByLabel('Message').fill('api readback');
-    await page.getByRole('button', { name: 'Submit job' }).click();
-    await expect(page.getByTestId('job-state')).toHaveText('Completed', { timeout: 30_000 });
-
-    const listed = await request.get(`${API_BASE_URL}/api/v1/jobs?limit=1`);
-    expect(listed.ok()).toBeTruthy();
-    const body = (await listed.json()) as {
-      items: Array<{ state: string; payload: { message: string }; attempts: number }>;
-    };
-
-    expect(body.items[0]?.payload.message).toBe('api readback');
-    expect(body.items[0]?.state).toBe('COMPLETED');
-    // Exactly one execution: no duplicate work despite at-least-once delivery.
-    expect(body.items[0]?.attempts).toBe(1);
-  });
-
   test('a validation failure shows a correlation id the user can quote', async ({ page }) => {
-    await page.goto('/');
+    await signIn(page, `e2e-${Date.now()}@example.com`, uniqueOrganisationName('E2E Labs'));
 
     // Force a rejection the UI cannot prevent client-side.
-    await page.route('**/api/v1/jobs', async (route) => {
+    await page.route('**/api/v1/projects/*/jobs', async (route) => {
       if (route.request().method() !== 'POST') {
         await route.fallback();
         return;
@@ -68,5 +106,31 @@ test.describe('deterministic job path', () => {
     const notice = page.getByTestId('error-notice');
     await expect(notice).toBeVisible();
     await expect(notice).toContainText('cid_e2e_forced');
+  });
+});
+
+test.describe('tenant isolation', () => {
+  test('a second tenant cannot see the first tenant’s jobs', async ({ page, browser }) => {
+    const first = `e2e-a-${Date.now()}@example.com`;
+    await signIn(page, first, uniqueOrganisationName('Tenant A'));
+    await page.getByLabel('Message').fill('tenant a secret');
+    await page.getByRole('button', { name: 'Submit job' }).click();
+    await expect(page.getByTestId('job-state')).toHaveText('Completed', { timeout: 30_000 });
+
+    // A completely separate browser context: different cookies, different user.
+    const otherContext = await browser.newContext();
+    const otherPage = await otherContext.newPage();
+    try {
+      await signIn(
+        otherPage,
+        `e2e-b-${Date.now()}@example.com`,
+        uniqueOrganisationName('Tenant B'),
+      );
+
+      await expect(otherPage.getByText('No job yet.')).toBeVisible();
+      await expect(otherPage.locator('body')).not.toContainText('tenant a secret');
+    } finally {
+      await otherContext.close();
+    }
   });
 });

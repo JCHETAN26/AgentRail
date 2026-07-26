@@ -83,7 +83,14 @@ async def db_engine(
     engine = create_database_engine(database_settings)
     try:
         async with engine.begin() as connection:
-            await connection.execute(text("TRUNCATE TABLE jobs"))
+            # One statement so foreign keys never block the reset, and CASCADE so
+            # a table added in a later phase does not silently survive.
+            await connection.execute(
+                text(
+                    "TRUNCATE TABLE jobs, audit_events, api_keys, sessions, "
+                    "memberships, projects, organisations, users CASCADE"
+                )
+            )
     except SQLAlchemyError as exc:
         await engine.dispose()
         _unavailable("PostgreSQL", f"{type(exc).__name__}")

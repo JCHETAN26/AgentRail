@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiError, createJob, getJob } from '@/lib/api';
 
+const PROJECT_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAP';
+
 function jsonResponse(body: unknown, init: { status?: number; headers?: HeadersInit } = {}) {
   return new Response(JSON.stringify(body), {
     status: init.status ?? 200,
@@ -14,11 +16,11 @@ describe('createJob', () => {
     const job = { id: '01ARZ3NDEKTSV4RRFFQ69G5FAV', state: 'PENDING' };
     vi.mocked(fetch).mockResolvedValue(jsonResponse(job, { status: 201 }));
 
-    const result = await createJob({ kind: 'noop', message: 'hello' });
+    const result = await createJob(PROJECT_ID, { kind: 'noop', message: 'hello' });
 
     expect(result).toEqual(job);
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
-    expect(url).toBe('http://localhost:8000/api/v1/jobs');
+    expect(url).toBe(`http://localhost:8000/api/v1/projects/${PROJECT_ID}/jobs`);
     expect(init?.method).toBe('POST');
     expect(JSON.parse(String(init?.body))).toEqual({ kind: 'noop', message: 'hello' });
   });
@@ -26,7 +28,7 @@ describe('createJob', () => {
   it('sends an idempotency key when one is supplied', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse({}, { status: 201 }));
 
-    await createJob({ kind: 'noop', message: 'hello' }, { idempotencyKey: 'key-1' });
+    await createJob(PROJECT_ID, { kind: 'noop', message: 'hello' }, { idempotencyKey: 'key-1' });
 
     const headers = vi.mocked(fetch).mock.calls[0]![1]?.headers as Record<string, string>;
     expect(headers['Idempotency-Key']).toBe('key-1');
@@ -35,7 +37,7 @@ describe('createJob', () => {
   it('omits the idempotency header when none is supplied', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse({}, { status: 201 }));
 
-    await createJob({ kind: 'noop', message: 'hello' });
+    await createJob(PROJECT_ID, { kind: 'noop', message: 'hello' });
 
     const headers = vi.mocked(fetch).mock.calls[0]![1]?.headers as Record<string, string>;
     expect(headers).not.toHaveProperty('Idempotency-Key');

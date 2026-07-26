@@ -20,11 +20,12 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from agentrail_api import __version__
-from agentrail_api.routers import health, jobs
+from agentrail_api.routers import auth, health, jobs, organisations
 from agentrail_api.settings import ApiSettings, api_settings
 from agentrail_core.correlation import CorrelationContext, new_correlation_id
 from agentrail_core.db import create_database_engine, create_session_factory
-from agentrail_core.errors import ErrorCode, PlatformError, ProblemDetail
+from agentrail_core.errors import ErrorCode, ForbiddenError, PlatformError, ProblemDetail
+from agentrail_core.identity import AuthorisationError
 from agentrail_core.logging import configure_logging, get_logger
 from agentrail_core.middleware import BodyTooLarge, CorrelationMiddleware, MaxBodySizeMiddleware
 from agentrail_core.queue import create_redis_client
@@ -113,7 +114,12 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
             Middleware(
                 CORSMiddleware,
                 allow_origins=list(resolved.cors_allow_origins),
-                allow_methods=["GET", "POST", "OPTIONS"],
+                # Required for the browser to send the HttpOnly session cookie
+                # cross-origin. Safe only because the origin list is explicit —
+                # credentialed CORS with a wildcard origin is forbidden, and the
+                # settings type makes a wildcard unrepresentable.
+                allow_credentials=True,
+                allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
                 allow_headers=[
                     "content-type",
                     "idempotency-key",
@@ -130,8 +136,26 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     app.state.settings = resolved
 
     app.include_router(health.router)
+    app.include_router(auth.router)
+    app.include_router(organisations.router)
     app.include_router(jobs.router)
     _use_route_names_as_operation_ids(app)
+
+    @app.exception_handler(AuthorisationError)
+    async def handle_authorisation_error(request: Request, exc: AuthorisationError) -> JSONResponse:
+        """Every denial looks identical from the outside.
+
+        The permission that was missing is logged, never returned — telling a
+        caller *why* they were refused lets them map another tenant's resources.
+        """
+        logger.warning(
+            "authorisation_denied",
+            extra={"permission": exc.permission.value, "organisation_id": exc.organisation_id},
+        )
+        forbidden = ForbiddenError()
+        return _problem_response(
+            forbidden.status_code, forbidden.to_problem(_correlation_id_of(request))
+        )
 
     @app.exception_handler(PlatformError)
     async def handle_platform_error(request: Request, exc: PlatformError) -> JSONResponse:

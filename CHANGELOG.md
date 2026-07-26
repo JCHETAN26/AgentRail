@@ -6,6 +6,57 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 1: authentication, organisations and tenancy
+
+**Identity**
+
+- Delegated sign-in behind one provider protocol: a deterministic development provider that needs no
+  credentials and no network (used by local development, CI and the demo) and GitHub OAuth with
+  `state` verification for deployed environments. The development provider is structurally
+  unavailable once deployed, and a deployed environment without OAuth credentials refuses to start.
+- Opaque server-side sessions: 256-bit tokens persisted only as SHA-256 digests, delivered in an
+  `HttpOnly`, `SameSite=Lax` cookie that is `Secure` when deployed, and revoked on sign-out.
+- Scoped API keys of the form `ar_<key_id>_<secret>`, stored only as digests and compared in constant
+  time. A key is bounded by both a role and optional scopes, is revocable, may expire, and its token
+  is returned exactly once.
+
+**Tenancy and authorisation**
+
+- Organisations, memberships and projects, with five roles forming a strict capability ladder.
+- One central `authorize()` function, pure and exhaustively unit-tested, used by every route. Tenancy
+  is checked before permission and both failures are indistinguishable, so another tenant's resource
+  returns `403` and never `404`.
+- Append-only audit events with redacted context and the originating correlation id.
+
+**API**
+
+- `/api/v1/auth/*` for sign-in, sign-out and the current caller; `/api/v1/organisations/*` for
+  organisations, members, projects, API keys and audit events.
+
+**Console**
+
+- Sign-in, tenant context with an organisation picker, first-organisation onboarding, sign-out, and
+  complete signed-out, loading, empty and permission-denied states.
+
+### Changed
+
+- **Breaking:** jobs moved from `/api/v1/jobs` to `/api/v1/projects/{project_id}/jobs`. There is no
+  unscoped job listing, and `GET /api/v1/jobs/{job_id}` now authorises against the job's project.
+- **Breaking:** idempotency keys are unique per project rather than globally, so two tenants may use
+  the same key without colliding — and without one being able to detect the other's use.
+- Every `/api/v1` endpoint except sign-in now requires a credential.
+- CORS sends credentials, which makes the explicit origin allowlist load-bearing.
+- The console moved to port **3100**. Next.js's default 3000 collided with unrelated local projects,
+  and Playwright's `reuseExistingServer` silently ran the entire end-to-end suite against one.
+
+### Security
+
+- Threat model expanded to 27 entries. T13 (unauthenticated access), T14 (cross-tenant access) and
+  T10 (cross-origin access) close; T21–T27 are added for session theft, sign-out survival, key
+  leakage, privilege escalation, development sign-in reaching production, OAuth callback forgery and
+  audit-log integrity. T15 (denial of service) remains **not mitigated** — there is still no rate
+  limiting.
+
 ### Added — post-Phase-0 housekeeping
 
 - MIT licence.

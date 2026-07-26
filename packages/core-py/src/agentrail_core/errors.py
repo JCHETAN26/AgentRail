@@ -18,6 +18,8 @@ class ErrorCode(StrEnum):
     """Stable error codes. Values are part of the public API contract."""
 
     VALIDATION_FAILED = "validation_failed"
+    UNAUTHENTICATED = "unauthenticated"
+    FORBIDDEN = "forbidden"
     NOT_FOUND = "not_found"
     CONFLICT = "conflict"
     IDEMPOTENCY_KEY_REUSED = "idempotency_key_reused"
@@ -56,6 +58,27 @@ class PlatformError(Exception):
             correlation_id=correlation_id,
             details=self.details,
         )
+
+
+class UnauthenticatedError(PlatformError):
+    """No usable credential was presented."""
+
+    code = ErrorCode.UNAUTHENTICATED
+    status_code = 401
+
+
+class ForbiddenError(PlatformError):
+    """A valid credential that is not permitted to do this.
+
+    Carries no detail about which permission was missing or whether the target
+    exists — that would let a caller map another tenant's resources.
+    """
+
+    code = ErrorCode.FORBIDDEN
+    status_code = 403
+
+    def __init__(self) -> None:
+        super().__init__("You do not have access to this resource.")
 
 
 class NotFoundError(PlatformError):
