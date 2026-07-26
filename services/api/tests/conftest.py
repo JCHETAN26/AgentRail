@@ -5,16 +5,14 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 import redis.asyncio as redis
+from api_test_support import UNREACHABLE, Tenant, provision_tenant
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from agentrail_api.app import attach_infrastructure, create_app
 from agentrail_api.settings import ApiSettings
+from agentrail_core.identity import Role
 from agentrail_core.settings import QueueSettings
-
-#: Port 1 is reserved and never has a listener, so connections fail immediately
-#: rather than hanging or — worse — reaching a developer's running stack.
-UNREACHABLE = 1
 
 
 @pytest.fixture
@@ -64,7 +62,48 @@ def integration_app(
 
 
 @pytest.fixture
-async def client(integration_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+async def anonymous_client(integration_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+    """A real client that has never signed in."""
     transport = httpx.ASGITransport(app=integration_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://api") as http_client:
         yield http_client
+
+
+@pytest.fixture
+async def tenant(integration_app: FastAPI) -> AsyncIterator[Tenant]:
+    provisioned = await provision_tenant(integration_app, "ada@example.com", "Ada Labs")
+    try:
+        yield provisioned
+    finally:
+        await provisioned.client.aclose()
+
+
+@pytest.fixture
+async def other_tenant(integration_app: FastAPI) -> AsyncIterator[Tenant]:
+    """A completely separate organisation, for isolation tests."""
+    provisioned = await provision_tenant(integration_app, "grace@example.com", "Grace Systems")
+    try:
+        yield provisioned
+    finally:
+        await provisioned.client.aclose()
+
+
+@pytest.fixture
+async def api_key_client(
+    integration_app: FastAPI, tenant: Tenant
+) -> AsyncIterator[httpx.AsyncClient]:
+    """A service-account client authenticating with a real API key."""
+    created = await tenant.client.post(
+        f"/api/v1/organisations/{tenant.organisation_id}/api-keys",
+        json={"name": "ci", "role": Role.DEVELOPER.value},
+    )
+    assert created.status_code == 201, created.text
+    token = created.json()["token"]
+
+    transport = httpx.ASGITransport(app=integration_app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://api",
+        headers={"authorization": f"Bearer {token}"},
+    ) as client:
+        yield client

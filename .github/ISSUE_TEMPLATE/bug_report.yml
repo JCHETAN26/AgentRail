@@ -28,7 +28,7 @@ body:
       label: Steps to reproduce
       placeholder: |
         1. make compose-up-apps
-        2. Open http://localhost:3000
+        2. Open http://localhost:3737
         3. ...
     validations:
       required: true

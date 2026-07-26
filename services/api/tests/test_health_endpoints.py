@@ -25,8 +25,11 @@ class TestLiveness:
 
 class TestReadiness:
     @pytest.mark.integration
-    async def test_readyz_reports_every_dependency_up(self, client: httpx.AsyncClient) -> None:
-        response = await client.get("/readyz")
+    async def test_readyz_reports_every_dependency_up(
+        self, anonymous_client: httpx.AsyncClient
+    ) -> None:
+        """Readiness is public: an orchestrator has no credential to present."""
+        response = await anonymous_client.get("/readyz")
 
         assert response.status_code == 200
         body = response.json()

@@ -14,7 +14,7 @@ export type Schemas = components['schemas'];
 
 /** A job as returned by the API. */
 export type Job = Schemas['JobResponse'];
-/** Request body for `POST /api/v1/jobs`. */
+/** Request body for `POST /api/v1/projects/{project_id}/jobs`. */
 export type CreateJobRequest = Schemas['CreateJobRequest'];
 export type JobListResponse = Schemas['JobListResponse'];
 export type JobState = Schemas['JobState'];
@@ -25,12 +25,39 @@ export type ErrorCode = Schemas['ErrorCode'];
 export type HealthResponse = Schemas['HealthResponse'];
 export type ReadinessResponse = Schemas['ReadinessResponse'];
 
+/** Identity and tenancy. */
+export type User = Schemas['UserResponse'];
+export type Organisation = Schemas['OrganisationResponse'];
+export type OrganisationMembership = Schemas['OrganisationMembershipResponse'];
+export type Me = Schemas['MeResponse'];
+export type Project = Schemas['ProjectResponse'];
+export type Member = Schemas['MemberResponse'];
+export type ApiKey = Schemas['ApiKeyResponse'];
+export type CreatedApiKey = Schemas['CreatedApiKeyResponse'];
+export type AuditEvent = Schemas['AuditEventResponse'];
+export type Role = Schemas['Role'];
+export type Permission = Schemas['Permission'];
+export type AuthProviderInfo = Schemas['AuthProviderInfo'];
+
 /** Terminal job states. A job in one of these will never change again. */
 export const TERMINAL_JOB_STATES = ['COMPLETED', 'FAILED'] as const satisfies readonly JobState[];
 
 export function isTerminalJobState(state: JobState): boolean {
   return (TERMINAL_JOB_STATES as readonly JobState[]).includes(state);
 }
+
+/**
+ * Roles in increasing order of capability. Useful for rendering a role picker
+ * and for deciding what to show, though the API is always the authority — the
+ * console never makes an access decision the server has not already made.
+ */
+export const ROLES_BY_CAPABILITY = [
+  'viewer',
+  'reviewer',
+  'developer',
+  'admin',
+  'owner',
+] as const satisfies readonly Role[];
 
 /** Header name carrying the correlation id on every request and response. */
 export const CORRELATION_HEADER = 'x-correlation-id';

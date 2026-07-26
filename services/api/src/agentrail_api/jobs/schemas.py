@@ -41,6 +41,7 @@ class JobResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(description="Sortable ULID identifying the job.")
+    project_id: str = Field(description="The project this job belongs to.")
     kind: JobKind
     state: JobState
     correlation_id: str = Field(description="Quote this identifier when reporting a failure.")

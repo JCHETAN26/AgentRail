@@ -115,6 +115,16 @@ re-run with `AGENTRAIL_REQUIRE_INTEGRATION=1` to see the reason instead of a ski
 
 **Port already in use.** Another project holds the port. Override it in `.env`.
 
+**End-to-end tests pass but assert on the wrong application.** Playwright reuses an already-running
+server when one is listening. The console therefore runs on **3737**, not Next.js's default 3000 —
+that default once caused the whole suite to run against an unrelated project's dev server and fail
+with a confusing "cannot find the Email field".
+
+**Integration tests fail in strange ways while the app stack is running.** `make integration` and
+`make compose-up-apps` share one PostgreSQL database, and the test fixtures truncate every table
+between tests. Run one or the other, not both. CI keeps them in separate jobs, so this only bites
+locally.
+
 ## Resetting
 
 ```bash

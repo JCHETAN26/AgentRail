@@ -10,13 +10,13 @@ import { JobStateBadge } from '@/components/job-state-badge';
 const POLL_INTERVAL_MS = 500;
 const MAX_MESSAGE_LENGTH = 500;
 
-export function JobLauncher() {
+export function JobLauncher({ projectId }: { projectId: string }) {
   const inputId = useId();
   const [message, setMessage] = useState('hello from the console');
   const [jobId, setJobId] = useState<string | null>(null);
 
   const submission = useMutation({
-    mutationFn: (value: string) => createJob({ kind: 'noop', message: value }),
+    mutationFn: (value: string) => createJob(projectId, { kind: 'noop', message: value }),
     onSuccess: (job: Job) => setJobId(job.id),
   });
 

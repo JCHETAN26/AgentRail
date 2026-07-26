@@ -123,7 +123,7 @@ services:
       AGENTRAIL_ENVIRONMENT: local
       AGENTRAIL_DATABASE_URL: postgresql+psycopg://agentrail:agentrail_local_dev@postgres:5432/agentrail
       AGENTRAIL_REDIS_URL: redis://redis:6379/0
-      AGENTRAIL_CORS_ALLOW_ORIGINS: '["http://localhost:3000"]'
+      AGENTRAIL_CORS_ALLOW_ORIGINS: '["http://localhost:3737"]'
     ports:
       - '${AGENTRAIL_API_PORT:-8000}:8000'
     depends_on:

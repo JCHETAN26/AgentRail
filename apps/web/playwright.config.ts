@@ -3,12 +3,22 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * End-to-end configuration.
  *
+ * The web app runs on 3737, not Next.js's default 3000, and Playwright always
+ * starts its own server rather than reusing one.
+ *
+ * Both of those are scar tissue. `reuseExistingServer: true` attaches to
+ * whatever is already listening — which, on a machine running another project,
+ * meant the entire suite ran against an unrelated application and failed with a
+ * baffling "cannot find the Email field". Choosing a rarer port reduces the
+ * chance of a collision; refusing to reuse is what makes a collision *loud*
+ * instead of silently wrong.
+ *
  * These specs drive a real browser against a running stack (`make compose-up`
  * plus the API, worker and sandbox). They assert the resulting state, not that
  * a process started.
  */
 const externalBaseURL = process.env.AGENTRAIL_WEB_BASE_URL;
-const baseURL = externalBaseURL ?? 'http://localhost:3000';
+const baseURL = externalBaseURL ?? `http://localhost:${process.env.AGENTRAIL_WEB_PORT ?? '3737'}`;
 
 /**
  * When AGENTRAIL_WEB_BASE_URL is set the web app is already running (Compose,
@@ -22,7 +32,8 @@ const webServer = externalBaseURL
         command: 'pnpm start',
         url: baseURL,
         timeout: 120_000,
-        reuseExistingServer: !process.env.CI,
+        // Never adopt a stranger's server. If the port is taken, fail loudly.
+        reuseExistingServer: false,
       },
     };
 
