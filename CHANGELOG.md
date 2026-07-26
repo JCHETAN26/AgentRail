@@ -6,6 +6,22 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 2: CloudOps sandbox and contracts
+
+- CloudOps sandbox tool contracts for all ten build-plan tools, including risk, side-effect class,
+  approval requirement and idempotency-key requirement metadata.
+- Synthetic service health, metrics, logs, dependency graphs and runbooks for the deterministic
+  reference workload.
+- Idempotent side-effecting sandbox tools for restart, scale, incident creation and on-call
+  notification. Reusing an idempotency key returns the original result and marks the call as a
+  replay.
+- Reset and seed endpoints for deterministic scenario setup.
+- Fault-injection hooks for latency, timeout, HTTP 500, malformed, stale, rate limit and unavailable
+  responses.
+- Twenty-five scenario manifests covering the 16 incident families from the build plan, each with
+  expected diagnosis, allowed and forbidden tools, expected arguments, remediation and approval
+  flags, evidence, budgets and final disposition.
+
 ### Added — Phase 1: authentication, organisations and tenancy
 
 **Identity**

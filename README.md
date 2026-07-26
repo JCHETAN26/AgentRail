@@ -169,8 +169,9 @@ Deliberate, and scheduled:
 - No PostgreSQL row-level security beneath the application-level tenant scoping (Phase 14).
 - Members must have signed in once before they can be added to an organisation — there are no
   invitations yet (Phase 18).
-- The CloudOps sandbox executes one deterministic no-op task. The synthetic services, metrics, logs,
-  runbooks and 16 incident families are Phase 2.
+- The CloudOps sandbox is synthetic and deterministic. Phase 2 has added tool contracts, synthetic
+  services, metrics, logs, runbooks, fault hooks and 25 scenario manifests; the agent runtime that
+  consumes them is still scheduled for later phases.
 - No agent registry, evaluation suites, trajectories, replay, policy engine, release gates or canary
   deployment yet (Phases 3–12).
 - Correlation and trace identifiers are propagated, but no spans are exported. The OpenTelemetry SDK
