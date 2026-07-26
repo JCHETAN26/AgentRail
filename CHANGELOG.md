@@ -6,6 +6,19 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 4: dataset ingestion and suite builder
+
+- Project-scoped datasets with stable slugs and tenant-aware create/list APIs.
+- Immutable dataset versions for JSONL and CSV uploads, with content digests, storage URIs,
+  validation reports, record schema metadata, item counts and partition counts.
+- Actionable rejection reports for malformed dataset input, including line/record locations and
+  missing-field details.
+- Evaluation suites that bind a dataset version to evaluator configuration, thresholds, fault
+  profiles and a preview summary.
+- Freeze endpoint for suites; repeated freezes are idempotent and preserve the original timestamp.
+- Contract, parser and integration tests for validation, duplicate-content rejection, cross-tenant
+  denial and suite freezing.
+
 ### Added — Phase 3: agent registry and immutable versions
 
 - Project-scoped agent definitions with stable slugs and tenant-aware create/list APIs.

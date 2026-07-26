@@ -46,6 +46,9 @@ describe('the OpenAPI document', () => {
       '/api/v1/auth/me',
       '/api/v1/auth/providers',
       '/api/v1/auth/signout',
+      '/api/v1/dataset-versions/{version_id}/validation',
+      '/api/v1/datasets/{dataset_id}/versions',
+      '/api/v1/evaluation-suites/{suite_id}/freeze',
       '/api/v1/jobs/{job_id}',
       '/api/v1/organisations',
       '/api/v1/organisations/{organisation_id}',
@@ -55,6 +58,8 @@ describe('the OpenAPI document', () => {
       '/api/v1/organisations/{organisation_id}/members',
       '/api/v1/organisations/{organisation_id}/projects',
       '/api/v1/projects/{project_id}/agents',
+      '/api/v1/projects/{project_id}/datasets',
+      '/api/v1/projects/{project_id}/evaluation-suites',
       '/api/v1/projects/{project_id}/jobs',
       '/healthz',
       '/readyz',
@@ -71,6 +76,9 @@ describe('the OpenAPI document', () => {
     const scopedByLookup = new Set([
       '/api/v1/agent-versions/{version_id}',
       '/api/v1/agents/{agent_id}/versions',
+      '/api/v1/dataset-versions/{version_id}/validation',
+      '/api/v1/datasets/{dataset_id}/versions',
+      '/api/v1/evaluation-suites/{suite_id}/freeze',
       '/api/v1/jobs/{job_id}',
     ]);
     const unscoped = tenantPaths.filter(

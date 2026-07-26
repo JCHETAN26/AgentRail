@@ -47,6 +47,16 @@ export type AgentVersion = Schemas['AgentVersionResponse'];
 export type AgentVersionListResponse = Schemas['AgentVersionListResponse'];
 export type CreateAgentVersionRequest = Schemas['CreateAgentVersionRequest'];
 
+/** Dataset ingestion and evaluation suites. */
+export type Dataset = Schemas['DatasetResponse'];
+export type DatasetListResponse = Schemas['DatasetListResponse'];
+export type CreateDatasetRequest = Schemas['CreateDatasetRequest'];
+export type DatasetVersion = Schemas['DatasetVersionResponse'];
+export type CreateDatasetVersionRequest = Schemas['CreateDatasetVersionRequest'];
+export type DatasetValidation = Schemas['DatasetValidationResponse'];
+export type EvaluationSuite = Schemas['EvaluationSuiteResponse'];
+export type CreateEvaluationSuiteRequest = Schemas['CreateEvaluationSuiteRequest'];
+
 /** Terminal job states. A job in one of these will never change again. */
 export const TERMINAL_JOB_STATES = ['COMPLETED', 'FAILED'] as const satisfies readonly JobState[];
 

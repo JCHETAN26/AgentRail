@@ -13,6 +13,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # Importing the models registers them on ``Base.metadata`` for autogenerate.
+import agentrail_core.datasets
 import agentrail_core.jobs.models  # noqa: F401
 from agentrail_api.settings import ApiSettings
 from agentrail_core.db import Base

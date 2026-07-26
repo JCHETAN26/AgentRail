@@ -8,16 +8,18 @@ The question AgentRail exists to answer:
 > How can a team prove that an agent change is safer, more reliable and more useful **before**
 > exposing it to users?
 
-> [!NOTE] > **Status: Phase 0 of 18.** The repository currently contains the monorepo foundation and one
-> complete deterministic request path. Agent registry, evaluation, replay, policy, release gates
-> and canary deployment are not built yet. Nothing in this README describes a capability that
-> does not exist — see [Known limitations](#known-limitations).
+> [!NOTE] > **Status: Phase 4 of 18 is in progress.** The repository has the deterministic request
+> path, authentication and tenancy, the CloudOps sandbox, the agent registry, and the first dataset
+> and suite-builder APIs. Execution, trajectory capture, evaluators, replay, policy, release gates
+> and canary deployment are not built yet. Nothing in this README describes a capability that does
+> not exist — see [Known limitations](#known-limitations).
 
 ---
 
 ## What works today
 
-**Sign in, create an organisation, and run a deterministic job in one of its projects.**
+**Sign in, create an organisation, run a deterministic job, register agent versions, and build
+validated dataset/suite records inside one of its projects.**
 
 Authentication is delegated and pluggable: local development, CI and the demo use a deterministic
 provider that needs no credentials at all, while deployed environments use GitHub OAuth. Sessions are
@@ -172,8 +174,9 @@ Deliberate, and scheduled:
 - The CloudOps sandbox is synthetic and deterministic. Phase 2 has added tool contracts, synthetic
   services, metrics, logs, runbooks, fault hooks and 25 scenario manifests; the agent runtime that
   consumes them is still scheduled for later phases.
-- Agent definitions and immutable versions exist, but no evaluation suites, trajectories, replay,
-  policy engine, release gates or canary deployment yet (Phases 4–12).
+- Agent definitions, immutable agent versions, dataset versions and frozen suite records exist, but
+  no distributed evaluation execution, trajectories, replay, policy engine, release gates or canary
+  deployment yet (Phases 5–12).
 - Correlation and trace identifiers are propagated, but no spans are exported. The OpenTelemetry SDK
   and Collector pipeline are Phase 13.
 - Failed jobs are terminal: there is no retry budget or transactional outbox yet (Phase 5). A

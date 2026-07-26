@@ -1,6 +1,6 @@
 # Architecture overview
 
-Scope: the system as it exists during Phase 2. Components scheduled for later phases are named where
+Scope: the system as it exists during Phase 4. Components scheduled for later phases are named where
 a current decision was made to accommodate them, and are marked as not built.
 
 ## Services
@@ -77,6 +77,14 @@ snapshots containing graph spec, prompt bundle, model configuration, tool contra
 optional source commit and a canonical content digest. The API exposes create/list/read operations
 only; changing an agent means creating another version.
 
+## Datasets and suites
+
+Datasets are stable project-scoped containers. Dataset versions are immutable records created from
+JSONL or CSV uploads after validation. Each version stores a content digest, storage URI, schema
+metadata, validation report, item count and partition counts. Evaluation suites bind one dataset
+version to evaluator configuration, thresholds and fault profiles, then can be frozen by setting a
+single timestamp. Phase 5+ execution will consume these records; Phase 4 does not run evaluations.
+
 ## State machine
 
 ```text
@@ -96,8 +104,9 @@ clause of the write itself, which is what actually resolves a race between two w
   connection so a pathological query cannot pin a worker or an API request.
 - **Redis** — task delivery only, plus (later) leases, short-lived rate limits and ephemeral cache.
   Never authoritative.
-- **MinIO** — S3-compatible object storage. Provisioned in Compose for dataset and report storage in
-  Phase 4; not yet used by any service.
+- **MinIO** — S3-compatible object storage. Provisioned in Compose for dataset and report storage.
+  Phase 4 records deterministic `s3://agentrail-datasets/...` storage URIs; a concrete object client
+  remains deployment work.
 
 ## Observability
 
@@ -112,7 +121,7 @@ identifier plumbing exists now so that work is an addition rather than a retrofi
 
 ## Not built yet
 
-Datasets and suites (Phase 4), durable distributed execution with a transactional outbox and leases
-(Phase 5), trajectories (Phase 6), evaluators (Phase 7), replay (Phase 8), the broader
-failure-injection product workflow (Phase 9), policy and approvals (Phase 10), release gates and
-GitHub Checks (Phase 11), canary and rollback (Phase 12).
+Durable distributed execution with a transactional outbox and leases (Phase 5), trajectories
+(Phase 6), evaluators (Phase 7), replay (Phase 8), the broader failure-injection product workflow
+(Phase 9), policy and approvals (Phase 10), release gates and GitHub Checks (Phase 11), canary and
+rollback (Phase 12).
