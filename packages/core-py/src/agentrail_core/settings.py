@@ -84,6 +84,7 @@ class QueueSettings(CoreSettings):
 
     redis_url: RedisDsn = Field(default=RedisDsn("redis://localhost:6379/0"))
     job_queue_key: str = Field(default="agentrail:jobs:pending", min_length=1)
+    run_queue_key: str = Field(default="agentrail:runs:pending", min_length=1)
     #: Integer seconds because Redis ``BLPOP`` takes an integer timeout.
     queue_block_timeout_seconds: int = Field(default=2, ge=1, le=60)
 

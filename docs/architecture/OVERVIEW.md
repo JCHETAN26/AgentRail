@@ -1,6 +1,6 @@
 # Architecture overview
 
-Scope: the system as it exists during Phase 4. Components scheduled for later phases are named where
+Scope: the system as it exists during Phase 5. Components scheduled for later phases are named where
 a current decision was made to accommodate them, and are marked as not built.
 
 ## Services
@@ -8,13 +8,13 @@ a current decision was made to accommodate them, and are marked as not built.
 | Service                     | Runtime               | Port               | Responsibility                                                    |
 | --------------------------- | --------------------- | ------------------ | ----------------------------------------------------------------- |
 | `apps/web`                  | Next.js 15 / React 19 | 3000               | Developer console. No business logic in components.               |
-| `services/api`              | FastAPI (Python 3.12) | 8000               | The only writer of new jobs. Owns the schema and its migrations.  |
-| `services/worker`           | Python 3.12           | 8200 (health only) | The only executor of jobs. Consumes from Redis.                   |
+| `services/api`              | FastAPI (Python 3.12) | 8000               | The writer of jobs, evaluation runs and migrations.               |
+| `services/worker`           | Python 3.12           | 8200 (health only) | The executor of jobs and evaluation runs. Consumes from Redis.    |
 | `services/cloudops-sandbox` | FastAPI               | 8100               | Synthetic, deterministic tool surface with in-process test state. |
 
-Shared code lives in `packages/core-py` (settings, logging, correlation, infrastructure clients and
-the job table) and `packages/contracts` (OpenAPI snapshot and the TypeScript types generated from
-it).
+Shared code lives in `packages/core-py` (settings, logging, correlation, infrastructure clients,
+state machines and persistence models) and `packages/contracts` (OpenAPI snapshot and the TypeScript
+types generated from it).
 
 ## Request path
 
@@ -83,9 +83,27 @@ Datasets are stable project-scoped containers. Dataset versions are immutable re
 JSONL or CSV uploads after validation. Each version stores a content digest, storage URI, schema
 metadata, validation report, item count and partition counts. Evaluation suites bind one dataset
 version to evaluator configuration, thresholds and fault profiles, then can be frozen by setting a
-single timestamp. Phase 5+ execution will consume these records; Phase 4 does not run evaluations.
+single timestamp. Evaluation runs may only be created from frozen suites.
+
+## Durable evaluation execution
+
+An evaluation run expands a frozen suite into one `run_items` row per dataset item. The API validates
+tenant scope, suite immutability and agent-version project ownership, then commits the run, items and
+an `outbox_events` row in the same PostgreSQL transaction. Redis receives only the run identifier
+after commit. If publish fails, the worker recovery loop finds unpublished outbox events and
+re-delivers them.
+
+Run items are claimed with row locks, leased to a worker, checkpointed in PostgreSQL and retried until
+their budget is exhausted. Duplicate run deliveries are harmless because the worker claims a run with
+conditional state updates and skips terminal runs. Cancellation marks the run and all non-terminal
+items cancelled; aggregation records item counts and the final run outcome.
+
+The current executor is deterministic/recorded. It proves the durable execution mechanics over frozen
+suite cardinality; trajectory capture and evaluator execution arrive in later phases.
 
 ## State machine
+
+Jobs keep the original Phase 0 state machine:
 
 ```text
 PENDING ──▶ RUNNING ──▶ COMPLETED
@@ -98,11 +116,24 @@ makes a duplicated or delayed queue message a no-op rather than a second executi
 table is enforced twice: by the domain guard before the write, and by the `WHERE state = <expected>`
 clause of the write itself, which is what actually resolves a race between two workers.
 
+Evaluation runs add a longer lifecycle:
+
+```text
+CREATED ─▶ VALIDATING ─▶ QUEUING ─▶ RUNNING ─▶ AGGREGATING ─▶ PASSED
+   │           │             │          │             └────────▶ FAILED
+   └───────────┴─────────────┴──────────┴──────────────────────▶ CANCELLED
+                                      └─────────────────────────▶ ERROR
+```
+
+Run items move through `PENDING`, `LEASED`, `EXECUTING`, `EVALUATING` and then either
+`COMPLETED`, `FAILED_RETRYABLE`, `FAILED_TERMINAL` or `CANCELLED`.
+
 ## Data stores
 
-- **PostgreSQL** — authoritative for all job state. A server-side `statement_timeout` is set on every
-  connection so a pathological query cannot pin a worker or an API request.
-- **Redis** — task delivery only, plus (later) leases, short-lived rate limits and ephemeral cache.
+- **PostgreSQL** — authoritative for job state, evaluation-run state, run-item leases, checkpoints
+  and outbox events. A server-side `statement_timeout` is set on every connection so a pathological
+  query cannot pin a worker or an API request.
+- **Redis** — job and run delivery only, plus later short-lived rate limits and ephemeral cache.
   Never authoritative.
 - **MinIO** — S3-compatible object storage. Provisioned in Compose for dataset and report storage.
   Phase 4 records deterministic `s3://agentrail-datasets/...` storage URIs; a concrete object client
@@ -121,7 +152,6 @@ identifier plumbing exists now so that work is an addition rather than a retrofi
 
 ## Not built yet
 
-Durable distributed execution with a transactional outbox and leases (Phase 5), trajectories
-(Phase 6), evaluators (Phase 7), replay (Phase 8), the broader failure-injection product workflow
-(Phase 9), policy and approvals (Phase 10), release gates and GitHub Checks (Phase 11), canary and
-rollback (Phase 12).
+Trajectories (Phase 6), evaluators (Phase 7), replay (Phase 8), the broader failure-injection
+product workflow (Phase 9), policy and approvals (Phase 10), release gates and GitHub Checks (Phase
+11), canary and rollback (Phase 12).

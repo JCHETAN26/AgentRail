@@ -48,6 +48,10 @@ describe('the OpenAPI document', () => {
       '/api/v1/auth/signout',
       '/api/v1/dataset-versions/{version_id}/validation',
       '/api/v1/datasets/{dataset_id}/versions',
+      '/api/v1/evaluation-runs',
+      '/api/v1/evaluation-runs/{run_id}',
+      '/api/v1/evaluation-runs/{run_id}/cancel',
+      '/api/v1/evaluation-runs/{run_id}/events',
       '/api/v1/evaluation-suites/{suite_id}/freeze',
       '/api/v1/jobs/{job_id}',
       '/api/v1/organisations',
@@ -79,6 +83,10 @@ describe('the OpenAPI document', () => {
       '/api/v1/dataset-versions/{version_id}/validation',
       '/api/v1/datasets/{dataset_id}/versions',
       '/api/v1/evaluation-suites/{suite_id}/freeze',
+      '/api/v1/evaluation-runs',
+      '/api/v1/evaluation-runs/{run_id}',
+      '/api/v1/evaluation-runs/{run_id}/cancel',
+      '/api/v1/evaluation-runs/{run_id}/events',
       '/api/v1/jobs/{job_id}',
     ]);
     const unscoped = tenantPaths.filter(

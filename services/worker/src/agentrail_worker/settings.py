@@ -28,6 +28,7 @@ class WorkerSettings(DatabaseSettings, QueueSettings):
     stale_pending_seconds: float = Field(default=30.0, gt=0, le=3600)
     recovery_sweep_interval_seconds: float = Field(default=15.0, gt=0, le=600)
     recovery_sweep_batch_size: int = Field(default=100, ge=1, le=1000)
+    run_item_lease_seconds: float = Field(default=30.0, gt=0, le=600)
 
 
 @lru_cache(maxsize=1)

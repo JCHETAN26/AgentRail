@@ -41,6 +41,9 @@ class Permission(StrEnum):
     AGENT_MANAGE = "agent:manage"
     DATASET_READ = "dataset:read"
     DATASET_MANAGE = "dataset:manage"
+    RUN_READ = "run:read"
+    RUN_CREATE = "run:create"
+    RUN_CANCEL = "run:cancel"
     JOB_READ = "job:read"
     JOB_CREATE = "job:create"
     AUDIT_READ = "audit:read"
@@ -53,6 +56,7 @@ _VIEWER: frozenset[Permission] = frozenset(
         Permission.PROJECT_READ,
         Permission.AGENT_READ,
         Permission.DATASET_READ,
+        Permission.RUN_READ,
         Permission.JOB_READ,
     }
 )
@@ -68,6 +72,8 @@ _DEVELOPER: frozenset[Permission] = _REVIEWER | frozenset(
         Permission.PROJECT_UPDATE,
         Permission.AGENT_MANAGE,
         Permission.DATASET_MANAGE,
+        Permission.RUN_CREATE,
+        Permission.RUN_CANCEL,
         Permission.JOB_CREATE,
         Permission.API_KEY_READ,
     }
