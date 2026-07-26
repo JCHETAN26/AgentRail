@@ -6,6 +6,7 @@ per endpoint.
 """
 
 from agentrail_core.agents import AgentDefinition, AgentVersion
+from agentrail_core.datasets import Dataset, DatasetVersion, EvaluationSuite
 from agentrail_core.identity.models import (
     ApiKey,
     AuditEvent,
@@ -41,6 +42,9 @@ __all__ = [
     "ApiKey",
     "AuditEvent",
     "AuthorisationError",
+    "Dataset",
+    "DatasetVersion",
+    "EvaluationSuite",
     "GeneratedApiKey",
     "Membership",
     "Organisation",

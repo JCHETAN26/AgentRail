@@ -154,6 +154,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dataset-versions/{version_id}/validation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch dataset-version validation details */
+        get: operations["get_dataset_version_validation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an immutable dataset version */
+        post: operations["create_dataset_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluation-suites/{suite_id}/freeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Freeze an evaluation suite */
+        post: operations["freeze_evaluation_suite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -316,6 +367,41 @@ export interface paths {
         put?: never;
         /** Create an agent definition */
         post: operations["create_agent_definition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List project datasets */
+        get: operations["list_datasets"];
+        put?: never;
+        /** Create a dataset */
+        post: operations["create_dataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/evaluation-suites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an evaluation suite */
+        post: operations["create_evaluation_suite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -555,6 +641,42 @@ export interface components {
              */
             scopes?: components["schemas"]["Permission"][];
         };
+        /** CreateDatasetRequest */
+        CreateDatasetRequest: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** CreateDatasetVersionRequest */
+        CreateDatasetVersionRequest: {
+            /** Content */
+            content: string;
+            /**
+             * Input Format
+             * @enum {string}
+             */
+            input_format: "jsonl" | "csv";
+            /** Source Filename */
+            source_filename?: string | null;
+            /** Storage Uri */
+            storage_uri?: string | null;
+        };
+        /** CreateEvaluationSuiteRequest */
+        CreateEvaluationSuiteRequest: {
+            /** Dataset Version Id */
+            dataset_version_id: string;
+            /** Description */
+            description?: string | null;
+            /** Evaluators */
+            evaluators?: Record<string, never>[];
+            /** Fault Profiles */
+            fault_profiles?: Record<string, never>[];
+            /** Name */
+            name: string;
+            /** Thresholds */
+            thresholds?: Record<string, never>;
+        };
         /** CreateJobRequest */
         CreateJobRequest: {
             /**
@@ -593,6 +715,75 @@ export interface components {
              */
             token: string;
         };
+        /** DatasetListResponse */
+        DatasetListResponse: {
+            /** Items */
+            items: components["schemas"]["DatasetResponse"][];
+        };
+        /** DatasetResponse */
+        DatasetResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string;
+            /** Slug */
+            slug: string;
+        };
+        /** DatasetValidationResponse */
+        DatasetValidationResponse: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Validation Report */
+            validation_report: Record<string, never>;
+            /** Version Id */
+            version_id: string;
+        };
+        /** DatasetVersionResponse */
+        DatasetVersionResponse: {
+            /**
+             * Content Digest
+             * @description SHA-256 digest of the uploaded dataset bytes.
+             */
+            content_digest: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Dataset Id */
+            dataset_id: string;
+            /** Id */
+            id: string;
+            /** Input Format */
+            input_format: string;
+            /** Item Count */
+            item_count: number;
+            /** Partition Counts */
+            partition_counts: {
+                [key: string]: number;
+            };
+            /** Rejected Count */
+            rejected_count: number;
+            /** Schema */
+            schema: Record<string, never>;
+            /** Source Filename */
+            source_filename?: string | null;
+            /** Storage Uri */
+            storage_uri: string;
+            /** Validation Report */
+            validation_report: Record<string, never>;
+            /** Version */
+            version: number;
+        };
         /** DependencyStatus */
         DependencyStatus: {
             /** Detail */
@@ -619,6 +810,36 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "idempotency_key_reused" | "payload_too_large" | "dependency_unavailable" | "internal_error";
+        /** EvaluationSuiteResponse */
+        EvaluationSuiteResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Dataset Version Id */
+            dataset_version_id: string;
+            /** Description */
+            description?: string | null;
+            /** Evaluators */
+            evaluators: Record<string, never>[];
+            /** Fault Profiles */
+            fault_profiles: Record<string, never>[];
+            /** Frozen At */
+            frozen_at?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Preview */
+            preview: Record<string, never>;
+            /** Project Id */
+            project_id: string;
+            /** Slug */
+            slug: string;
+            /** Thresholds */
+            thresholds: Record<string, never>;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -765,7 +986,7 @@ export interface components {
          * @description A single authorisable action. Values are stable and appear in audit logs.
          * @enum {string}
          */
-        Permission: "organisation:read" | "organisation:update" | "member:read" | "member:manage" | "api_key:read" | "api_key:manage" | "project:read" | "project:create" | "project:update" | "agent:read" | "agent:manage" | "job:read" | "job:create" | "audit:read";
+        Permission: "organisation:read" | "organisation:update" | "member:read" | "member:manage" | "api_key:read" | "api_key:manage" | "project:read" | "project:create" | "project:update" | "agent:read" | "agent:manage" | "dataset:read" | "dataset:manage" | "job:read" | "job:create" | "audit:read";
         /**
          * ProblemDetail
          * @description The body returned for every non-2xx API response.
@@ -1230,6 +1451,190 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignOutResponse"];
+                };
+            };
+        };
+    };
+    get_dataset_version_validation: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetValidationResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_dataset_version: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDatasetVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetVersionResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    freeze_evaluation_suite: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                suite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationSuiteResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2062,6 +2467,194 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentDefinitionResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_datasets: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_dataset: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDatasetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_evaluation_suite: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEvaluationSuiteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationSuiteResponse"];
                 };
             };
             /** @description Not signed in. */

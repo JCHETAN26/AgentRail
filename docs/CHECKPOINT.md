@@ -8,31 +8,32 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 3 — Agent registry and immutable versions                                           |
-| **Status**     | In progress on branch `feat/p03-agent-registry`                                     |
-| **Base**       | `main` @ `c6b17be` (Phase 2 merged)                                                 |
-| **Next phase** | 4 — Dataset ingestion and suite builder, after Phase 3 exits                        |
+| **Phase**      | 4 — Dataset ingestion and suite builder                                             |
+| **Status**     | In progress on branch `feat/p04-datasets-suites`                                    |
+| **Base**       | `main` @ `ab72b03` (Phase 3 merged)                                                 |
+| **Next phase** | 5 — Durable distributed execution, after Phase 4 exits                              |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
 applied branch protection, Dependabot triage) in [#19](https://github.com/JCHETAN26/AgentRail/pull/19).
 Phase 1 shipped in PR [#20](https://github.com/JCHETAN26/AgentRail/pull/20).
 Phase 2 shipped in PR [#21](https://github.com/JCHETAN26/AgentRail/pull/21).
+Phase 3 shipped in PR [#22](https://github.com/JCHETAN26/AgentRail/pull/22).
 
 ---
 
 ## Read these first
 
-1. `BUILDPLAN.md` §10 and Phase 3 — agent registry model and exit criteria
-2. `packages/core-py/src/agentrail_core/agents.py` — registry persistence models
-3. `services/api/src/agentrail_api/agents/service.py` — digesting, immutability and tenancy checks
-4. `services/api/src/agentrail_api/routers/agents.py` — public registry API surface
-5. `services/api/tests/test_agents_api.py` — registry integration coverage
-6. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/cloudops.py` — Phase 2 tool contracts
+1. `BUILDPLAN.md` §10 and Phase 4 — dataset/suite model and exit criteria
+2. `packages/core-py/src/agentrail_core/datasets.py` — dataset persistence models
+3. `services/api/src/agentrail_api/datasets/service.py` — validation, digesting and freeze logic
+4. `services/api/src/agentrail_api/routers/datasets.py` — public dataset/suite API surface
+5. `services/api/tests/test_datasets_api.py` — dataset and suite integration coverage
+6. `services/api/tests/test_dataset_validation.py` — parser and rejection-report unit coverage
 
 ---
 
-## Completed capabilities (through Phase 1)
+## Completed capabilities (through Phase 3)
 
 - **Delegated authentication** with two providers behind one protocol: a deterministic dev provider
   (no credentials, no network — used by local development, CI and the demo) and GitHub OAuth with
@@ -80,6 +81,20 @@ Phase 2 shipped in PR [#21](https://github.com/JCHETAN26/AgentRail/pull/21).
 - Duplicate version content for the same agent is rejected.
 - Bare agent/version ID routes resolve tenant scope through the owning project before returning data.
 
+## Phase 4 progress
+
+- Added project-scoped `Dataset`, immutable `DatasetVersion` and `EvaluationSuite` persistence
+  models.
+- Added Alembic revision `0004_datasets_suites`.
+- Added `dataset:read` and `dataset:manage` permissions.
+- Added APIs to create/list project datasets, create immutable dataset versions, fetch validation
+  reports, create evaluation suites and freeze suites.
+- Dataset versions validate JSONL and CSV input, reject malformed records with line/record details,
+  and store content digest, storage URI, record schema, validation report, item count and partition
+  counts.
+- Evaluation suites bind one dataset version to evaluator settings, thresholds, fault profiles and a
+  preview summary. Freezing is idempotent and preserves the first `frozen_at` timestamp.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -95,11 +110,12 @@ Phase 2 shipped in PR [#21](https://github.com/JCHETAN26/AgentRail/pull/21).
 
 ## Migrations
 
-| Revision              | Description                                                                                                                                                                      |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0001_create_jobs`    | Creates `jobs` with check constraints and `ix_jobs_state_created_at`                                                                                                             |
-| `0002_identity`       | Adds users, organisations, memberships, projects, sessions, api_keys, audit_events; retrofits `jobs.project_id`; moves idempotency uniqueness to `(project_id, idempotency_key)` |
-| `0003_agent_registry` | Adds project-scoped agent definitions and immutable agent versions with per-agent version and digest uniqueness                                                                  |
+| Revision               | Description                                                                                                                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_create_jobs`     | Creates `jobs` with check constraints and `ix_jobs_state_created_at`                                                                                                             |
+| `0002_identity`        | Adds users, organisations, memberships, projects, sessions, api_keys, audit_events; retrofits `jobs.project_id`; moves idempotency uniqueness to `(project_id, idempotency_key)` |
+| `0003_agent_registry`  | Adds project-scoped agent definitions and immutable agent versions with per-agent version and digest uniqueness                                                                  |
+| `0004_datasets_suites` | Adds project-scoped datasets, immutable dataset versions with validation metadata and freezable evaluation suites                                                                |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -160,6 +176,16 @@ Latest Phase 3 branch checks, run locally on 2026-07-26:
 | `scripts/export_openapi.py`  | Pass                                                  |
 | `@agentrail/contracts check` | Pass                                                  |
 
+Latest Phase 4 branch checks, run locally on 2026-07-26:
+
+| Command                                             | Result                                                |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| `uv run ruff check ...`                             | Pass                                                  |
+| `uv run mypy packages/core-py/src services/api/src` | Pass — 46 source files                                |
+| `uv run pytest -q`                                  | 194 passed, 87 skipped locally due sandboxed Postgres |
+| `@agentrail/contracts check`                        | Pass                                                  |
+| `@agentrail/contracts test`                         | Pass — 10 tests                                       |
+
 ---
 
 ## Known limitations
@@ -170,6 +196,7 @@ Latest Phase 3 branch checks, run locally on 2026-07-26:
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
 - **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
 - The registry stores agent versions, but no runtime executes those versions yet.
+- Dataset versions and suites exist, but no distributed evaluator execution consumes them yet.
 - Failed jobs remain terminal — no retry budget, leases or outbox (Phase 5).
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
 - `dependency-review` warns and skips while the dependency graph is disabled, and is excluded from
@@ -195,13 +222,13 @@ Latest Phase 3 branch checks, run locally on 2026-07-26:
 
 ---
 
-## Next tasks (Phase 3 — Agent registry and immutable versions)
+## Next tasks (Phase 4 — Dataset ingestion and suite builder)
 
-1. Run the full verification set after generated contracts and docs are updated.
-2. Let CI run the new PostgreSQL-backed registry integration tests.
-3. Open and merge the Phase 3 pull request once CI is green.
+1. Run the remaining frontend/typecheck verification after docs and contracts are finalized.
+2. Let CI run the new PostgreSQL-backed dataset/suite integration tests.
+3. Open and merge the Phase 4 pull request once CI is green.
 
-**Exit criteria:** versions are immutable and content-addressed; green PR.
+**Exit criteria:** malformed input is actionable; frozen suite cannot change; green PR.
 
 ---
 
