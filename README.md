@@ -151,7 +151,12 @@ Deliberate, and scheduled:
   periodic sweep re-publishes jobs stranded in `PENDING`.
 - No published benchmark numbers. Benchmarks are Phase 17, and no metric will be quoted before it is
   generated from a frozen test set.
-- No `LICENSE` file yet — the licence has not been chosen.
 
 The CloudOps sandbox is **synthetic**. It models no real infrastructure and its output must never be
 described as production telemetry.
+
+---
+
+## Licence
+
+[MIT](LICENSE).

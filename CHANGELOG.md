@@ -6,6 +6,24 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — post-Phase-0 housekeeping
+
+- MIT licence.
+- Branch protection applied to `main` and verified: pull requests required, ten required status
+  checks, linear history, force-pushes and deletions blocked, enforced for administrators.
+  `docs/BRANCH_PROTECTION.md` records the configuration and three documented deviations from the
+  build plan.
+
+### Changed
+
+- Dependency updates from Dependabot's opening wave: `psycopg` 3.2.3 → 3.3.4, `uvicorn` 0.34.0 →
+  0.51.0, `pydantic-settings` 2.7.1 → 2.14.2, the Python tooling group (Ruff, mypy, pytest),
+  `@tanstack/react-query` 5.62.11 → 5.101.4, `@playwright/test` 1.49.1 → 1.62.0, `@types/node`
+  22.10.5 → 26.1.1, and the GitHub Actions and `uv` container images.
+- Four updates were rejected rather than taken: a Python 3.14 base image (violates the workspace's
+  `requires-python <3.13` pin), `redis` 5 → 8, and the grouped React and tooling updates. All four
+  failed CI; see the closing comments on pull requests #8, #13, #14 and #15.
+
 ### Added — Phase 0: repository, product contract and guardrails
 
 **Foundation**
