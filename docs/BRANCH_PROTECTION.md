@@ -54,7 +54,10 @@ Checks added in later phases: `agent-quality / smoke-gate` (Phase 17), `containe
 
 **Settings → Code security and analysis**
 
-- Dependency graph — ✅
+- Dependency graph — ✅ **Required before `dependency-review` can pass.** Until it is enabled the
+  workflow fails with _"Dependency review is not supported on this repository."_ Enable it at
+  [`settings/security_analysis`](https://github.com/JCHETAN26/AgentRail/settings/security_analysis),
+  then re-run the check.
 - Dependabot alerts — ✅
 - Dependabot security updates — ✅
 - Secret scanning — ✅
