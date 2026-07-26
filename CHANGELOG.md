@@ -71,4 +71,4 @@ All notable changes to AgentRail are recorded here. The format follows
 No authentication, organisations or tenancy; one deterministic sandbox task rather than the full
 CloudOps environment; no agent registry, evaluation, replay, policy engine, release gates or canary
 deployment; correlation identifiers are propagated but no spans are exported; failed jobs are
-terminal with no retry budget; no published benchmark numbers; no licence chosen.
+terminal with no retry budget; no published benchmark numbers.
