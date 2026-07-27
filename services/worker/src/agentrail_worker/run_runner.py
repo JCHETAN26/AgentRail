@@ -9,6 +9,17 @@ from enum import StrEnum
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentrail_core.datasets import EvaluationSuite
+from agentrail_core.evaluators import (
+    ComparisonReport,
+    EvaluationResult,
+    EvaluatorKind,
+    EvaluatorVersion,
+    aggregate_results,
+    canonical_digest,
+    default_evaluators,
+    score_run_item,
+)
 from agentrail_core.execution import (
     EvaluationRun,
     EvaluationRunState,
@@ -484,12 +495,121 @@ class EvaluationRunRunner:
             }
             run.version += 1
             await session.flush()
+            comparison = await self._build_comparison_report(session, run=run)
             run.state = EvaluationRunState.PASSED if failed == 0 else EvaluationRunState.FAILED
+            run.summary = {**run.summary, "comparison_report_id": comparison.id}
             run.completed_at = datetime.now(UTC)
             run.updated_at = run.completed_at
             run.version += 1
             await session.commit()
         return RunOutcome.PASSED if failed == 0 else RunOutcome.FAILED
+
+    async def _build_comparison_report(
+        self, session: AsyncSession, *, run: EvaluationRun
+    ) -> ComparisonReport:
+        existing = await session.scalar(
+            select(ComparisonReport).where(ComparisonReport.run_id == run.id).with_for_update()
+        )
+        if existing is not None:
+            return existing
+        suite = await session.get(EvaluationSuite, run.evaluation_suite_id)
+        evaluators = default_evaluators(suite.evaluators if suite is not None else [])
+        suite_digest = canonical_digest(
+            {
+                "evaluation_suite_id": run.evaluation_suite_id,
+                "evaluators": evaluators,
+                "thresholds": suite.thresholds if suite is not None else {},
+            }
+        )
+        items = list(
+            (
+                await session.scalars(
+                    select(RunItem).where(RunItem.run_id == run.id).order_by(RunItem.item_index)
+                )
+            ).all()
+        )
+        results: list[EvaluationResult] = []
+        for item in items:
+            for evaluator in evaluators:
+                evaluator_version = await self._ensure_evaluator_version(
+                    session, project_id=run.project_id, evaluator=evaluator
+                )
+                state, score, details = score_run_item(
+                    item_state=item.state, item_result=item.result, evaluator=evaluator
+                )
+                result = EvaluationResult(
+                    id=new_sortable_id(),
+                    run_id=run.id,
+                    run_item_id=item.id,
+                    evaluator_version_id=evaluator_version.id,
+                    evaluator_slug=str(evaluator["slug"]),
+                    evaluator_kind=EvaluatorKind(str(evaluator["kind"])),
+                    item_index=item.item_index,
+                    partition=item.partition,
+                    category=str(evaluator["category"]),
+                    state=state,
+                    score=score,
+                    threshold=float(evaluator["threshold"]),
+                    details=details,
+                )
+                session.add(result)
+                results.append(result)
+        await session.flush()
+        summary, evaluator_metrics, category_metrics, regressions = aggregate_results(
+            item_count=run.item_count, results=results
+        )
+        report = ComparisonReport(
+            id=new_sortable_id(),
+            project_id=run.project_id,
+            run_id=run.id,
+            baseline_agent_version_id=run.baseline_agent_version_id,
+            candidate_agent_version_id=run.candidate_agent_version_id,
+            suite_digest=suite_digest,
+            summary=summary,
+            evaluator_metrics=evaluator_metrics,
+            category_metrics=category_metrics,
+            regressions=regressions,
+            exports={
+                "json": f"agentrail://evaluation-runs/{run.id}/comparison",
+                "csv": f"agentrail://evaluation-runs/{run.id}/evaluator-results.csv",
+            },
+        )
+        session.add(report)
+        await session.flush()
+        return report
+
+    async def _ensure_evaluator_version(
+        self, session: AsyncSession, *, project_id: str, evaluator: dict[str, object]
+    ) -> EvaluatorVersion:
+        definition_digest = canonical_digest(evaluator)
+        existing = await session.scalar(
+            select(EvaluatorVersion).where(
+                EvaluatorVersion.project_id == project_id,
+                EvaluatorVersion.definition_digest == definition_digest,
+            )
+        )
+        if existing is not None:
+            return existing
+        slug = str(evaluator["slug"])
+        latest_version = await session.scalar(
+            select(func.max(EvaluatorVersion.version)).where(
+                EvaluatorVersion.project_id == project_id,
+                EvaluatorVersion.slug == slug,
+            )
+        )
+        version = EvaluatorVersion(
+            id=new_sortable_id(),
+            project_id=project_id,
+            slug=slug,
+            version=int(latest_version or 0) + 1,
+            kind=EvaluatorKind(str(evaluator["kind"])),
+            name=str(evaluator["name"]),
+            definition=dict(evaluator),
+            definition_digest=definition_digest,
+        )
+        session.add(version)
+        await session.flush()
+        return version
 
     async def _cancel_open_items(self, run_id: str) -> None:
         await self.cancel_open_items(self._session_factory, run_id=run_id)

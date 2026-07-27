@@ -239,6 +239,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluation-runs/{run_id}/comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch an evaluation comparison report */
+        get: operations["get_comparison_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluation-runs/{run_id}/evaluator-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List evaluator results for a run */
+        get: operations["list_evaluation_results"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evaluation-runs/{run_id}/events": {
         parameters: {
             query?: never;
@@ -738,6 +772,36 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** ComparisonReportResponse */
+        ComparisonReportResponse: {
+            /** Baseline Agent Version Id */
+            baseline_agent_version_id?: string | null;
+            /** Candidate Agent Version Id */
+            candidate_agent_version_id: string;
+            /** Category Metrics */
+            category_metrics: Record<string, never>;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Evaluator Metrics */
+            evaluator_metrics: Record<string, never>;
+            /** Exports */
+            exports: Record<string, never>;
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Regressions */
+            regressions: Record<string, never>[];
+            /** Run Id */
+            run_id: string;
+            /** Suite Digest */
+            suite_digest: string;
+            /** Summary */
+            summary: Record<string, never>;
+        };
         /** CreateAgentDefinitionRequest */
         CreateAgentDefinitionRequest: {
             /** Description */
@@ -961,6 +1025,43 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "idempotency_key_reused" | "payload_too_large" | "dependency_unavailable" | "internal_error";
+        /** EvaluationResultListResponse */
+        EvaluationResultListResponse: {
+            /** Items */
+            items: components["schemas"]["EvaluationResultResponse"][];
+        };
+        /** EvaluationResultResponse */
+        EvaluationResultResponse: {
+            /** Category */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Details */
+            details: Record<string, never>;
+            evaluator_kind: components["schemas"]["EvaluatorKind"];
+            /** Evaluator Slug */
+            evaluator_slug: string;
+            /** Evaluator Version Id */
+            evaluator_version_id?: string | null;
+            /** Id */
+            id: string;
+            /** Item Index */
+            item_index: number;
+            /** Partition */
+            partition: string;
+            /** Run Id */
+            run_id: string;
+            /** Run Item Id */
+            run_item_id: string;
+            /** Score */
+            score: number;
+            state: components["schemas"]["EvaluatorResultState"];
+            /** Threshold */
+            threshold: number;
+        };
         /** EvaluationRunResponse */
         EvaluationRunResponse: {
             /** Baseline Agent Version Id */
@@ -1044,6 +1145,16 @@ export interface components {
             /** Thresholds */
             thresholds: Record<string, never>;
         };
+        /**
+         * EvaluatorKind
+         * @enum {string}
+         */
+        EvaluatorKind: "programmatic" | "judge";
+        /**
+         * EvaluatorResultState
+         * @enum {string}
+         */
+        EvaluatorResultState: "PASSED" | "FAILED" | "ERROR";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2115,6 +2226,110 @@ export interface operations {
             };
             /** @description A required dependency is unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_comparison_report: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparisonReportResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_evaluation_results: {
+        parameters: {
+            query?: {
+                evaluator_slug?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationResultListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

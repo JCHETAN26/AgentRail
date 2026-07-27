@@ -91,7 +91,8 @@ async def db_engine(
             # a table added in a later phase does not silently survive.
             await connection.execute(
                 text(
-                    "TRUNCATE TABLE jobs, outbox_events, trajectory_checkpoints, "
+                    "TRUNCATE TABLE jobs, outbox_events, comparison_reports, "
+                    "evaluation_results, evaluator_versions, trajectory_checkpoints, "
                     "trajectory_steps, trajectories, run_items, evaluation_runs, "
                     "evaluation_suites, dataset_versions, datasets, "
                     "audit_events, api_keys, sessions, "

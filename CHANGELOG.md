@@ -6,6 +6,18 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 7: evaluators and comparison
+
+- PostgreSQL-backed evaluator versions, per-item evaluator results and comparison reports, plus
+  Alembic revision `0007_evaluators_comparison`.
+- Deterministic programmatic scoring during run aggregation, with execution errors kept in
+  denominators.
+- Comparison APIs:
+  `/api/v1/evaluation-runs/{run_id}/comparison` and
+  `/api/v1/evaluation-runs/{run_id}/evaluator-results`.
+- Aggregate evaluator, category and regression summaries with reproducible suite/evaluator digests.
+- Contract, aggregation and tenant-isolation coverage for comparison reads.
+
 ### Added — Phase 6: trajectory capture and trace explorer
 
 - PostgreSQL-backed trajectories, ordered trajectory steps and named checkpoints, plus Alembic
