@@ -1080,6 +1080,14 @@ export interface components {
              * @constant
              */
             execution_mode: "recorded";
+            /** Github Head Sha */
+            github_head_sha?: string | null;
+            /** Github Owner */
+            github_owner?: string | null;
+            /** Github Pull Number */
+            github_pull_number?: number | null;
+            /** Github Repository */
+            github_repository?: string | null;
         };
         /** CreateEvaluationSuiteRequest */
         CreateEvaluationSuiteRequest: {

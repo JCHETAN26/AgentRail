@@ -262,12 +262,37 @@ def _threshold_violations(
     return violations
 
 
+#: Every key a policy may contain. Anything else is a typo, and a typo in a
+#: release policy is a rule that silently never fires.
+_KNOWN_KEYS: frozenset[str] = frozenset(
+    {
+        "min_pass_rate",
+        "max_regressions",
+        "min_evaluator_pass_rate",
+        "min_category_pass_rate",
+        "require_reproducible",
+    }
+)
+
+
 def parse_release_policy(raw: dict[str, Any] | None) -> ReleasePolicy:
-    """Build an evaluable policy from stored JSON, rejecting what cannot run."""
-    if not raw:
-        return ReleasePolicy()
+    """Build an evaluable policy from stored JSON, rejecting what cannot run.
+
+    An absent or empty definition is refused rather than treated as a permissive
+    default. A policy object that forbids nothing reports "passed" for every run
+    and reads, on a pull request, as evidence of quality.
+    """
+    if raw is None:
+        raise ReleasePolicyError("a policy must contain at least one threshold")
     if not isinstance(raw, dict):
         raise ReleasePolicyError("must be an object")
+
+    unknown = sorted(set(raw) - _KNOWN_KEYS)
+    if unknown:
+        # Refused rather than ignored. "max_regressons" would otherwise be
+        # accepted alongside one valid rule, and the cap the author believed
+        # they had written would never be enforced.
+        raise ReleasePolicyError(f"unknown rule(s): {', '.join(unknown)}")
 
     min_pass_rate = _optional_rate(raw.get("min_pass_rate"), "min_pass_rate")
     max_regressions = raw.get("max_regressions")

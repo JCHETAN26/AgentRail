@@ -237,6 +237,11 @@ and `.value` both fail until you coerce.
   on (run, policy), and nullable pull-request provenance on `evaluation_runs`.
 - Added the offline gate API, the webhook receiver, superseded-run cancellation, and a sample
   workflow at `docs/examples/release-gate-workflow.yml`.
+- Review fixes: an empty `{}` definition no longer bypasses the "at least one threshold" check;
+  unknown rule names are refused rather than silently ignored; pull-request provenance is accepted on
+  run creation and persisted, without which cancellation and Check Runs were unreachable; the gate
+  reserves its row before publishing so a losing racer cannot speak on a pull request; webhook log
+  fields are stripped of control characters.
 
 **Design notes worth keeping.** A metric a policy names but the report lacks _blocks_ — otherwise
 deleting an evaluator silently disables the rule guarding it, which is the exact failure a gate

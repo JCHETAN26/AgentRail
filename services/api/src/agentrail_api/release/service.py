@@ -219,9 +219,46 @@ async def evaluate_run_gate(
     )
 
     head_sha = request.head_sha or run.github_head_sha
-    check_run_payload: dict[str, Any] | None = None
+
+    # The row is reserved *before* anything is published. Publishing first would
+    # let two concurrent callers both post a Check Run — the loser then discovers
+    # the constraint and returns the winner's verdict, but its check has already
+    # reached the pull request. Winning the insert is what earns the right to
+    # speak.
+    evaluation = GateEvaluation(
+        id=new_sortable_id(),
+        project_id=run.project_id,
+        run_id=run.id,
+        release_policy_id=policy_record.id,
+        outcome=decision.outcome.value,
+        violations=[violation.as_payload() for violation in decision.violations],
+        summary=decision.summary_line()[:1024],
+        head_sha=head_sha,
+        check_run=None,
+    )
+    # Inside a SAVEPOINT so that losing the race rolls back only this insert. A
+    # plain rollback would discard the audit record written below and leave the
+    # caller's session unusable.
+    try:
+        async with session.begin_nested():
+            session.add(evaluation)
+            await session.flush()
+    except IntegrityError:
+        # Two callers raced on the unique (run, policy) pair. The loser reads
+        # the winner's verdict, because the decision is a pure function of both
+        # and cannot legitimately differ — and publishes nothing.
+        winner = await session.scalar(
+            select(GateEvaluation).where(
+                GateEvaluation.run_id == run.id,
+                GateEvaluation.release_policy_id == policy_record.id,
+            )
+        )
+        if winner is None:  # pragma: no cover - only reachable if the row vanished
+            raise
+        return winner
+
     if publisher is not None and run.github_owner and run.github_repository and head_sha:
-        check_run_payload = await publisher.publish(
+        evaluation.check_run = await publisher.publish(
             CheckRunRequest(
                 owner=run.github_owner,
                 repository=run.github_repository,
@@ -238,38 +275,6 @@ async def evaluate_run_gate(
                 ),
             )
         )
-
-    evaluation = GateEvaluation(
-        id=new_sortable_id(),
-        project_id=run.project_id,
-        run_id=run.id,
-        release_policy_id=policy_record.id,
-        outcome=decision.outcome.value,
-        violations=[violation.as_payload() for violation in decision.violations],
-        summary=decision.summary_line()[:1024],
-        head_sha=head_sha,
-        check_run=check_run_payload,
-    )
-    # Inserted inside a SAVEPOINT so that losing the race rolls back only this
-    # insert. A plain rollback would discard the audit record written below and
-    # leave the caller's session unusable.
-    try:
-        async with session.begin_nested():
-            session.add(evaluation)
-            await session.flush()
-    except IntegrityError:
-        # Two callers raced on the unique (run, policy) pair. The loser reads
-        # the winner's verdict, because the decision is a pure function of both
-        # and cannot legitimately differ.
-        winner = await session.scalar(
-            select(GateEvaluation).where(
-                GateEvaluation.run_id == run.id,
-                GateEvaluation.release_policy_id == policy_record.id,
-            )
-        )
-        if winner is None:  # pragma: no cover - only reachable if the row vanished
-            raise
-        return winner
 
     await record_audit(
         session,

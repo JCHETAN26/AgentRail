@@ -20,6 +20,24 @@ from agentrail_core.logging import get_logger
 
 logger = get_logger(__name__)
 
+#: Longest attacker-controlled value worth keeping in a log line.
+_LOG_FIELD_MAX = 64
+
+
+def _loggable(value: str | None) -> str:
+    """Make an attacker-controlled value safe to put in a log line.
+
+    Everything reaching this endpoint is unauthenticated until the signature is
+    checked, and some of it is logged before that. Newlines and control
+    characters would let a caller forge log entries — the logs are meant to be
+    evidence, so they must not be writable by the subject of the investigation.
+    """
+    if value is None:
+        return "<none>"
+    cleaned = "".join(char for char in value if char.isprintable())
+    return cleaned[:_LOG_FIELD_MAX]
+
+
 router = APIRouter(prefix="/api/v1/integrations/github", tags=["integrations"])
 
 _ERRORS: dict[int | str, dict[str, object]] = {
@@ -50,7 +68,7 @@ async def receive_github_webhook(
         signature=x_hub_signature_256,
         secret=settings.github_webhook_secret or "",
     ):
-        logger.warning("github_webhook_rejected", extra={"event": x_github_event})
+        logger.warning("github_webhook_rejected", extra={"event": _loggable(x_github_event)})
         # 401 with no detail. Which part of the signature was wrong is exactly
         # what an attacker needs, and exactly what the log is for.
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
@@ -91,7 +109,7 @@ async def receive_github_webhook(
     logger.info(
         "github_pull_request_received",
         extra={
-            "action": action,
+            "action": _loggable(action),
             "pull_number": pull_number,
             "superseded_run_count": len(cancelled),
         },

@@ -822,6 +822,55 @@
             "default": "recorded",
             "title": "Execution Mode",
             "type": "string"
+          },
+          "github_head_sha": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 7,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Head Sha"
+          },
+          "github_owner": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Owner"
+          },
+          "github_pull_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Pull Number"
+          },
+          "github_repository": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Repository"
           }
         },
         "required": [

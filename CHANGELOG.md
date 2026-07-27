@@ -28,6 +28,23 @@ All notable changes to AgentRail are recorded here. The format follows
   CI reads the verdict from the response body and fails on it.
 - Alembic revision `0011_release_gates`.
 
+### Fixed — Phase 11 review
+
+- An empty policy definition (`{}`) bypassed the "must contain at least one threshold" check and was
+  persisted, reporting `passed` for every run — defeating the guarantee the check exists to make.
+  Both `{}` and a null definition are now refused.
+- Unknown rule names are refused rather than ignored. `{"min_pass_rate": 0.9, "max_regressons": 0}`
+  was accepted because one valid rule remained, and the misspelled cap was never enforced.
+- Pull-request provenance is now accepted on run creation and persisted. The columns existed and were
+  read, but nothing populated them, so superseded-run cancellation and Check Run publishing were both
+  unreachable in production — only a test helper set them.
+- The gate reserves its row before publishing. Two concurrent callers could both publish a Check Run
+  before either reached the unique insert; the loser then returned the winner's verdict but had
+  already spoken on the pull request.
+- Webhook log fields are stripped of control characters. They arrive unauthenticated and some are
+  logged before the signature is checked, so a caller could otherwise forge log entries — and these
+  logs are meant to be evidence.
+
 ### Added — Phase 10: approval console
 
 - Reviewer queue in the web console: pending high-risk calls for a project, with approve,

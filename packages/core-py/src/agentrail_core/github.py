@@ -92,7 +92,8 @@ class CheckRunPublisher(Protocol):
     """Somewhere to send a verdict."""
 
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """Identifies which publisher handled a verdict, for the record."""
 
     async def publish(self, request: CheckRunRequest) -> dict[str, Any]:
         """Deliver the check run and return whatever identifies it."""

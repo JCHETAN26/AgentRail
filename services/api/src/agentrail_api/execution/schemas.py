@@ -19,6 +19,14 @@ class CreateEvaluationRunRequest(BaseModel):
     candidate_agent_version_id: str = Field(min_length=26, max_length=26)
     baseline_agent_version_id: str | None = Field(default=None, min_length=26, max_length=26)
     execution_mode: ExecutionMode = "recorded"
+    #: Which pull request this run judges, when CI started it. Optional
+    #: throughout — a run launched from the console has no pull request — but
+    #: without these the release gate cannot publish a Check Run and a new
+    #: commit cannot supersede the run it replaces.
+    github_owner: str | None = Field(default=None, max_length=200)
+    github_repository: str | None = Field(default=None, max_length=200)
+    github_pull_number: int | None = Field(default=None, ge=1)
+    github_head_sha: str | None = Field(default=None, min_length=7, max_length=64)
 
 
 class EvaluationRunResponse(BaseModel):

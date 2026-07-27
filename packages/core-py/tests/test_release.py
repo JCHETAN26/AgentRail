@@ -182,6 +182,29 @@ def test_unevaluable_policies_are_rejected(raw: dict[str, object]) -> None:
         parse_release_policy(raw)
 
 
-def test_an_absent_policy_is_empty_rather_than_an_error() -> None:
-    assert parse_release_policy(None) == ReleasePolicy()
-    assert parse_release_policy({}) == ReleasePolicy()
+@pytest.mark.parametrize("raw", [None, {}])
+def test_an_absent_or_empty_policy_is_refused(raw: dict[str, object] | None) -> None:
+    """An empty object is not a permissive default. Accepting it would persist a
+    policy that reports 'passed' for every run and reads, on a pull request, as
+    evidence of quality."""
+    with pytest.raises(ReleasePolicyError) as caught:
+        parse_release_policy(raw)
+
+    assert "at least one threshold" in str(caught.value)
+
+
+def test_a_misspelled_rule_is_refused_rather_than_ignored() -> None:
+    """The cap the author believed they had written would never be enforced,
+    and one valid rule alongside it would make the policy look healthy."""
+    with pytest.raises(ReleasePolicyError) as caught:
+        parse_release_policy({"min_pass_rate": 0.9, "max_regressons": 0})
+
+    assert "max_regressons" in str(caught.value)
+
+
+def test_several_unknown_rules_are_all_named() -> None:
+    with pytest.raises(ReleasePolicyError) as caught:
+        parse_release_policy({"min_pass_rate": 0.9, "nonsense": 1, "also_wrong": 2})
+
+    assert "also_wrong" in str(caught.value)
+    assert "nonsense" in str(caught.value)
