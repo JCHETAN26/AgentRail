@@ -256,6 +256,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluation-runs/{run_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List run items with trajectory links */
+        get: operations["list_evaluation_run_items"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evaluation-suites/{suite_id}/freeze": {
         parameters: {
             query?: never;
@@ -488,6 +505,57 @@ export interface paths {
         put?: never;
         /** Create a job in a project */
         post: operations["create_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trajectories/{trajectory_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch a trajectory */
+        get: operations["get_trajectory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trajectories/{trajectory_id}/checkpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List trajectory checkpoints */
+        get: operations["list_trajectory_checkpoints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trajectories/{trajectory_id}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List trajectory steps */
+        get: operations["list_trajectory_steps"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1192,6 +1260,36 @@ export interface components {
          * @enum {string}
          */
         Role: "owner" | "admin" | "developer" | "reviewer" | "viewer";
+        /**
+         * RunItemState
+         * @enum {string}
+         */
+        RunItemState: "PENDING" | "LEASED" | "EXECUTING" | "EVALUATING" | "COMPLETED" | "FAILED_RETRYABLE" | "FAILED_TERMINAL" | "CANCELLED";
+        /** RunItemTraceListResponse */
+        RunItemTraceListResponse: {
+            /** Items */
+            items: components["schemas"]["RunItemTraceResponse"][];
+        };
+        /** RunItemTraceResponse */
+        RunItemTraceResponse: {
+            /** Error Code */
+            error_code?: string | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Failing Step Id */
+            failing_step_id?: string | null;
+            /** Id */
+            id: string;
+            /** Item Index */
+            item_index: number;
+            /** Partition */
+            partition: string;
+            /** Run Id */
+            run_id: string;
+            state: components["schemas"]["RunItemState"];
+            /** Trajectory Id */
+            trajectory_id?: string | null;
+        };
         /** SignOutResponse */
         SignOutResponse: {
             /**
@@ -1201,6 +1299,107 @@ export interface components {
              */
             status: "signed_out";
         };
+        /** TrajectoryCheckpointListResponse */
+        TrajectoryCheckpointListResponse: {
+            /** Items */
+            items: components["schemas"]["TrajectoryCheckpointResponse"][];
+        };
+        /** TrajectoryCheckpointResponse */
+        TrajectoryCheckpointResponse: {
+            /** Checkpoint Index */
+            checkpoint_index: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** State */
+            state: Record<string, never>;
+            /** Step Id */
+            step_id?: string | null;
+            /** Trajectory Id */
+            trajectory_id: string;
+        };
+        /** TrajectoryResponse */
+        TrajectoryResponse: {
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Final Checkpoint */
+            final_checkpoint: Record<string, never>;
+            /** Graph State */
+            graph_state: Record<string, never>;
+            /** Id */
+            id: string;
+            /** Item Index */
+            item_index: number;
+            /** Project Id */
+            project_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Run Item Id */
+            run_item_id: string;
+            state: components["schemas"]["TrajectoryState"];
+            /** Summary */
+            summary: Record<string, never>;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TrajectoryState
+         * @enum {string}
+         */
+        TrajectoryState: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+        /** TrajectoryStepListResponse */
+        TrajectoryStepListResponse: {
+            /** Items */
+            items: components["schemas"]["TrajectoryStepResponse"][];
+        };
+        /** TrajectoryStepResponse */
+        TrajectoryStepResponse: {
+            /** Checkpoint */
+            checkpoint: Record<string, never>;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Evidence */
+            evidence: Record<string, never>;
+            /** Id */
+            id: string;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Redacted Input */
+            redacted_input: Record<string, never>;
+            /** Redacted Output */
+            redacted_output: Record<string, never>;
+            /** Redaction Summary */
+            redaction_summary: Record<string, never>;
+            /** Step Index */
+            step_index: number;
+            step_type: components["schemas"]["TrajectoryStepType"];
+            /** Title */
+            title: string;
+            /** Trajectory Id */
+            trajectory_id: string;
+        };
+        /**
+         * TrajectoryStepType
+         * @enum {string}
+         */
+        TrajectoryStepType: "input" | "graph_state" | "tool_call" | "evidence" | "checkpoint" | "final_result" | "error";
         /** UserResponse */
         UserResponse: {
             /**
@@ -1983,6 +2182,59 @@ export interface operations {
             };
             /** @description A required dependency is unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_evaluation_run_items: {
+        parameters: {
+            query?: {
+                state?: components["schemas"]["RunItemState"] | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunItemTraceListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3246,6 +3498,161 @@ export interface operations {
             };
             /** @description A required dependency is unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_trajectory: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trajectory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrajectoryResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_trajectory_checkpoints: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trajectory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrajectoryCheckpointListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_trajectory_steps: {
+        parameters: {
+            query?: {
+                step_type?: components["schemas"]["TrajectoryStepType"] | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trajectory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrajectoryStepListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

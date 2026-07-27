@@ -5,13 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentrail_core.datasets import Dataset, DatasetVersion, EvaluationSuite
 from agentrail_core.execution import EvaluationRun, EvaluationRunState, RunItem, RunItemState
 from agentrail_core.identity import AgentDefinition, AgentVersion
 from agentrail_core.ids import new_sortable_id
+from agentrail_core.trajectories import Trajectory, TrajectoryStep, TrajectoryStepType
 from agentrail_worker.run_runner import EvaluationRunRunner, RunOutcome
 
 pytestmark = pytest.mark.integration
@@ -112,6 +113,23 @@ class TestEvaluationRunRunner:
         assert run.state == EvaluationRunState.PASSED
         assert run.completed_count == 100
         assert run.failed_count == 0
+        async with session_factory() as session:
+            trajectory_count = await session.scalar(
+                select(func.count()).select_from(Trajectory).where(Trajectory.run_id == run_id)
+            )
+            tool_step = await session.scalar(
+                select(TrajectoryStep)
+                .join(Trajectory, Trajectory.id == TrajectoryStep.trajectory_id)
+                .where(
+                    Trajectory.run_id == run_id,
+                    TrajectoryStep.step_type == TrajectoryStepType.TOOL_CALL,
+                )
+                .order_by(TrajectoryStep.step_index)
+                .limit(1)
+            )
+        assert trajectory_count == 100
+        assert tool_step is not None
+        assert tool_step.redacted_input["arguments"]["api_key"] == "[REDACTED]"
 
     async def test_duplicate_run_delivery_is_harmless(
         self, session_factory: async_sessionmaker[AsyncSession], project_id: str

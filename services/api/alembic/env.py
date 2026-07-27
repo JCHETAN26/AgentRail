@@ -7,17 +7,25 @@ database than the one the service uses.
 
 from __future__ import annotations
 
+from importlib import import_module
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# Importing the models registers them on ``Base.metadata`` for autogenerate.
-import agentrail_core.datasets
-import agentrail_core.execution
-import agentrail_core.jobs.models  # noqa: F401
 from agentrail_api.settings import ApiSettings
 from agentrail_core.db import Base
+
+_MODEL_MODULES = (
+    "agentrail_core.datasets",
+    "agentrail_core.execution",
+    "agentrail_core.jobs.models",
+    "agentrail_core.trajectories",
+)
+
+# Importing the models registers them on ``Base.metadata`` for autogenerate.
+for model_module in _MODEL_MODULES:
+    import_module(model_module)
 
 config = context.config
 

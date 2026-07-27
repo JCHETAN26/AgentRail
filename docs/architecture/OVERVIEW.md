@@ -99,7 +99,18 @@ conditional state updates and skips terminal runs. Cancellation marks the run an
 items cancelled; aggregation records item counts and the final run outcome.
 
 The current executor is deterministic/recorded. It proves the durable execution mechanics over frozen
-suite cardinality; trajectory capture and evaluator execution arrive in later phases.
+suite cardinality; evaluator execution arrives in later phases.
+
+## Trajectory capture
+
+Each executed run item receives one trajectory header, ordered steps and named checkpoints. The
+deterministic executor records input loading, graph state, tool-call, evidence, checkpoint and final
+result steps. Payloads are recursively redacted before persistence: sensitive keys such as tokens,
+secrets and API keys become `[REDACTED]`, and email addresses are masked.
+
+The API exposes tenant-scoped trace explorer reads for run items, trajectory headers, ordered steps
+and checkpoints. A failed item response can carry both a `trajectory_id` and `failing_step_id`, so a
+reviewer can jump directly from a failed run item to the exact step that explains it.
 
 ## State machine
 
@@ -130,9 +141,9 @@ Run items move through `PENDING`, `LEASED`, `EXECUTING`, `EVALUATING` and then e
 
 ## Data stores
 
-- **PostgreSQL** — authoritative for job state, evaluation-run state, run-item leases, checkpoints
-  and outbox events. A server-side `statement_timeout` is set on every connection so a pathological
-  query cannot pin a worker or an API request.
+- **PostgreSQL** — authoritative for job state, evaluation-run state, run-item leases, trajectories,
+  checkpoints and outbox events. A server-side `statement_timeout` is set on every connection so a
+  pathological query cannot pin a worker or an API request.
 - **Redis** — job and run delivery only, plus later short-lived rate limits and ephemeral cache.
   Never authoritative.
 - **MinIO** — S3-compatible object storage. Provisioned in Compose for dataset and report storage.
@@ -152,6 +163,6 @@ identifier plumbing exists now so that work is an addition rather than a retrofi
 
 ## Not built yet
 
-Trajectories (Phase 6), evaluators (Phase 7), replay (Phase 8), the broader failure-injection
-product workflow (Phase 9), policy and approvals (Phase 10), release gates and GitHub Checks (Phase
-11), canary and rollback (Phase 12).
+Evaluators (Phase 7), replay (Phase 8), the broader failure-injection product workflow (Phase 9),
+policy and approvals (Phase 10), release gates and GitHub Checks (Phase 11), canary and rollback
+(Phase 12).

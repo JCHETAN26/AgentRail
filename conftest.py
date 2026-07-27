@@ -91,7 +91,8 @@ async def db_engine(
             # a table added in a later phase does not silently survive.
             await connection.execute(
                 text(
-                    "TRUNCATE TABLE jobs, outbox_events, run_items, evaluation_runs, "
+                    "TRUNCATE TABLE jobs, outbox_events, trajectory_checkpoints, "
+                    "trajectory_steps, trajectories, run_items, evaluation_runs, "
                     "evaluation_suites, dataset_versions, datasets, "
                     "audit_events, api_keys, sessions, "
                     "memberships, projects, organisations, users CASCADE"
@@ -120,11 +121,11 @@ async def redis_client(queue_settings: QueueSettings) -> AsyncIterator[redis.Red
         await client.aclose()
         _unavailable("Redis", f"{type(exc).__name__}")
     # Only the session's own key is removed; nothing else in the database is touched.
-    await client.delete(queue_settings.job_queue_key)
+    await client.delete(queue_settings.job_queue_key, queue_settings.run_queue_key)
     try:
         yield client
     finally:
-        await client.delete(queue_settings.job_queue_key)
+        await client.delete(queue_settings.job_queue_key, queue_settings.run_queue_key)
         await client.aclose()
 
 

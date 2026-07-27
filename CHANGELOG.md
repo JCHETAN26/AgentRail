@@ -6,6 +6,20 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 6: trajectory capture and trace explorer
+
+- PostgreSQL-backed trajectories, ordered trajectory steps and named checkpoints, plus Alembic
+  revision `0006_trajectories`.
+- Deterministic worker capture for each evaluation run item, including input, graph-state, tool-call,
+  evidence, checkpoint and final-result steps.
+- Recursive redaction for sensitive keys and email addresses before trajectory payloads are stored.
+- Trace explorer APIs:
+  `/api/v1/evaluation-runs/{run_id}/items`, `/api/v1/trajectories/{trajectory_id}`,
+  `/api/v1/trajectories/{trajectory_id}/steps` and
+  `/api/v1/trajectories/{trajectory_id}/checkpoints`.
+- Tenant-scoped trajectory reads, step-type filters and failed-item links to the exact failing step.
+- Contract, redaction and integration coverage for trajectory visibility and cross-tenant denial.
+
 ### Added — Phase 5: durable distributed execution
 
 - Evaluation run and run-item state machines with terminal-state guards, retryable item failures and
