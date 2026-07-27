@@ -6,12 +6,14 @@ from datetime import UTC, datetime
 
 import pytest
 from api_test_support import Tenant
+from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import OutboxEvent
 from agentrail_core.ids import new_sortable_id
+from agentrail_core.quotas import OrganisationQuotaPeriod
 
 pytestmark = pytest.mark.integration
 
@@ -102,6 +104,105 @@ class TestEvaluationRuns:
         assert created.json()["state"] == "CREATED"
         assert created.json()["item_count"] == 4
         assert created.json()["summary"]["partition_counts"] == {"p0": 2, "p1": 2}
+
+    async def test_run_creation_spends_a_durable_organisation_quota(
+        self,
+        integration_app: FastAPI,
+        tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        original_settings = integration_app.state.settings
+        integration_app.state.settings = original_settings.model_copy(
+            update={"evaluation_item_monthly_quota": 3}
+        )
+        try:
+            suite = await create_frozen_suite(tenant, count=2)
+            candidate = await create_agent_version(tenant, "Quota Candidate")
+
+            first = await tenant.client.post(
+                "/api/v1/evaluation-runs",
+                json={
+                    "evaluation_suite_id": suite["id"],
+                    "candidate_agent_version_id": candidate["id"],
+                },
+            )
+            second = await tenant.client.post(
+                "/api/v1/evaluation-runs",
+                json={
+                    "evaluation_suite_id": suite["id"],
+                    "candidate_agent_version_id": candidate["id"],
+                },
+            )
+        finally:
+            integration_app.state.settings = original_settings
+
+        assert first.status_code == 201, first.text
+        assert second.status_code == 429
+        assert second.json()["code"] == "quota_exceeded"
+        assert second.json()["details"]["limit"] == 3
+        assert second.json()["details"]["used"] == 2
+        assert second.json()["details"]["requested"] == 2
+
+        async with session_factory() as session:
+            periods = list(
+                (
+                    await session.execute(
+                        select(OrganisationQuotaPeriod).where(
+                            OrganisationQuotaPeriod.organisation_id == tenant.organisation_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert len(periods) == 1
+        assert periods[0].evaluation_item_limit == 3
+        assert periods[0].evaluation_items_used == 2
+
+    async def test_idempotent_run_replay_does_not_spend_quota_again(
+        self,
+        integration_app: FastAPI,
+        tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        original_settings = integration_app.state.settings
+        integration_app.state.settings = original_settings.model_copy(
+            update={"evaluation_item_monthly_quota": 2}
+        )
+        try:
+            suite = await create_frozen_suite(tenant, count=2)
+            candidate = await create_agent_version(tenant, "Quota Replay Candidate")
+
+            first = await tenant.client.post(
+                "/api/v1/evaluation-runs",
+                headers={"Idempotency-Key": "quota-replay"},
+                json={
+                    "evaluation_suite_id": suite["id"],
+                    "candidate_agent_version_id": candidate["id"],
+                },
+            )
+            replay = await tenant.client.post(
+                "/api/v1/evaluation-runs",
+                headers={"Idempotency-Key": "quota-replay"},
+                json={
+                    "evaluation_suite_id": suite["id"],
+                    "candidate_agent_version_id": candidate["id"],
+                },
+            )
+        finally:
+            integration_app.state.settings = original_settings
+
+        assert first.status_code == 201, first.text
+        assert replay.status_code == 200, replay.text
+        assert replay.json()["id"] == first.json()["id"]
+
+        async with session_factory() as session:
+            used = await session.scalar(
+                select(OrganisationQuotaPeriod.evaluation_items_used).where(
+                    OrganisationQuotaPeriod.organisation_id == tenant.organisation_id
+                )
+            )
+        assert used == 2
 
     async def test_rejects_unfrozen_suite(self, tenant: Tenant) -> None:
         suite = await create_frozen_suite(tenant, frozen=False)

@@ -1475,7 +1475,7 @@ export interface components {
          * @description Stable error codes. Values are part of the public API contract.
          * @enum {string}
          */
-        ErrorCode: "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "idempotency_key_reused" | "payload_too_large" | "rate_limited" | "replayed_webhook" | "dependency_unavailable" | "internal_error";
+        ErrorCode: "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "idempotency_key_reused" | "payload_too_large" | "rate_limited" | "quota_exceeded" | "replayed_webhook" | "dependency_unavailable" | "internal_error";
         /**
          * EvaluateGateRequest
          * @description Judge one run against one policy.
@@ -3243,6 +3243,15 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Rate limit or quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description A required dependency is unavailable. */
             503: {
                 headers: {
@@ -3305,6 +3314,15 @@ export interface operations {
             };
             /** @description Validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Rate limit or quota exceeded. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3436,6 +3454,15 @@ export interface operations {
             };
             /** @description Validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Rate limit or quota exceeded. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3607,6 +3634,15 @@ export interface operations {
             };
             /** @description Validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Rate limit or quota exceeded. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3860,6 +3896,15 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description Rate limit or quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description A required dependency is unavailable. */
             503: {
                 headers: {
@@ -3922,6 +3967,15 @@ export interface operations {
             };
             /** @description Validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Rate limit or quota exceeded. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

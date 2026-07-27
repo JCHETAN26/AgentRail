@@ -1571,6 +1571,7 @@
           "idempotency_key_reused",
           "payload_too_large",
           "rate_limited",
+          "quota_exceeded",
           "replayed_webhook",
           "dependency_unavailable",
           "internal_error"
@@ -5220,6 +5221,16 @@
             },
             "description": "Validation failed."
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Rate limit or quota exceeded."
+          },
           "503": {
             "content": {
               "application/json": {
@@ -5319,6 +5330,16 @@
               }
             },
             "description": "Validation failed."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Rate limit or quota exceeded."
           },
           "503": {
             "content": {
@@ -5525,6 +5546,16 @@
               }
             },
             "description": "Validation failed."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Rate limit or quota exceeded."
           },
           "503": {
             "content": {
@@ -5796,6 +5827,16 @@
               }
             },
             "description": "Validation failed."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Rate limit or quota exceeded."
           },
           "503": {
             "content": {
@@ -6181,6 +6222,16 @@
             },
             "description": "Validation failed."
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Rate limit or quota exceeded."
+          },
           "503": {
             "content": {
               "application/json": {
@@ -6280,6 +6331,16 @@
               }
             },
             "description": "Validation failed."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Rate limit or quota exceeded."
           },
           "503": {
             "content": {

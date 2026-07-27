@@ -40,6 +40,7 @@ _ERRORS: dict[int | str, dict[str, object]] = {
     401: {"model": ProblemDetail, "description": "Not signed in."},
     403: {"model": ProblemDetail, "description": "Not yours, or not permitted."},
     409: {"model": ProblemDetail, "description": "Idempotency key reused."},
+    429: {"model": ProblemDetail, "description": "Rate limit or quota exceeded."},
     422: {"model": ProblemDetail, "description": "Validation failed."},
     503: {"model": ProblemDetail, "description": "A required dependency is unavailable."},
 }
@@ -67,7 +68,7 @@ async def create_evaluation_run(
     principal = await service.principal_for_suite(session, actor, body.evaluation_suite_id)
     authorize(principal, Permission.RUN_CREATE, organisation_id=principal.organisation_id)
     run, created, event = await service.create_run(
-        session, actor, principal, body, context, idempotency_key=idempotency_key
+        session, actor, principal, body, context, settings, idempotency_key=idempotency_key
     )
     await session.commit()
     await session.refresh(run)

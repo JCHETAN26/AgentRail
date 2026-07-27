@@ -17,8 +17,9 @@ The question AgentRail exists to answer:
 > level, a policy engine that stops high-risk tool calls for human approval, and release gates that
 > block a regressed change. It also has simulated canary deployment records that promote healthy
 > candidates and roll back degraded ones, plus run-level observability metrics and SLO verdicts for
-> incident response. Phase 14 has started with authenticated rate limits, GitHub webhook replay
-> defence, console CSP/security headers and container image security checks. Nothing in this README describes a capability that does not exist — see
+> incident response. Phase 14 has authenticated rate limits, a durable monthly evaluation-item
+> quota ledger, GitHub webhook replay defence, console CSP/security headers and container image
+> security checks. Nothing in this README describes a capability that does not exist — see
 > [Known limitations](#known-limitations).
 
 ---
@@ -185,8 +186,8 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
 Deliberate, and scheduled:
 
 - No PostgreSQL row-level security beneath the application-level tenant scoping (Phase 14).
-- No durable per-organisation quota ledger yet. The API has short-lived authenticated rate limits,
-  but not monthly/workload quotas.
+- The durable per-organisation quota ledger covers monthly evaluation item usage, but not every
+  workload class yet.
 - Members must have signed in once before they can be added to an organisation — there are no
   invitations yet (Phase 18).
 - The CloudOps sandbox is synthetic and deterministic. Phase 2 has added tool contracts, synthetic
