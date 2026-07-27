@@ -6,6 +6,16 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 8: replay and time travel
+
+- PostgreSQL-backed trajectory replay records, plus Alembic revision `0008_trajectory_replays`.
+- Recorded, live-labelled and forked replay creation from persisted trajectories and checkpoints.
+- Deterministic source/replay digests for replay reproduction and fork divergence.
+- Replay safety summaries that explicitly prevent original side-effect repetition.
+- Replay APIs:
+  `/api/v1/trajectories/{trajectory_id}/replays` for create and list.
+- Audit events and tenant-isolation coverage for replay creation.
+
 ### Added — Phase 7: evaluators and comparison
 
 - PostgreSQL-backed evaluator versions, per-item evaluator results and comparison reports, plus

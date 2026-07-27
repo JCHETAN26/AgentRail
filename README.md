@@ -8,12 +8,13 @@ The question AgentRail exists to answer:
 > How can a team prove that an agent change is safer, more reliable and more useful **before**
 > exposing it to users?
 
-> [!NOTE] > **Status: Phase 7 of 18 is in progress.** The repository has the deterministic request
+> [!NOTE] > **Status: Phase 8 of 18 is in progress.** The repository has the deterministic request
 > path, authentication and tenancy, the CloudOps sandbox, the agent registry, dataset and
 > suite-builder APIs, the first durable evaluation-run executor, and redacted trajectory capture for
 > deterministic runs. It now has the first reproducible programmatic evaluator and comparison
-> substrate. Replay, policy, release gates and canary deployment are not built yet. Nothing in this
-> README describes a capability that does not exist — see
+> substrate, plus durable recorded/forked replay records for persisted trajectories. Policy, release
+> gates and canary deployment are not built yet. Nothing in this README describes a capability that
+> does not exist — see
 > [Known limitations](#known-limitations).
 
 ---
@@ -22,7 +23,8 @@ The question AgentRail exists to answer:
 
 **Sign in, create an organisation, run a deterministic job, register agent versions, build validated
 dataset/suite records, execute a frozen suite as a durable evaluation run, inspect redacted
-per-item trajectories, and read reproducible comparison summaries inside one of its projects.**
+per-item trajectories, create safe replay records from checkpoints, and read reproducible comparison
+summaries inside one of its projects.**
 
 Authentication is delegated and pluggable: local development, CI and the demo use a deterministic
 provider that needs no credentials at all, while deployed environments use GitHub OAuth. Sessions are

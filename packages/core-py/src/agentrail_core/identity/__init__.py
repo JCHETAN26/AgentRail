@@ -36,7 +36,12 @@ from agentrail_core.identity.secrets import (
     parse_api_key,
     verify_secret,
 )
-from agentrail_core.trajectories import Trajectory, TrajectoryCheckpoint, TrajectoryStep
+from agentrail_core.trajectories import (
+    Trajectory,
+    TrajectoryCheckpoint,
+    TrajectoryReplay,
+    TrajectoryStep,
+)
 
 __all__ = [
     "ROLE_PERMISSIONS",
@@ -65,6 +70,7 @@ __all__ = [
     "Session",
     "Trajectory",
     "TrajectoryCheckpoint",
+    "TrajectoryReplay",
     "TrajectoryStep",
     "User",
     "authorize",

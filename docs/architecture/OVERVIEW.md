@@ -161,14 +161,22 @@ Spans are **not** exported yet. The OpenTelemetry SDK and Collector pipeline are
 identifier plumbing exists now so that work is an addition rather than a retrofit. See
 [ADR 0004](../adr/0004-correlation-identifiers-before-opentelemetry.md).
 
-## Not built yet
-
-Replay (Phase 8), the broader failure-injection product workflow (Phase 9), policy and approvals
-(Phase 10), release gates and GitHub Checks (Phase 11), canary and rollback (Phase 12).
-
 ## Evaluators And Comparison
 
 Phase 7 adds the first reproducible evaluator substrate. Evaluator definitions are normalized and
 versioned by digest, terminal run items are scored during aggregation, and comparison reports store
 overall, evaluator-level and category-level metrics. Failed or errored items remain in the
 denominator, so a comparison cannot look better by dropping execution errors.
+
+## Replay And Time Travel
+
+Phase 8 adds durable replay records for persisted trajectories. A recorded replay hashes the
+redacted trajectory, ordered steps and optional checkpoint and must reproduce the same digest. A
+forked replay starts from the same evidence but incorporates explicit override metadata, so the
+stored replay digest diverges deterministically. Replay records always include a safety summary
+showing that original side effects were not repeated.
+
+## Not built yet
+
+The broader failure-injection product workflow (Phase 9), policy and approvals (Phase 10), release
+gates and GitHub Checks (Phase 11), canary and rollback (Phase 12).

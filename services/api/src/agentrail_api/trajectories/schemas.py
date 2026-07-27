@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from agentrail_core.execution import RunItemState
-from agentrail_core.trajectories import TrajectoryState, TrajectoryStepType
+from agentrail_core.trajectories import ReplayMode, ReplayState, TrajectoryState, TrajectoryStepType
 
 
 class RunItemTraceResponse(BaseModel):
@@ -79,3 +79,33 @@ class TrajectoryCheckpointResponse(BaseModel):
 
 class TrajectoryCheckpointListResponse(BaseModel):
     items: list[TrajectoryCheckpointResponse]
+
+
+class CreateTrajectoryReplayRequest(BaseModel):
+    mode: ReplayMode = ReplayMode.RECORDED
+    checkpoint_id: str | None = None
+    fork_overrides: dict[str, Any] | None = None
+
+
+class TrajectoryReplayResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    project_id: str
+    trajectory_id: str
+    source_checkpoint_id: str | None = None
+    mode: ReplayMode
+    state: ReplayState
+    source_digest: str
+    replay_digest: str
+    request: dict[str, Any]
+    result: dict[str, Any]
+    divergence: dict[str, Any]
+    safety_summary: dict[str, Any]
+    created_by: str | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+
+
+class TrajectoryReplayListResponse(BaseModel):
+    items: list[TrajectoryReplayResponse]

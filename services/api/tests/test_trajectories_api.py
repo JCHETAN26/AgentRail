@@ -12,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from agentrail_core.execution import RunItem
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.trajectories import (
+    ReplayMode,
     Trajectory,
     TrajectoryCheckpoint,
+    TrajectoryReplay,
     TrajectoryState,
     TrajectoryStep,
     TrajectoryStepType,
@@ -127,3 +129,62 @@ class TestTrajectoryApi:
 
         assert response.status_code == 403
         assert "secret" not in response.text
+
+    async def test_recorded_replay_reproduces_without_repeating_side_effects(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        trajectory_id = await attach_trajectory(session_factory, run)
+        checkpoints = await tenant.client.get(f"/api/v1/trajectories/{trajectory_id}/checkpoints")
+        checkpoint_id = checkpoints.json()["items"][0]["id"]
+
+        created = await tenant.client.post(
+            f"/api/v1/trajectories/{trajectory_id}/replays",
+            json={"mode": ReplayMode.RECORDED, "checkpoint_id": checkpoint_id},
+        )
+        listed = await tenant.client.get(f"/api/v1/trajectories/{trajectory_id}/replays")
+
+        assert created.status_code == 200
+        body = created.json()
+        assert body["result"]["reproduced"] is True
+        assert body["source_digest"] == body["replay_digest"]
+        assert body["safety_summary"]["original_side_effect_replayed"] is False
+        assert body["safety_summary"]["replayed_side_effect_count"] == 0
+        assert listed.status_code == 200
+        assert listed.json()["items"][0]["id"] == body["id"]
+        async with session_factory() as session:
+            replay_count = await session.scalar(select(TrajectoryReplay))
+        assert replay_count is not None
+
+    async def test_forked_replay_records_divergence(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        trajectory_id = await attach_trajectory(session_factory, run)
+
+        response = await tenant.client.post(
+            f"/api/v1/trajectories/{trajectory_id}/replays",
+            json={"mode": ReplayMode.FORKED, "fork_overrides": {"prompt": "try a safer plan"}},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["result"]["reproduced"] is False
+        assert body["source_digest"] != body["replay_digest"]
+        assert body["divergence"]["diverged"] is True
+        assert body["divergence"]["changed_fields"] == ["prompt"]
+
+    async def test_cannot_replay_another_tenants_trajectory(
+        self,
+        tenant: Tenant,
+        other_tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        run = await create_run(other_tenant)
+        trajectory_id = await attach_trajectory(session_factory, run)
+
+        response = await tenant.client.post(
+            f"/api/v1/trajectories/{trajectory_id}/replays", json={"mode": ReplayMode.RECORDED}
+        )
+
+        assert response.status_code == 403
