@@ -71,3 +71,39 @@ class RunItemResponse(BaseModel):
 class EvaluationRunProgressResponse(BaseModel):
     run: EvaluationRunResponse
     item_states: dict[RunItemState, int]
+
+
+class RunItemRecoveryResponse(BaseModel):
+    """One item, seen from the reliability angle rather than the result angle."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    item_index: int
+    partition: str
+    state: RunItemState
+    attempt_count: int
+    max_attempts: int
+    retries_remaining: int
+    worker_id: str | None = None
+    lease_expires_at: datetime | None = None
+    lease_expired: bool
+    injected_fault: dict[str, Any] | None = None
+    budget_state: dict[str, Any]
+    side_effect_count: int
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+class RunRecoveryResponse(BaseModel):
+    run_id: str
+    item_states: dict[RunItemState, int]
+    #: Items whose lease has passed without the holding worker returning. These
+    #: are what the recovery sweep will reclaim on its next pass.
+    stranded_count: int
+    #: Items that have consumed at least one retry.
+    retried_count: int
+    #: Effects recorded across the whole run. Compare against the number of
+    #: items that reached a side-effecting step: they must never exceed it.
+    side_effect_count: int
+    items: list[RunItemRecoveryResponse]

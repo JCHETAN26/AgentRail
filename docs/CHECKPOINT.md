@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 8 — Replay and time travel                                                          |
-| **Status**     | In progress on branch `feat/p08-replay-time-travel`                                 |
-| **Base**       | `main` @ `f5520aa` (Phase 7 merged)                                                 |
-| **Next phase** | 9 — Failure injection and reliability, after Phase 8 exits                          |
+| **Phase**      | 9 — Failure injection and reliability                                               |
+| **Status**     | In progress on branch `feat/p09-failure-injection`                                  |
+| **Base**       | `main` @ `0818d49` (Phase 8 merged)                                                 |
+| **Next phase** | 10 — Policy and human approval, after Phase 9 exits                                 |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -23,17 +23,21 @@ Phase 4 shipped in PR [#23](https://github.com/JCHETAN26/AgentRail/pull/23).
 Phase 5 shipped in PR [#24](https://github.com/JCHETAN26/AgentRail/pull/24).
 Phase 6 shipped in PR [#25](https://github.com/JCHETAN26/AgentRail/pull/25).
 Phase 7 shipped in PR [#26](https://github.com/JCHETAN26/AgentRail/pull/26).
+Phase 8 shipped in PR [#41](https://github.com/JCHETAN26/AgentRail/pull/41).
 
 ---
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 8 — replay and time travel exit criteria
-2. `packages/core-py/src/agentrail_core/trajectories.py` — trajectory and replay models
-3. `services/api/src/agentrail_api/trajectories/service.py` — replay creation, digest and safety logic
-4. `services/api/src/agentrail_api/routers/trajectories.py` — replay API endpoints
-5. `services/api/tests/test_trajectories_api.py` — replay reproduction, fork divergence and tenant denial
-6. `services/api/alembic/versions/0008_trajectory_replays.py`
+1. `BUILDPLAN.md` Phase 9 and section 15 — the fault families and the zero-duplicate-side-effect
+   invariant that is this phase's exit criterion
+2. `services/worker/src/agentrail_worker/run_runner.py` — the executor that must learn to fail
+3. `packages/core-py/src/agentrail_core/execution/models.py` — run item leases, attempts and retry
+   budgets, already in place since Phase 5
+4. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/app.py` — the `FaultMode` hooks from
+   Phase 2, currently injected per request by the caller rather than driven by a profile
+5. `packages/core-py/src/agentrail_core/datasets.py` — `EvaluationSuite.fault_profiles`, accepted and
+   counted since Phase 4 but never validated or acted on
 
 ---
 
@@ -151,6 +155,33 @@ Phase 7 shipped in PR [#26](https://github.com/JCHETAN26/AgentRail/pull/26).
   `validation_failed`; `safety_summary` reports the replay that actually ran rather than the mode
   requested.
 
+## Phase 9 progress
+
+- Added `agentrail_core.faults`: 23 fault kinds across the model, tool and platform families, a
+  validated `FaultProfile`, and a pure `plan_fault` selector keyed on item index and attempt.
+- Added `agentrail_core.reliability`: budget ledger (tool calls, tokens, loop iterations, latency,
+  cost) and a pure circuit breaker with closed/open/half-open transitions.
+- Added `agentrail_core.side_effects`: the ledger table, a stable idempotency key and
+  `apply_side_effect_once`, which inserts inside a SAVEPOINT so losing the race rolls back only the
+  insert.
+- Added Alembic revision `0009_failure_injection`, plus `injected_fault` and `budget_state` on run
+  items.
+- The recorded executor can now fail: it consults the fault plan, charges budgets, applies its one
+  side effect through the ledger _before_ any injected fault can kill the attempt, and drives retry
+  or terminal transitions accordingly.
+- Added the recovery API and the `chaos-duplicate` / `chaos-strand` / `chaos-report` targets.
+- Review fixes: budgets resume across retries rather than restarting per attempt; unexecutable fault
+  profiles are rejected at suite creation with their index; a legacy unparseable profile fails its
+  item with `fault_profile_invalid` instead of propagating out of the worker's consume loop, which
+  has no exception handling around `process`.
+
+**Design notes worth keeping.** The side-effect key deliberately excludes the attempt number — a key
+that varied per attempt would let every retry insert a fresh row, which is the exact bug the table
+exists to prevent. Retryability is a property of the fault, not of the caller: a timeout may succeed
+on a second attempt, a refusal will not. And `BudgetExceededError` carries the overrun ledger,
+because the caller's own variable is still the pre-charge one and the recovery view would otherwise
+report a spend of zero for the charge that broke the budget.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -176,6 +207,7 @@ Phase 7 shipped in PR [#26](https://github.com/JCHETAN26/AgentRail/pull/26).
 | `0006_trajectories`          | Adds trajectory headers, ordered steps, named checkpoints and redacted diagnostic payloads                                                                                       |
 | `0007_evaluators_comparison` | Adds evaluator versions, per-item evaluator results and reproducible comparison reports                                                                                          |
 | `0008_trajectory_replays`    | Adds durable recorded, live-labelled and forked replay records for trajectories                                                                                                  |
+| `0009_failure_injection`     | Adds the side-effect ledger and its unique idempotency key, plus per-item injected-fault and budget state                                                                        |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -367,22 +399,48 @@ vacuous.
 
 ---
 
-## Next tasks (Phase 8 — Replay and time travel)
+Phase 9 branch checks, run locally on 2026-07-26 against Docker Compose PostgreSQL 16.6:
 
-PR [#41](https://github.com/JCHETAN26/AgentRail/pull/41) is open with all 12 checks green. It was
-`BLOCKED` not on CI but on `required_conversation_resolution` with eight unresolved review threads —
-worth remembering, because required-review count is 0 and the check list looks clean.
+| Command                                           | Result                                             |
+| ------------------------------------------------- | -------------------------------------------------- |
+| `uv run pytest -q`                                | **346 passed, 0 skipped** — full integration suite |
+| `uv run ruff format --check .` / `ruff check .`   | Pass                                               |
+| `uv run mypy` (4 source trees)                    | Pass — 79 source files                             |
+| `uv run python scripts/export_openapi.py --check` | Pass                                               |
+| `pnpm run test`                                   | Pass — 34 JS tests                                 |
+| `pnpm run lint` / `typecheck` / `format:check`    | Pass                                               |
+| `@agentrail/contracts check`                      | Pass                                               |
+| `alembic upgrade head → downgrade 0008 → upgrade` | Clean                                              |
 
-1. Merge #41 once the review threads are resolved.
-2. Decide how to stop CodeQL's `security-and-quality` suite flagging `revision`, `down_revision`,
-   `branch_labels` and `depends_on` as unused globals on **every** new Alembic migration. Alembic
-   reads them as module attributes, so they are false positives, and one recurs per migration per
-   phase. A `.github/codeql/codeql-config.yml` with `paths-ignore` for
-   `services/api/alembic/versions/**` fixes it, at the cost of dropping those files from scanning —
-   a security-posture call, so it is deliberately not taken here.
+The four retry-sensitive tests were confirmed to fail with the ledger's deduplication defeated, so
+none of them is vacuous.
 
-**Exit criteria:** deterministic replay reproduces; fork shows divergence; no original side effect
-repeats; green PR.
+---
+
+## Next tasks (Phase 9 — Failure injection and reliability)
+
+Phase 8 merged as `0818d49`. Two things carried over from it:
+
+- A PR can be `BLOCKED` on `required_conversation_resolution` while every check is green and the
+  required-review count is 0. Check the review threads before assuming CI is at fault.
+- CodeQL's `security-and-quality` suite flags `revision`, `down_revision`, `branch_labels` and
+  `depends_on` as unused globals in **every** Alembic migration. Alembic reads them as module
+  attributes, so they are false positives, and one set recurs per migration per phase — including
+  `0009` below. A `.github/codeql/codeql-config.yml` with `paths-ignore` for
+  `services/api/alembic/versions/**` fixes it permanently, at the cost of dropping those files from
+  scanning. That is a security-posture call and is deliberately left to the owner.
+
+Everything in the phase is built and verified locally. Remaining:
+
+1. Let CI run the PostgreSQL-backed reliability suite, then merge the Phase 9 PR.
+2. The circuit breaker is implemented, unit-tested and exported, but nothing calls it yet — the
+   recorded executor has no real dependency to trip it against. Wire it to the CloudOps sandbox
+   client when the agent runtime starts making live tool calls (Phase 10 onwards), and surface its
+   state in the recovery view at the same time.
+3. `chaos.py` is exercised by hand, not in CI. It needs a running stack, so it stays out of the
+   required checks until there is a job that provides one.
+
+**Exit criteria:** zero duplicate side effects and correct state under forced failure; green PR.
 
 ---
 

@@ -6,6 +6,40 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 9: failure injection and reliability
+
+- Deterministic fault profiles covering all 23 model, tool and platform fault families from the
+  build plan, selected by item index and attempt number rather than by RNG, so a faulted run
+  reproduces exactly like a clean one.
+- Transient faults retry; reasoning failures (refusal, wrong tool, invalid arguments, malformed
+  output) go terminal on first occurrence, because they reproduce identically on a second attempt.
+- Suite `fault_profiles`, carried untyped since Phase 4, are now validated and executed. An
+  unexecutable profile is rejected with its index rather than silently never firing.
+- Tool-call, token, loop, latency and cost budgets, with a `budget_exhausted` terminal reason.
+- Circuit breaker per dependency: opens on consecutive failures, half-opens after a cooldown with a
+  reset streak, and reopens on a single failed probe. Implemented and unit-tested, but not yet wired
+  to a caller — the recorded executor has no live dependency to trip it against.
+- **Side-effect ledger** with a `UNIQUE` constraint on an attempt-independent idempotency key, so a
+  duplicate side effect is impossible at the database level rather than merely untested. Plus
+  Alembic revision `0009_failure_injection`.
+- Recovery API at `/api/v1/evaluation-runs/{run_id}/recovery`: per-item attempts, lease expiry,
+  injected fault, budget spend and side-effect count.
+- Chaos commands — `make chaos-duplicate`, `chaos-strand`, `chaos-report` — to force duplicate
+  delivery and lease expiry against a running stack and report duplicates.
+- Zero-duplicate-side-effect coverage under retry, duplicate delivery, two racing workers, lease
+  expiry after a partial attempt, and direct constraint violation.
+
+### Fixed — Phase 9 review
+
+- Budgets are per item, not per attempt. A retry now resumes the previous attempt's spend instead of
+  restarting at zero, which had let an item with two attempts spend twice its limit and still report
+  the smaller number.
+- Unexecutable fault profiles are rejected when the suite is created, with the offending index.
+  Previously the failure surfaced only when the worker parsed the profile, after the item had been
+  leased and with nothing catching it — which stranded the item and stopped the consumer.
+- A profile written before that validation existed now fails its item with `fault_profile_invalid`
+  rather than propagating out of the worker's consume loop.
+
 ### Added — Phase 8: replay and time travel
 
 - PostgreSQL-backed trajectory replay records, plus Alembic revision `0008_trajectory_replays`.

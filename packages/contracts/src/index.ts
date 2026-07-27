@@ -84,6 +84,10 @@ export type ReplayState = Schemas['ReplayState'];
 export type TrajectoryReplay = Schemas['TrajectoryReplayResponse'];
 export type TrajectoryReplayListResponse = Schemas['TrajectoryReplayListResponse'];
 
+/** Failure injection and reliability. */
+export type RunRecovery = Schemas['RunRecoveryResponse'];
+export type RunItemRecovery = Schemas['RunItemRecoveryResponse'];
+
 /** Terminal job states. A job in one of these will never change again. */
 export const TERMINAL_JOB_STATES = ['COMPLETED', 'FAILED'] as const satisfies readonly JobState[];
 

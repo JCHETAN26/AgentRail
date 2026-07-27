@@ -1968,6 +1968,120 @@
         "title": "Role",
         "type": "string"
       },
+      "RunItemRecoveryResponse": {
+        "description": "One item, seen from the reliability angle rather than the result angle.",
+        "properties": {
+          "attempt_count": {
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "budget_state": {
+            "title": "Budget State",
+            "type": "object"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "injected_fault": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injected Fault"
+          },
+          "item_index": {
+            "title": "Item Index",
+            "type": "integer"
+          },
+          "lease_expired": {
+            "title": "Lease Expired",
+            "type": "boolean"
+          },
+          "lease_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lease Expires At"
+          },
+          "max_attempts": {
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "partition": {
+            "title": "Partition",
+            "type": "string"
+          },
+          "retries_remaining": {
+            "title": "Retries Remaining",
+            "type": "integer"
+          },
+          "side_effect_count": {
+            "title": "Side Effect Count",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/RunItemState"
+          },
+          "worker_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worker Id"
+          }
+        },
+        "required": [
+          "id",
+          "item_index",
+          "partition",
+          "state",
+          "attempt_count",
+          "max_attempts",
+          "retries_remaining",
+          "lease_expired",
+          "budget_state",
+          "side_effect_count"
+        ],
+        "title": "RunItemRecoveryResponse",
+        "type": "object"
+      },
       "RunItemState": {
         "enum": [
           "PENDING",
@@ -2072,6 +2186,53 @@
           "state"
         ],
         "title": "RunItemTraceResponse",
+        "type": "object"
+      },
+      "RunRecoveryResponse": {
+        "properties": {
+          "item_states": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/RunItemState"
+            },
+            "title": "Item States",
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunItemRecoveryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "retried_count": {
+            "title": "Retried Count",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "side_effect_count": {
+            "title": "Side Effect Count",
+            "type": "integer"
+          },
+          "stranded_count": {
+            "title": "Stranded Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "item_states",
+          "stranded_count",
+          "retried_count",
+          "side_effect_count",
+          "items"
+        ],
+        "title": "RunRecoveryResponse",
         "type": "object"
       },
       "SignOutResponse": {
@@ -3903,6 +4064,106 @@
         "summary": "List run items with trajectory links",
         "tags": [
           "trajectories"
+        ]
+      }
+    },
+    "/api/v1/evaluation-runs/{run_id}/recovery": {
+      "get": {
+        "operationId": "get_evaluation_run_recovery",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecoveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Idempotency key reused."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "A required dependency is unavailable."
+          }
+        },
+        "summary": "Inspect run reliability: attempts, leases, faults and side effects",
+        "tags": [
+          "evaluation-runs"
         ]
       }
     },

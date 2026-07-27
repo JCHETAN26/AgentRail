@@ -144,7 +144,7 @@ class TestEvaluationSuites:
                 "dataset_version_id": version["id"],
                 "evaluators": [{"name": "exact_match", "version": "v1"}],
                 "thresholds": {"task_success": 0.95},
-                "fault_profiles": [{"name": "none"}],
+                "fault_profiles": [{"kind": "tool.timeout", "attempts": [1]}],
             },
         )
         assert created.status_code == 201, created.text
@@ -163,6 +163,30 @@ class TestEvaluationSuites:
         assert frozen_again.status_code == 200
         assert frozen.json()["frozen_at"] is not None
         assert frozen_again.json()["frozen_at"] == frozen.json()["frozen_at"]
+
+    async def test_rejects_a_suite_whose_fault_profile_cannot_be_executed(
+        self, tenant: Tenant
+    ) -> None:
+        """Caught at the boundary, not when the worker parses it — a profile
+        that only fails at run time strands a leased item and takes the
+        consuming worker down with it."""
+        dataset = await create_dataset(tenant)
+        version = await create_dataset_version(tenant, str(dataset["id"]))
+
+        response = await tenant.client.post(
+            f"/api/v1/projects/{tenant.project_id}/evaluation-suites",
+            json={
+                "name": "Bad Profile Gate",
+                "dataset_version_id": version["id"],
+                "evaluators": [],
+                "thresholds": {},
+                "fault_profiles": [{"kind": "tool.timeout"}, {"name": "none"}],
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["code"] == "validation_failed"
+        assert response.json()["details"]["index"] == 1
 
     async def test_cannot_build_suite_from_another_tenants_dataset_version(
         self, tenant: Tenant, other_tenant: Tenant

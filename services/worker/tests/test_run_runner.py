@@ -19,7 +19,13 @@ pytestmark = pytest.mark.integration
 
 
 async def make_run(
-    session_factory: async_sessionmaker[AsyncSession], project_id: str, *, item_count: int = 100
+    session_factory: async_sessionmaker[AsyncSession],
+    project_id: str,
+    *,
+    item_count: int = 100,
+    fault_profiles: list[dict[str, object]] | None = None,
+    thresholds: dict[str, object] | None = None,
+    max_attempts: int = 2,
 ) -> str:
     agent = AgentDefinition(
         id=new_sortable_id(), project_id=project_id, name="Worker Agent", slug=new_sortable_id()
@@ -58,8 +64,8 @@ async def make_run(
         name="Suite",
         slug=new_sortable_id(),
         evaluators=[],
-        thresholds={},
-        fault_profiles=[],
+        thresholds=thresholds or {},
+        fault_profiles=fault_profiles or [],
         preview={"item_count": item_count},
         frozen_at=datetime.now(UTC),
     )
@@ -85,6 +91,7 @@ async def make_run(
                     item_index=index,
                     partition="default",
                     state=RunItemState.PENDING,
+                    max_attempts=max_attempts,
                     checkpoint={"item_index": index},
                 )
             )
