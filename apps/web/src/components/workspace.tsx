@@ -1,9 +1,10 @@
 'use client';
 
-import type { Me, Organisation } from '@agentrail/contracts';
+import type { Me, Organisation, Project } from '@agentrail/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 
+import { ApprovalQueue } from '@/components/approval-queue';
 import { JobLauncher } from '@/components/job-launcher';
 import { ApiError, createOrganisation, getMe, listProjects, signOut } from '@/lib/api';
 
@@ -18,11 +19,16 @@ import { ApiError, createOrganisation, getMe, listProjects, signOut } from '@/li
 export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
   const queryClient = useQueryClient();
   const [organisationId, setOrganisationId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
 
   const me = useQuery<Me>({ queryKey: ['me'], queryFn: getMe, retry: false });
 
   const organisations = me.data?.organisations ?? [];
   const selected = organisationId ?? organisations[0]?.organisation.id ?? null;
+  // The role in the selected organisation decides what the console offers. The
+  // API stays the authority on what it permits.
+  const selectedRole =
+    organisations.find((membership) => membership.organisation.id === selected)?.role ?? 'viewer';
 
   const projects = useQuery({
     queryKey: ['projects', selected],
@@ -58,7 +64,14 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
     return <ErrorNotice error={me.error} />;
   }
 
-  const projectId = projects.data?.items[0]?.id ?? null;
+  const availableProjects = projects.data?.items ?? [];
+  // Defaulting to the first project is fine; being *stuck* on it is not. An
+  // approval parked in any other project would otherwise be invisible, leaving
+  // its run blocked with nothing in the console able to release it.
+  const selectedProjectId =
+    availableProjects.find((project) => project.id === projectId)?.id ??
+    availableProjects[0]?.id ??
+    null;
 
   return (
     <>
@@ -98,12 +111,20 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
             </p>
           ) : projects.isError ? (
             <ErrorNotice error={projects.error} />
-          ) : projectId === null ? (
+          ) : selectedProjectId === null ? (
             <p className="empty" role="status">
               This organisation has no projects yet.
             </p>
           ) : (
-            <JobLauncher projectId={projectId} />
+            <>
+              <ProjectPicker
+                projects={availableProjects}
+                selected={selectedProjectId}
+                onSelect={setProjectId}
+              />
+              <JobLauncher projectId={selectedProjectId} />
+              <ApprovalQueue projectId={selectedProjectId} role={selectedRole} />
+            </>
           )}
         </>
       )}
@@ -147,6 +168,47 @@ function OrganisationPicker({
         {organisations.map((membership) => (
           <option key={membership.organisation.id} value={membership.organisation.id}>
             {membership.organisation.name} — {membership.role}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function ProjectPicker({
+  projects,
+  selected,
+  onSelect,
+}: {
+  projects: Project[];
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
+  const selectId = useId();
+
+  if (projects.length === 1) {
+    return (
+      <p className="context" data-testid="project-context">
+        Project <strong>{projects[0]!.name}</strong>
+      </p>
+    );
+  }
+
+  return (
+    <div className="context">
+      <label className="form__label" htmlFor={selectId}>
+        Project
+      </label>
+      <select
+        id={selectId}
+        className="form__input"
+        value={selected}
+        onChange={(event) => onSelect(event.target.value)}
+        data-testid="project-picker"
+      >
+        {projects.map((project) => (
+          <option key={project.id} value={project.id}>
+            {project.name}
           </option>
         ))}
       </select>

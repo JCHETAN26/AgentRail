@@ -193,6 +193,20 @@ report a spend of zero for the charge that broke the budget.
 
 ## Phase 10 progress
 
+**Approval console (follow-up branch `feat/p10-approval-console`).** Added the reviewer queue in
+`apps/web`, a project-scoped `GET /projects/{project_id}/approvals` behind it, and the
+`ix_approval_requests_project_state` index that migration `0010` had already anticipated. This
+closes the one part of Phase 10 the build plan asked for that PR #43 did not deliver.
+
+Two things worth carrying forward from it. First, a bare `dict[str, Any]` on a _request_ body emits
+`{"type": "object"}` with no `additionalProperties`, which openapi-typescript renders as
+`Record<string, never>` — an object permitting no properties, so the generated client cannot send
+one. Response-only dictionaries hide this because reading an object never checks the index
+signature. `JsonObject` in `approvals/schemas.py` is the fix; any future request field taking free
+-form JSON needs it too. Second, a test that stubs `fetch` with `mockResolvedValue(new Response(...))`
+shares one body across every call, and a `Response` body can only be read once — so adding any
+component that fetches breaks unrelated tests. Use `mockImplementation` returning a fresh response.
+
 - Added `agentrail_core.policy`: the four risk levels, a validated bundle parsed from the agent
   version's existing `policy_bundle` column, and one pure `decide()`.
 - Added `agentrail_core.approvals`: `ApprovalRequest`, the approval state machine with no outgoing
@@ -452,21 +466,25 @@ none of them is vacuous.
 
 ---
 
-## Next tasks (Phase 10 — Policy and human approval)
+## Next tasks (Phase 11 — Release gates and GitHub integration)
 
-Built and verified locally. Remaining:
+Phase 10 merged as `96db62b`; the approval console follows on branch
+`feat/p10-approval-console`. With it, Phase 10 is complete against the build plan.
 
-1. Let CI run the PostgreSQL-backed policy and approval suites, then merge the Phase 10 PR.
-2. **No console UI for approvals.** The APIs exist and are tested; nothing in `apps/web` surfaces a
-   pending approval yet, so a reviewer has to use the API directly. The build plan puts the
-   approve/edit/reject UI in this phase — it is the one part of Phase 10 not delivered.
-3. The circuit breaker from Phase 9 still has no caller. This phase did not introduce live tool
-   calls either, so it stays unwired.
-4. CodeQL will raise its four Alembic false positives again on `0010`. Same fix, still the owner's
-   call.
+Carried forward:
 
-**Exit criteria:** a high-risk action cannot execute without approval; delayed events cannot bypass
-a rejection; green PR.
+1. **The circuit breaker still has no caller.** Two phases now. It needs a live dependency to trip
+   against, which no phase has introduced yet.
+2. **CodeQL's Alembic false positives** will recur on every new migration. Three phases running.
+   The `paths-ignore` fix costs scanning coverage on those files, so it stays the owner's call.
+3. **`chaos.py` is not in CI** — it needs a running stack.
+4. **The console is thin.** It has sign-in, tenancy, a job launcher and now the approval queue.
+   There is still no UI for runs, trajectories, comparisons or recovery, all of which have APIs.
+
+Phase 11 itself: release policies, an offline gate, the GitHub App and webhook verification, Check
+Runs, PR annotations, deep links, superseded-run cancellation and a sample workflow.
+
+**Exit criteria:** a regressed PR is blocked and a passing PR succeeds; green PR.
 
 ---
 

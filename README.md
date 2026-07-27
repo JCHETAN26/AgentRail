@@ -188,8 +188,6 @@ Deliberate, and scheduled:
   evaluation runs, redacted trajectories, replay records, deterministic fault injection and the
   policy/approval engine exist, but release gates and canary deployment are not built yet
   (Phases 11–12).
-- Approvals have APIs and tests but **no console UI**: a reviewer approves, edits or rejects through
-  the API, not the web app.
 - An unclassified tool defaults to `HIGH_RISK_WRITE` and stops for approval. Agent versions with an
   empty policy bundle will park rather than run unattended.
 - Faults are injected by the executor from a declarative profile, not by a live model or a real

@@ -6,6 +6,32 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 10: approval console
+
+- Reviewer queue in the web console: pending high-risk calls for a project, with approve,
+  approve-with-edits and reject. Edited arguments are parsed in the browser, so a typo is a message
+  beside the field rather than a `422` after the reviewer has committed.
+- `GET /api/v1/projects/{project_id}/approvals` — a reviewer arrives knowing something needs an
+  answer, not which run stopped, so the queue is project-scoped rather than run-scoped.
+- The console shows controls by role and still surfaces a server `403` or `409` plainly, because the
+  API remains the authority on what is permitted.
+
+### Fixed — Phase 10 follow-up
+
+- The approval queue now polls, so an approval that parks while a reviewer is watching actually
+  appears. Focus refetching is disabled app-wide and an empty queue is invalidated by nothing, so
+  without a poll the panel kept claiming nothing was waiting while a run sat blocked behind it.
+- Added a project picker. `projectId` was pinned to the first project, so an approval parked in any
+  other project was invisible and its run could not be released from the console at all.
+- Edited arguments must parse to a JSON _object_. `JSON.parse` accepts arrays and bare values, and
+  casting them through produced exactly the `422` the client-side parsing exists to prevent.
+
+- `DecideApprovalRequest.edited_arguments` declared `{"type": "object"}` with no
+  `additionalProperties`, which openapi-typescript rendered as `Record<string, never>` — an object
+  permitting no properties. The generated client could not send an edit at all. Response-only
+  dictionaries get away with this because reading an object never checks the index signature; a
+  request body does not.
+
 ### Added — Phase 10: policy and human approval
 
 - The four tool risk levels from the build plan — `READ_ONLY`, `LOW_RISK_WRITE`, `HIGH_RISK_WRITE`,

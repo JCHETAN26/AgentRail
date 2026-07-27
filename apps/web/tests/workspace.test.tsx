@@ -162,15 +162,18 @@ describe('Workspace', () => {
   });
 
   it('signs out and notifies the shell', async () => {
+    // A Response body can only be read once, so every call needs its own
+    // instance. Sharing one across calls makes this test depend on exactly how
+    // many requests the shell happens to make.
     vi.mocked(fetch)
       .mockResolvedValueOnce(json(ME_WITH_ORG))
-      .mockResolvedValue(json({ items: [PROJECT] }));
+      .mockImplementation(() => Promise.resolve(json({ items: [PROJECT] })));
     const onSignedOut = vi.fn();
 
     renderWithQueryClient(<Workspace onSignedOut={onSignedOut} />);
     await screen.findByTestId('identity');
 
-    vi.mocked(fetch).mockResolvedValue(json({ status: 'signed_out' }));
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({ status: 'signed_out' })));
     await userEvent.click(screen.getByRole('button', { name: /sign out/i }));
 
     await waitFor(() => expect(onSignedOut).toHaveBeenCalled());

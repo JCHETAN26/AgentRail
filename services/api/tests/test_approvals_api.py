@@ -190,6 +190,46 @@ class TestApprovalsApi:
         assert response.status_code == 200
         assert response.json()["state"] == "APPROVED"
 
+    async def test_lists_pending_approvals_across_a_project(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        """A reviewer arrives knowing something needs an answer, not which run
+        stopped, so the queue is project-scoped rather than run-scoped."""
+        _run_id, approval_id = await create_parked_run(tenant, session_factory)
+
+        pending = await tenant.client.get(
+            f"/api/v1/projects/{tenant.project_id}/approvals?state=PENDING"
+        )
+        decided = await tenant.client.get(
+            f"/api/v1/projects/{tenant.project_id}/approvals?state=APPROVED"
+        )
+
+        assert pending.status_code == 200
+        assert [item["id"] for item in pending.json()["items"]] == [approval_id]
+        assert decided.status_code == 200
+        assert decided.json()["items"] == []
+
+    async def test_a_decided_approval_leaves_the_pending_queue(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        _run_id, approval_id = await create_parked_run(tenant, session_factory)
+        await tenant.client.post(
+            f"/api/v1/approvals/{approval_id}/decision", json={"approve": True}
+        )
+
+        pending = await tenant.client.get(
+            f"/api/v1/projects/{tenant.project_id}/approvals?state=PENDING"
+        )
+
+        assert pending.json()["items"] == []
+
+    async def test_cannot_list_another_tenants_project_queue(
+        self, tenant: Tenant, other_tenant: Tenant
+    ) -> None:
+        response = await tenant.client.get(f"/api/v1/projects/{other_tenant.project_id}/approvals")
+
+        assert response.status_code == 403
+
     async def test_cannot_read_or_decide_another_tenants_approval(
         self,
         tenant: Tenant,
