@@ -52,6 +52,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/evaluation-runs/{run_id}',
       '/api/v1/evaluation-runs/{run_id}/cancel',
       '/api/v1/evaluation-runs/{run_id}/events',
+      '/api/v1/evaluation-runs/{run_id}/items',
       '/api/v1/evaluation-suites/{suite_id}/freeze',
       '/api/v1/jobs/{job_id}',
       '/api/v1/organisations',
@@ -65,6 +66,9 @@ describe('the OpenAPI document', () => {
       '/api/v1/projects/{project_id}/datasets',
       '/api/v1/projects/{project_id}/evaluation-suites',
       '/api/v1/projects/{project_id}/jobs',
+      '/api/v1/trajectories/{trajectory_id}',
+      '/api/v1/trajectories/{trajectory_id}/checkpoints',
+      '/api/v1/trajectories/{trajectory_id}/steps',
       '/healthz',
       '/readyz',
     ]);
@@ -87,7 +91,11 @@ describe('the OpenAPI document', () => {
       '/api/v1/evaluation-runs/{run_id}',
       '/api/v1/evaluation-runs/{run_id}/cancel',
       '/api/v1/evaluation-runs/{run_id}/events',
+      '/api/v1/evaluation-runs/{run_id}/items',
       '/api/v1/jobs/{job_id}',
+      '/api/v1/trajectories/{trajectory_id}',
+      '/api/v1/trajectories/{trajectory_id}/checkpoints',
+      '/api/v1/trajectories/{trajectory_id}/steps',
     ]);
     const unscoped = tenantPaths.filter(
       (path) =>

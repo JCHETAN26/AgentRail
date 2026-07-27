@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 5 — Durable distributed execution                                                   |
-| **Status**     | In progress on branch `feat/p05-durable-execution`                                  |
-| **Base**       | `main` @ `34dff81` (Phase 4 merged)                                                 |
-| **Next phase** | 6 — Trajectory capture, after Phase 5 exits                                         |
+| **Phase**      | 6 — Trajectory capture and trace explorer                                           |
+| **Status**     | In progress on branch `feat/p06-trajectory-capture`                                 |
+| **Base**       | `main` @ `13ec7cf` (Phase 5 merged)                                                 |
+| **Next phase** | 7 — Evaluators and comparison, after Phase 6 exits                                  |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -20,21 +20,22 @@ Phase 1 shipped in PR [#20](https://github.com/JCHETAN26/AgentRail/pull/20).
 Phase 2 shipped in PR [#21](https://github.com/JCHETAN26/AgentRail/pull/21).
 Phase 3 shipped in PR [#22](https://github.com/JCHETAN26/AgentRail/pull/22).
 Phase 4 shipped in PR [#23](https://github.com/JCHETAN26/AgentRail/pull/23).
+Phase 5 shipped in PR [#24](https://github.com/JCHETAN26/AgentRail/pull/24).
 
 ---
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 5 — durable distributed execution exit criteria
-2. `packages/core-py/src/agentrail_core/execution/state.py` — run and run-item state machines
-3. `packages/core-py/src/agentrail_core/execution/models.py` — execution persistence models
-4. `services/api/src/agentrail_api/execution/service.py` — run creation, outbox and cancellation
-5. `services/worker/src/agentrail_worker/run_runner.py` — lease, retry and aggregation worker
-6. `services/api/tests/test_execution_api.py` and `services/worker/tests/test_run_runner.py`
+1. `BUILDPLAN.md` Phase 6 — trajectory capture and trace explorer exit criteria
+2. `packages/core-py/src/agentrail_core/trajectories.py` — trajectory models and redaction
+3. `services/api/src/agentrail_api/trajectories/service.py` — tenant-scoped trace queries
+4. `services/api/src/agentrail_api/routers/trajectories.py` — public trace explorer API
+5. `services/worker/src/agentrail_worker/run_runner.py` — trajectory capture during item execution
+6. `services/api/tests/test_trajectories_api.py` and `packages/core-py/tests/test_trajectories.py`
 
 ---
 
-## Completed capabilities (through Phase 4)
+## Completed capabilities (through Phase 5)
 
 - **Delegated authentication** with two providers behind one protocol: a deterministic dev provider
   (no credentials, no network — used by local development, CI and the demo) and GitHub OAuth with
@@ -110,6 +111,17 @@ Phase 4 shipped in PR [#23](https://github.com/JCHETAN26/AgentRail/pull/23).
   conditional updates, leases run items, checkpoints progress, recovers expired leases and aggregates
   final run outcomes.
 
+## Phase 6 progress
+
+- Added `Trajectory`, `TrajectoryStep` and `TrajectoryCheckpoint` persistence models.
+- Added Alembic revision `0006_trajectories`.
+- Added recursive trajectory redaction for sensitive keys and email addresses before persistence.
+- Worker now records deterministic input, graph-state, tool-call, evidence, checkpoint and
+  final-result steps for each completed run item.
+- Added trace explorer APIs to list run items with trajectory/failing-step links, fetch trajectories,
+  list ordered steps and list checkpoints.
+- Added tenant-isolation and redaction tests for trajectory reads.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -132,6 +144,7 @@ Phase 4 shipped in PR [#23](https://github.com/JCHETAN26/AgentRail/pull/23).
 | `0003_agent_registry`    | Adds project-scoped agent definitions and immutable agent versions with per-agent version and digest uniqueness                                                                  |
 | `0004_datasets_suites`   | Adds project-scoped datasets, immutable dataset versions with validation metadata and freezable evaluation suites                                                                |
 | `0005_durable_execution` | Adds evaluation runs, run items, retry/lease metadata and durable outbox events                                                                                                  |
+| `0006_trajectories`      | Adds trajectory headers, ordered steps, named checkpoints and redacted diagnostic payloads                                                                                       |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -223,6 +236,21 @@ Latest Phase 5 branch checks, run locally on 2026-07-26:
 and PostgreSQL on localhost:5433 refused connections. CI must run the real PostgreSQL/Redis
 integration suite before landing.
 
+Latest Phase 6 branch checks, run locally on 2026-07-26:
+
+| Command                                                 | Result                                                |
+| ------------------------------------------------------- | ----------------------------------------------------- |
+| `uv run ruff check .`                                   | Pass                                                  |
+| `uv run mypy packages/core-py/src services/api/src ...` | Pass — 71 source files                                |
+| `uv run pytest -q`                                      | 197 passed, 98 skipped locally due sandboxed Postgres |
+| `uv run python scripts/export_openapi.py --check`       | Pass                                                  |
+| `pnpm run format:check`                                 | Pass                                                  |
+| `pnpm run lint`                                         | Pass                                                  |
+| `pnpm run typecheck`                                    | Pass                                                  |
+| `pnpm run test`                                         | Pass — 34 JS tests                                    |
+| `@agentrail/contracts check`                            | Pass                                                  |
+| `pnpm build`                                            | Pass — web production build                           |
+
 ---
 
 ## Known limitations
@@ -232,8 +260,8 @@ integration suite before landing.
   there; RLS as defence in depth is Phase 14.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
 - **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
-- The execution runtime is deterministic/recorded and uses suite item counts; it does not capture
-  trajectories or invoke real evaluators yet.
+- The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture is
+  synthetic/deterministic and does not invoke real evaluators yet.
 - Failed legacy jobs remain terminal; retry budgets, leases and outbox are implemented for
   evaluation run items.
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
@@ -260,12 +288,13 @@ integration suite before landing.
 
 ---
 
-## Next tasks (Phase 5 — Durable distributed execution)
+## Next tasks (Phase 6 — Trajectory capture and trace explorer)
 
-1. Let CI run the PostgreSQL-backed execution integration tests.
-2. Open and merge the Phase 5 pull request once CI is green.
+1. Let CI run the PostgreSQL-backed trajectory integration tests.
+2. Open and merge the Phase 6 pull request once CI is green.
 
-**Exit criteria:** 100-item suite completes; killed workers recover; duplicates harmless; green PR.
+**Exit criteria:** every failed item links to exact step; tenant isolation and redaction pass; green
+PR.
 
 ---
 

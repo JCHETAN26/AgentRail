@@ -1724,6 +1724,112 @@
         "title": "Role",
         "type": "string"
       },
+      "RunItemState": {
+        "enum": [
+          "PENDING",
+          "LEASED",
+          "EXECUTING",
+          "EVALUATING",
+          "COMPLETED",
+          "FAILED_RETRYABLE",
+          "FAILED_TERMINAL",
+          "CANCELLED"
+        ],
+        "title": "RunItemState",
+        "type": "string"
+      },
+      "RunItemTraceListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunItemTraceResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RunItemTraceListResponse",
+        "type": "object"
+      },
+      "RunItemTraceResponse": {
+        "properties": {
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "failing_step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failing Step Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_index": {
+            "title": "Item Index",
+            "type": "integer"
+          },
+          "partition": {
+            "title": "Partition",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/RunItemState"
+          },
+          "trajectory_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trajectory Id"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "item_index",
+          "partition",
+          "state"
+        ],
+        "title": "RunItemTraceResponse",
+        "type": "object"
+      },
       "SignOutResponse": {
         "properties": {
           "status": {
@@ -1735,6 +1841,261 @@
         },
         "title": "SignOutResponse",
         "type": "object"
+      },
+      "TrajectoryCheckpointListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrajectoryCheckpointResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TrajectoryCheckpointListResponse",
+        "type": "object"
+      },
+      "TrajectoryCheckpointResponse": {
+        "properties": {
+          "checkpoint_index": {
+            "title": "Checkpoint Index",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "object"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "trajectory_id": {
+            "title": "Trajectory Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trajectory_id",
+          "checkpoint_index",
+          "label",
+          "state",
+          "created_at"
+        ],
+        "title": "TrajectoryCheckpointResponse",
+        "type": "object"
+      },
+      "TrajectoryResponse": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "final_checkpoint": {
+            "title": "Final Checkpoint",
+            "type": "object"
+          },
+          "graph_state": {
+            "title": "Graph State",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_index": {
+            "title": "Item Index",
+            "type": "integer"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_item_id": {
+            "title": "Run Item Id",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TrajectoryState"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "run_id",
+          "run_item_id",
+          "item_index",
+          "state",
+          "summary",
+          "graph_state",
+          "final_checkpoint",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TrajectoryResponse",
+        "type": "object"
+      },
+      "TrajectoryState": {
+        "enum": [
+          "RUNNING",
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "title": "TrajectoryState",
+        "type": "string"
+      },
+      "TrajectoryStepListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrajectoryStepResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TrajectoryStepListResponse",
+        "type": "object"
+      },
+      "TrajectoryStepResponse": {
+        "properties": {
+          "checkpoint": {
+            "title": "Checkpoint",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "redacted_input": {
+            "title": "Redacted Input",
+            "type": "object"
+          },
+          "redacted_output": {
+            "title": "Redacted Output",
+            "type": "object"
+          },
+          "redaction_summary": {
+            "title": "Redaction Summary",
+            "type": "object"
+          },
+          "step_index": {
+            "title": "Step Index",
+            "type": "integer"
+          },
+          "step_type": {
+            "$ref": "#/components/schemas/TrajectoryStepType"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "trajectory_id": {
+            "title": "Trajectory Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trajectory_id",
+          "step_index",
+          "step_type",
+          "title",
+          "redacted_input",
+          "redacted_output",
+          "evidence",
+          "checkpoint",
+          "redaction_summary",
+          "created_at"
+        ],
+        "title": "TrajectoryStepResponse",
+        "type": "object"
+      },
+      "TrajectoryStepType": {
+        "enum": [
+          "input",
+          "graph_state",
+          "tool_call",
+          "evidence",
+          "checkpoint",
+          "final_result",
+          "error"
+        ],
+        "title": "TrajectoryStepType",
+        "type": "string"
       },
       "UserResponse": {
         "properties": {
@@ -2907,6 +3268,102 @@
         "summary": "Stream evaluation-run progress",
         "tags": [
           "evaluation-runs"
+        ]
+      }
+    },
+    "/api/v1/evaluation-runs/{run_id}/items": {
+      "get": {
+        "operationId": "list_evaluation_run_items",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RunItemState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunItemTraceListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List run items with trajectory links",
+        "tags": [
+          "trajectories"
         ]
       }
     },
@@ -4854,6 +5311,262 @@
         "summary": "Create a job in a project",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/v1/trajectories/{trajectory_id}": {
+      "get": {
+        "operationId": "get_trajectory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trajectory_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Trajectory Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrajectoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Fetch a trajectory",
+        "tags": [
+          "trajectories"
+        ]
+      }
+    },
+    "/api/v1/trajectories/{trajectory_id}/checkpoints": {
+      "get": {
+        "operationId": "list_trajectory_checkpoints",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trajectory_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Trajectory Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrajectoryCheckpointListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List trajectory checkpoints",
+        "tags": [
+          "trajectories"
+        ]
+      }
+    },
+    "/api/v1/trajectories/{trajectory_id}/steps": {
+      "get": {
+        "operationId": "list_trajectory_steps",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trajectory_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Trajectory Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "step_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TrajectoryStepType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Step Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrajectoryStepListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List trajectory steps",
+        "tags": [
+          "trajectories"
         ]
       }
     },

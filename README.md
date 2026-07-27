@@ -8,19 +8,20 @@ The question AgentRail exists to answer:
 > How can a team prove that an agent change is safer, more reliable and more useful **before**
 > exposing it to users?
 
-> [!NOTE] > **Status: Phase 5 of 18 is in progress.** The repository has the deterministic request
+> [!NOTE] > **Status: Phase 6 of 18 is in progress.** The repository has the deterministic request
 > path, authentication and tenancy, the CloudOps sandbox, the agent registry, dataset and
-> suite-builder APIs, and the first durable evaluation-run executor. Trajectory capture, evaluators,
-> replay, policy, release gates and canary deployment are not built yet. Nothing in this README
-> describes a capability that does not exist — see [Known limitations](#known-limitations).
+> suite-builder APIs, the first durable evaluation-run executor, and redacted trajectory capture for
+> deterministic runs. Evaluators, replay, policy, release gates and canary deployment are not built
+> yet. Nothing in this README describes a capability that does not exist — see
+> [Known limitations](#known-limitations).
 
 ---
 
 ## What works today
 
 **Sign in, create an organisation, run a deterministic job, register agent versions, build validated
-dataset/suite records, and execute a frozen suite as a durable evaluation run inside one of its
-projects.**
+dataset/suite records, execute a frozen suite as a durable evaluation run, and inspect redacted
+per-item trajectories inside one of its projects.**
 
 Authentication is delegated and pluggable: local development, CI and the demo use a deterministic
 provider that needs no credentials at all, while deployed environments use GitHub OAuth. Sessions are
@@ -140,8 +141,9 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
   checkpoints. Terminal states have no outgoing transitions at all.
 - **Errors are a contract.** Every non-2xx response is a `ProblemDetail` with a stable machine-readable
   `code` and a `correlation_id`. Stack traces never reach a client.
-- **Secrets never reach logs.** The JSON log formatter redacts any field whose key looks sensitive
-  before serialisation.
+- **Secrets stay out of diagnostic payloads.** The JSON log formatter redacts any field whose key
+  looks sensitive before serialisation, and trajectory capture recursively redacts sensitive keys and
+  email addresses before persistence.
 - **The demo needs no paid key.** The deterministic path is the default, not a fallback — including
   sign-in, which is why the entire test suite runs without an OAuth application configured.
 - **One function decides access.** `authorize(principal, permission, organisation_id=...)` is pure
@@ -177,9 +179,9 @@ Deliberate, and scheduled:
 - The CloudOps sandbox is synthetic and deterministic. Phase 2 has added tool contracts, synthetic
   services, metrics, logs, runbooks, fault hooks and 25 scenario manifests; the agent runtime that
   consumes them is still scheduled for later phases.
-- Agent definitions, immutable agent versions, dataset versions, frozen suite records and durable
-  evaluation runs exist, but trajectory capture, real evaluators, replay, policy engine, release
-  gates and canary deployment are not built yet (Phases 6–12).
+- Agent definitions, immutable agent versions, dataset versions, frozen suite records, durable
+  evaluation runs and redacted trajectories exist, but real evaluators, replay, policy engine,
+  release gates and canary deployment are not built yet (Phases 7–12).
 - Correlation and trace identifiers are propagated, but no spans are exported. The OpenTelemetry SDK
   and Collector pipeline are Phase 13.
 - The legacy deterministic job path still has terminal failures only. Evaluation run items have

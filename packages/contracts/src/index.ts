@@ -62,6 +62,18 @@ export type CreateEvaluationRunRequest = Schemas['CreateEvaluationRunRequest'];
 export type EvaluationRun = Schemas['EvaluationRunResponse'];
 export type EvaluationRunState = Schemas['EvaluationRunState'];
 
+/** Trajectory trace explorer. */
+export type RunItemTrace = Schemas['RunItemTraceResponse'];
+export type RunItemTraceListResponse = Schemas['RunItemTraceListResponse'];
+export type RunItemState = Schemas['RunItemState'];
+export type Trajectory = Schemas['TrajectoryResponse'];
+export type TrajectoryState = Schemas['TrajectoryState'];
+export type TrajectoryStep = Schemas['TrajectoryStepResponse'];
+export type TrajectoryStepType = Schemas['TrajectoryStepType'];
+export type TrajectoryStepListResponse = Schemas['TrajectoryStepListResponse'];
+export type TrajectoryCheckpoint = Schemas['TrajectoryCheckpointResponse'];
+export type TrajectoryCheckpointListResponse = Schemas['TrajectoryCheckpointListResponse'];
+
 /** Terminal job states. A job in one of these will never change again. */
 export const TERMINAL_JOB_STATES = ['COMPLETED', 'FAILED'] as const satisfies readonly JobState[];
 
