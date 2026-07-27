@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentrail_api.auth.service import Actor, principal_for_organisation
@@ -102,21 +102,11 @@ async def list_run_items(
     ]
     if state is not None:
         clauses.append(RunItem.state == state)
-    failing_steps = (
-        select(
-            TrajectoryStep.trajectory_id,
-            func.min(TrajectoryStep.id).label("failing_step_id"),
-        )
-        .where(TrajectoryStep.step_type == TrajectoryStepType.ERROR)
-        .group_by(TrajectoryStep.trajectory_id)
-        .subquery()
-    )
     rows = await session.execute(
-        select(RunItem, Trajectory.id, failing_steps.c.failing_step_id)
+        select(RunItem, Trajectory.id, Trajectory.summary["failing_step_id"].as_string())
         .join(EvaluationRun, EvaluationRun.id == RunItem.run_id)
         .join(Project, Project.id == EvaluationRun.project_id)
         .outerjoin(Trajectory, Trajectory.run_item_id == RunItem.id)
-        .outerjoin(failing_steps, failing_steps.c.trajectory_id == Trajectory.id)
         .where(*clauses)
         .order_by(RunItem.item_index)
     )

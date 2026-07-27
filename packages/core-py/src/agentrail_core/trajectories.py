@@ -175,13 +175,17 @@ def _redact(value: Any, summary: dict[str, int]) -> Any:
                 redacted[key_text] = "[REDACTED]"
                 summary["keys"] += 1
             else:
-                redacted[key_text] = _redact(item, summary)
+                redacted[_redact_email_text(key_text, summary)] = _redact(item, summary)
         return redacted
     if isinstance(value, list):
         return [_redact(item, summary) for item in value]
     if isinstance(value, str) and "@" in value:
-        redacted_text = _EMAIL_PATTERN.sub("*", value)
-        if redacted_text != value:
-            summary["emails"] += 1
-        return redacted_text
+        return _redact_email_text(value, summary)
     return value
+
+
+def _redact_email_text(value: str, summary: dict[str, int]) -> str:
+    redacted_text = _EMAIL_PATTERN.sub("*", value)
+    if redacted_text != value:
+        summary["emails"] += 1
+    return redacted_text

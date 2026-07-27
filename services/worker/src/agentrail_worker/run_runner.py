@@ -186,22 +186,21 @@ class EvaluationRunRunner:
             run = await session.get(EvaluationRun, item.run_id)
             if run is None:
                 return
-            trajectory = await self._create_trajectory(session, item=item, run=run)
-            await session.execute(
+            claim = await session.execute(
                 update(RunItem)
                 .where(RunItem.id == item.id, RunItem.state == RunItemState.LEASED)
                 .values(
                     state=RunItemState.EXECUTING,
                     started_at=func.now(),
-                    checkpoint={
-                        "stage": "executing",
-                        "item_index": item.item_index,
-                        "trajectory_id": trajectory.id,
-                    },
+                    checkpoint={"stage": "executing", "item_index": item.item_index},
                     updated_at=func.now(),
                     version=RunItem.version + 1,
                 )
             )
+            if claim.rowcount != 1:
+                await session.rollback()
+                return
+            trajectory = await self._create_trajectory(session, item=item, run=run)
             graph_checkpoint = await self._append_step(
                 session,
                 trajectory_id=trajectory.id,
@@ -380,6 +379,16 @@ class EvaluationRunRunner:
         evidence: dict[str, object] | None = None,
         latency_ms: int | None = None,
     ) -> TrajectoryStep:
+        existing = await session.scalar(
+            select(TrajectoryStep)
+            .where(
+                TrajectoryStep.trajectory_id == trajectory_id,
+                TrajectoryStep.step_index == step_index,
+            )
+            .with_for_update()
+        )
+        if existing is not None:
+            return existing
         redacted_input, input_summary = redact_payload(input_payload)
         redacted_output, output_summary = redact_payload(output_payload)
         redacted_checkpoint, checkpoint_summary = redact_payload(checkpoint)
@@ -416,6 +425,16 @@ class EvaluationRunRunner:
         label: str,
         state: dict[str, object],
     ) -> None:
+        existing = await session.scalar(
+            select(TrajectoryCheckpoint)
+            .where(
+                TrajectoryCheckpoint.trajectory_id == trajectory_id,
+                TrajectoryCheckpoint.checkpoint_index == checkpoint_index,
+            )
+            .with_for_update()
+        )
+        if existing is not None:
+            return
         redacted_state, _summary = redact_payload(state)
         session.add(
             TrajectoryCheckpoint(
