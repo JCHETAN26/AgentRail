@@ -163,6 +163,12 @@ identifier plumbing exists now so that work is an addition rather than a retrofi
 
 ## Not built yet
 
-Evaluators (Phase 7), replay (Phase 8), the broader failure-injection product workflow (Phase 9),
-policy and approvals (Phase 10), release gates and GitHub Checks (Phase 11), canary and rollback
-(Phase 12).
+Replay (Phase 8), the broader failure-injection product workflow (Phase 9), policy and approvals
+(Phase 10), release gates and GitHub Checks (Phase 11), canary and rollback (Phase 12).
+
+## Evaluators And Comparison
+
+Phase 7 adds the first reproducible evaluator substrate. Evaluator definitions are normalized and
+versioned by digest, terminal run items are scored during aggregation, and comparison reports store
+overall, evaluator-level and category-level metrics. Failed or errored items remain in the
+denominator, so a comparison cannot look better by dropping execution errors.

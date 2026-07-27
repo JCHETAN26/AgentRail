@@ -24,6 +24,7 @@ from agentrail_api.routers import (
     agents,
     auth,
     datasets,
+    evaluators,
     execution,
     health,
     jobs,
@@ -149,6 +150,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     app.include_router(organisations.router)
     app.include_router(agents.router)
     app.include_router(datasets.router)
+    app.include_router(evaluators.router)
     app.include_router(execution.router)
     app.include_router(trajectories.router)
     app.include_router(jobs.router)

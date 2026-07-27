@@ -382,6 +382,84 @@
         "title": "AuthProviderInfo",
         "type": "object"
       },
+      "ComparisonReportResponse": {
+        "properties": {
+          "baseline_agent_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Agent Version Id"
+          },
+          "candidate_agent_version_id": {
+            "title": "Candidate Agent Version Id",
+            "type": "string"
+          },
+          "category_metrics": {
+            "title": "Category Metrics",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evaluator_metrics": {
+            "title": "Evaluator Metrics",
+            "type": "object"
+          },
+          "exports": {
+            "title": "Exports",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "regressions": {
+            "items": {
+              "type": "object"
+            },
+            "title": "Regressions",
+            "type": "array"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "suite_digest": {
+            "title": "Suite Digest",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "run_id",
+          "candidate_agent_version_id",
+          "suite_digest",
+          "summary",
+          "evaluator_metrics",
+          "category_metrics",
+          "regressions",
+          "exports",
+          "created_at"
+        ],
+        "title": "ComparisonReportResponse",
+        "type": "object"
+      },
       "CreateAgentDefinitionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -970,6 +1048,105 @@
         "title": "ErrorCode",
         "type": "string"
       },
+      "EvaluationResultListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationResultResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EvaluationResultListResponse",
+        "type": "object"
+      },
+      "EvaluationResultResponse": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "details": {
+            "title": "Details",
+            "type": "object"
+          },
+          "evaluator_kind": {
+            "$ref": "#/components/schemas/EvaluatorKind"
+          },
+          "evaluator_slug": {
+            "title": "Evaluator Slug",
+            "type": "string"
+          },
+          "evaluator_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluator Version Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_index": {
+            "title": "Item Index",
+            "type": "integer"
+          },
+          "partition": {
+            "title": "Partition",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_item_id": {
+            "title": "Run Item Id",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EvaluatorResultState"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "run_item_id",
+          "evaluator_slug",
+          "evaluator_kind",
+          "item_index",
+          "partition",
+          "category",
+          "state",
+          "score",
+          "threshold",
+          "details",
+          "created_at"
+        ],
+        "title": "EvaluationResultResponse",
+        "type": "object"
+      },
       "EvaluationRunResponse": {
         "properties": {
           "baseline_agent_version_id": {
@@ -1220,6 +1397,23 @@
         ],
         "title": "EvaluationSuiteResponse",
         "type": "object"
+      },
+      "EvaluatorKind": {
+        "enum": [
+          "programmatic",
+          "judge"
+        ],
+        "title": "EvaluatorKind",
+        "type": "string"
+      },
+      "EvaluatorResultState": {
+        "enum": [
+          "PASSED",
+          "FAILED",
+          "ERROR"
+        ],
+        "title": "EvaluatorResultState",
+        "type": "string"
       },
       "HTTPValidationError": {
         "properties": {
@@ -3175,6 +3369,184 @@
         "summary": "Cancel an evaluation run",
         "tags": [
           "evaluation-runs"
+        ]
+      }
+    },
+    "/api/v1/evaluation-runs/{run_id}/comparison": {
+      "get": {
+        "operationId": "get_comparison_report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Fetch an evaluation comparison report",
+        "tags": [
+          "evaluators"
+        ]
+      }
+    },
+    "/api/v1/evaluation-runs/{run_id}/evaluator-results": {
+      "get": {
+        "operationId": "list_evaluation_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "evaluator_slug",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Evaluator Slug"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResultListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List evaluator results for a run",
+        "tags": [
+          "evaluators"
         ]
       }
     },

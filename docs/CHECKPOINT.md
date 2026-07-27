@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 6 — Trajectory capture and trace explorer                                           |
-| **Status**     | In progress on branch `feat/p06-trajectory-capture`                                 |
-| **Base**       | `main` @ `13ec7cf` (Phase 5 merged)                                                 |
-| **Next phase** | 7 — Evaluators and comparison, after Phase 6 exits                                  |
+| **Phase**      | 7 — Evaluators and comparison                                                       |
+| **Status**     | In progress on branch `feat/p07-evaluators-comparison`                              |
+| **Base**       | `main` @ `b9e3733` (Phase 6 merged)                                                 |
+| **Next phase** | 8 — Replay and time travel, after Phase 7 exits                                     |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -21,21 +21,22 @@ Phase 2 shipped in PR [#21](https://github.com/JCHETAN26/AgentRail/pull/21).
 Phase 3 shipped in PR [#22](https://github.com/JCHETAN26/AgentRail/pull/22).
 Phase 4 shipped in PR [#23](https://github.com/JCHETAN26/AgentRail/pull/23).
 Phase 5 shipped in PR [#24](https://github.com/JCHETAN26/AgentRail/pull/24).
+Phase 6 shipped in PR [#25](https://github.com/JCHETAN26/AgentRail/pull/25).
 
 ---
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 6 — trajectory capture and trace explorer exit criteria
-2. `packages/core-py/src/agentrail_core/trajectories.py` — trajectory models and redaction
-3. `services/api/src/agentrail_api/trajectories/service.py` — tenant-scoped trace queries
-4. `services/api/src/agentrail_api/routers/trajectories.py` — public trace explorer API
-5. `services/worker/src/agentrail_worker/run_runner.py` — trajectory capture during item execution
-6. `services/api/tests/test_trajectories_api.py` and `packages/core-py/tests/test_trajectories.py`
+1. `BUILDPLAN.md` Phase 7 — evaluators and comparison exit criteria
+2. `packages/core-py/src/agentrail_core/evaluators.py` — evaluator models and aggregation helpers
+3. `services/worker/src/agentrail_worker/run_runner.py` — comparison report creation during aggregation
+4. `services/api/src/agentrail_api/evaluators/service.py` — tenant-scoped comparison queries
+5. `services/api/src/agentrail_api/routers/evaluators.py` — comparison and evaluator-result API
+6. `services/api/tests/test_evaluators_api.py` and `packages/core-py/tests/test_evaluators.py`
 
 ---
 
-## Completed capabilities (through Phase 5)
+## Completed capabilities (through Phase 6)
 
 - **Delegated authentication** with two providers behind one protocol: a deterministic dev provider
   (no credentials, no network — used by local development, CI and the demo) and GitHub OAuth with
@@ -122,6 +123,17 @@ Phase 5 shipped in PR [#24](https://github.com/JCHETAN26/AgentRail/pull/24).
   list ordered steps and list checkpoints.
 - Added tenant-isolation and redaction tests for trajectory reads.
 
+## Phase 7 progress
+
+- Added `EvaluatorVersion`, `EvaluationResult` and `ComparisonReport` persistence models.
+- Added Alembic revision `0007_evaluators_comparison`.
+- Added deterministic programmatic scoring helpers and aggregation metrics.
+- Worker now builds comparison reports from terminal run items during run aggregation.
+- Errors remain in comparison denominators and are surfaced as regressions.
+- Added comparison APIs to fetch a run report and list evaluator results with optional evaluator
+  filtering.
+- Added aggregation and tenant-isolation tests for comparison reads.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -137,14 +149,15 @@ Phase 5 shipped in PR [#24](https://github.com/JCHETAN26/AgentRail/pull/24).
 
 ## Migrations
 
-| Revision                 | Description                                                                                                                                                                      |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0001_create_jobs`       | Creates `jobs` with check constraints and `ix_jobs_state_created_at`                                                                                                             |
-| `0002_identity`          | Adds users, organisations, memberships, projects, sessions, api_keys, audit_events; retrofits `jobs.project_id`; moves idempotency uniqueness to `(project_id, idempotency_key)` |
-| `0003_agent_registry`    | Adds project-scoped agent definitions and immutable agent versions with per-agent version and digest uniqueness                                                                  |
-| `0004_datasets_suites`   | Adds project-scoped datasets, immutable dataset versions with validation metadata and freezable evaluation suites                                                                |
-| `0005_durable_execution` | Adds evaluation runs, run items, retry/lease metadata and durable outbox events                                                                                                  |
-| `0006_trajectories`      | Adds trajectory headers, ordered steps, named checkpoints and redacted diagnostic payloads                                                                                       |
+| Revision                     | Description                                                                                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_create_jobs`           | Creates `jobs` with check constraints and `ix_jobs_state_created_at`                                                                                                             |
+| `0002_identity`              | Adds users, organisations, memberships, projects, sessions, api_keys, audit_events; retrofits `jobs.project_id`; moves idempotency uniqueness to `(project_id, idempotency_key)` |
+| `0003_agent_registry`        | Adds project-scoped agent definitions and immutable agent versions with per-agent version and digest uniqueness                                                                  |
+| `0004_datasets_suites`       | Adds project-scoped datasets, immutable dataset versions with validation metadata and freezable evaluation suites                                                                |
+| `0005_durable_execution`     | Adds evaluation runs, run items, retry/lease metadata and durable outbox events                                                                                                  |
+| `0006_trajectories`          | Adds trajectory headers, ordered steps, named checkpoints and redacted diagnostic payloads                                                                                       |
+| `0007_evaluators_comparison` | Adds evaluator versions, per-item evaluator results and reproducible comparison reports                                                                                          |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -251,6 +264,23 @@ Latest Phase 6 branch checks, run locally on 2026-07-26:
 | `@agentrail/contracts check`                            | Pass                                                  |
 | `pnpm build`                                            | Pass — web production build                           |
 
+Latest Phase 7 branch checks, run locally on 2026-07-27:
+
+| Command                                                 | Result                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| `uv run ruff check .`                                   | Pass                                                   |
+| `uv run mypy packages/core-py/src services/api/src ...` | Pass — 76 source files                                 |
+| `uv run pytest -q`                                      | 199 passed, 100 skipped locally due sandboxed Postgres |
+| `uv run python scripts/export_openapi.py --check`       | Pass                                                   |
+| `pnpm run format:check`                                 | Pass                                                   |
+| `pnpm run lint`                                         | Pass                                                   |
+| `pnpm run typecheck`                                    | Pass                                                   |
+| `pnpm run test`                                         | Pass — 34 JS tests                                     |
+| `@agentrail/contracts check`                            | Pass                                                   |
+| `@agentrail/contracts test`                             | Pass — 10 tests                                        |
+| `pnpm build`                                            | Pass — web production build                            |
+| `uv build --all-packages`                               | Pass                                                   |
+
 ---
 
 ## Known limitations
@@ -260,8 +290,9 @@ Latest Phase 6 branch checks, run locally on 2026-07-26:
   there; RLS as defence in depth is Phase 14.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
 - **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
-- The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture is
-  synthetic/deterministic and does not invoke real evaluators yet.
+- The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture and
+  the first programmatic evaluator are synthetic/deterministic. Live model evaluators are not built
+  yet.
 - Failed legacy jobs remain terminal; retry budgets, leases and outbox are implemented for
   evaluation run items.
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
@@ -288,13 +319,12 @@ Latest Phase 6 branch checks, run locally on 2026-07-26:
 
 ---
 
-## Next tasks (Phase 6 — Trajectory capture and trace explorer)
+## Next tasks (Phase 7 — Evaluators and comparison)
 
-1. Let CI run the PostgreSQL-backed trajectory integration tests.
-2. Open and merge the Phase 6 pull request once CI is green.
+1. Let CI run the PostgreSQL-backed evaluator/comparison integration tests.
+2. Open and merge the Phase 7 pull request once CI is green.
 
-**Exit criteria:** every failed item links to exact step; tenant isolation and redaction pass; green
-PR.
+**Exit criteria:** comparison is reproducible; errors remain in denominators; green PR.
 
 ---
 
