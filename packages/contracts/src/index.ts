@@ -78,6 +78,11 @@ export type TrajectoryStepType = Schemas['TrajectoryStepType'];
 export type TrajectoryStepListResponse = Schemas['TrajectoryStepListResponse'];
 export type TrajectoryCheckpoint = Schemas['TrajectoryCheckpointResponse'];
 export type TrajectoryCheckpointListResponse = Schemas['TrajectoryCheckpointListResponse'];
+export type CreateTrajectoryReplayRequest = Schemas['CreateTrajectoryReplayRequest'];
+export type ReplayMode = Schemas['ReplayMode'];
+export type ReplayState = Schemas['ReplayState'];
+export type TrajectoryReplay = Schemas['TrajectoryReplayResponse'];
+export type TrajectoryReplayListResponse = Schemas['TrajectoryReplayListResponse'];
 
 /** Terminal job states. A job in one of these will never change again. */
 export const TERMINAL_JOB_STATES = ['COMPLETED', 'FAILED'] as const satisfies readonly JobState[];

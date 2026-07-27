@@ -579,6 +579,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/trajectories/{trajectory_id}/replays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List trajectory replays */
+        get: operations["list_trajectory_replays"];
+        put?: never;
+        /** Create a trajectory replay */
+        post: operations["create_trajectory_replay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/trajectories/{trajectory_id}/steps": {
         parameters: {
             query?: never;
@@ -914,6 +932,15 @@ export interface components {
         CreateProjectRequest: {
             /** Name */
             name: string;
+        };
+        /** CreateTrajectoryReplayRequest */
+        CreateTrajectoryReplayRequest: {
+            /** Checkpoint Id */
+            checkpoint_id?: string | null;
+            /** Fork Overrides */
+            fork_overrides?: Record<string, never> | null;
+            /** @default recorded */
+            mode: components["schemas"]["ReplayMode"];
         };
         /**
          * CreatedApiKeyResponse
@@ -1366,6 +1393,16 @@ export interface components {
             version: string;
         };
         /**
+         * ReplayMode
+         * @enum {string}
+         */
+        ReplayMode: "recorded" | "live" | "forked";
+        /**
+         * ReplayState
+         * @enum {string}
+         */
+        ReplayState: "CREATED" | "COMPLETED" | "FAILED";
+        /**
          * Role
          * @description A member's role within one organisation.
          * @enum {string}
@@ -1432,6 +1469,45 @@ export interface components {
             state: Record<string, never>;
             /** Step Id */
             step_id?: string | null;
+            /** Trajectory Id */
+            trajectory_id: string;
+        };
+        /** TrajectoryReplayListResponse */
+        TrajectoryReplayListResponse: {
+            /** Items */
+            items: components["schemas"]["TrajectoryReplayResponse"][];
+        };
+        /** TrajectoryReplayResponse */
+        TrajectoryReplayResponse: {
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Divergence */
+            divergence: Record<string, never>;
+            /** Id */
+            id: string;
+            mode: components["schemas"]["ReplayMode"];
+            /** Project Id */
+            project_id: string;
+            /** Replay Digest */
+            replay_digest: string;
+            /** Request */
+            request: Record<string, never>;
+            /** Result */
+            result: Record<string, never>;
+            /** Safety Summary */
+            safety_summary: Record<string, never>;
+            /** Source Checkpoint Id */
+            source_checkpoint_id?: string | null;
+            /** Source Digest */
+            source_digest: string;
+            state: components["schemas"]["ReplayState"];
             /** Trajectory Id */
             trajectory_id: string;
         };
@@ -3793,6 +3869,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrajectoryCheckpointListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_trajectory_replays: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trajectory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrajectoryReplayListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_trajectory_replay: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trajectory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTrajectoryReplayRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrajectoryReplayResponse"];
                 };
             };
             /** @description Not signed in. */

@@ -797,6 +797,38 @@
         "title": "CreateProjectRequest",
         "type": "object"
       },
+      "CreateTrajectoryReplayRequest": {
+        "properties": {
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Id"
+          },
+          "fork_overrides": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fork Overrides"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ReplayMode",
+            "default": "recorded"
+          }
+        },
+        "title": "CreateTrajectoryReplayRequest",
+        "type": "object"
+      },
       "CreatedApiKeyResponse": {
         "description": "Returned once, at creation.\n\n``token`` is the only time the full credential exists anywhere; the platform\nstores only its one-way digest and cannot show it again.",
         "properties": {
@@ -1906,6 +1938,24 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "ReplayMode": {
+        "enum": [
+          "recorded",
+          "live",
+          "forked"
+        ],
+        "title": "ReplayMode",
+        "type": "string"
+      },
+      "ReplayState": {
+        "enum": [
+          "CREATED",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "title": "ReplayState",
+        "type": "string"
+      },
       "Role": {
         "description": "A member's role within one organisation.",
         "enum": [
@@ -2100,6 +2150,123 @@
           "created_at"
         ],
         "title": "TrajectoryCheckpointResponse",
+        "type": "object"
+      },
+      "TrajectoryReplayListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrajectoryReplayResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TrajectoryReplayListResponse",
+        "type": "object"
+      },
+      "TrajectoryReplayResponse": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "divergence": {
+            "title": "Divergence",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ReplayMode"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "replay_digest": {
+            "title": "Replay Digest",
+            "type": "string"
+          },
+          "request": {
+            "title": "Request",
+            "type": "object"
+          },
+          "result": {
+            "title": "Result",
+            "type": "object"
+          },
+          "safety_summary": {
+            "title": "Safety Summary",
+            "type": "object"
+          },
+          "source_checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Checkpoint Id"
+          },
+          "source_digest": {
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReplayState"
+          },
+          "trajectory_id": {
+            "title": "Trajectory Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "trajectory_id",
+          "mode",
+          "state",
+          "source_digest",
+          "replay_digest",
+          "request",
+          "result",
+          "divergence",
+          "safety_summary",
+          "created_at"
+        ],
+        "title": "TrajectoryReplayResponse",
         "type": "object"
       },
       "TrajectoryResponse": {
@@ -5841,6 +6008,174 @@
           }
         },
         "summary": "List trajectory checkpoints",
+        "tags": [
+          "trajectories"
+        ]
+      }
+    },
+    "/api/v1/trajectories/{trajectory_id}/replays": {
+      "get": {
+        "operationId": "list_trajectory_replays",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trajectory_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Trajectory Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrajectoryReplayListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List trajectory replays",
+        "tags": [
+          "trajectories"
+        ]
+      },
+      "post": {
+        "operationId": "create_trajectory_replay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trajectory_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Trajectory Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTrajectoryReplayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrajectoryReplayResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Create a trajectory replay",
         "tags": [
           "trajectories"
         ]

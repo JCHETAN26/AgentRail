@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 7 — Evaluators and comparison                                                       |
-| **Status**     | In progress on branch `feat/p07-evaluators-comparison`                              |
-| **Base**       | `main` @ `b9e3733` (Phase 6 merged)                                                 |
-| **Next phase** | 8 — Replay and time travel, after Phase 7 exits                                     |
+| **Phase**      | 8 — Replay and time travel                                                          |
+| **Status**     | In progress on branch `feat/p08-replay-time-travel`                                 |
+| **Base**       | `main` @ `f5520aa` (Phase 7 merged)                                                 |
+| **Next phase** | 9 — Failure injection and reliability, after Phase 8 exits                          |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -22,21 +22,22 @@ Phase 3 shipped in PR [#22](https://github.com/JCHETAN26/AgentRail/pull/22).
 Phase 4 shipped in PR [#23](https://github.com/JCHETAN26/AgentRail/pull/23).
 Phase 5 shipped in PR [#24](https://github.com/JCHETAN26/AgentRail/pull/24).
 Phase 6 shipped in PR [#25](https://github.com/JCHETAN26/AgentRail/pull/25).
+Phase 7 shipped in PR [#26](https://github.com/JCHETAN26/AgentRail/pull/26).
 
 ---
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 7 — evaluators and comparison exit criteria
-2. `packages/core-py/src/agentrail_core/evaluators.py` — evaluator models and aggregation helpers
-3. `services/worker/src/agentrail_worker/run_runner.py` — comparison report creation during aggregation
-4. `services/api/src/agentrail_api/evaluators/service.py` — tenant-scoped comparison queries
-5. `services/api/src/agentrail_api/routers/evaluators.py` — comparison and evaluator-result API
-6. `services/api/tests/test_evaluators_api.py` and `packages/core-py/tests/test_evaluators.py`
+1. `BUILDPLAN.md` Phase 8 — replay and time travel exit criteria
+2. `packages/core-py/src/agentrail_core/trajectories.py` — trajectory and replay models
+3. `services/api/src/agentrail_api/trajectories/service.py` — replay creation, digest and safety logic
+4. `services/api/src/agentrail_api/routers/trajectories.py` — replay API endpoints
+5. `services/api/tests/test_trajectories_api.py` — replay reproduction, fork divergence and tenant denial
+6. `services/api/alembic/versions/0008_trajectory_replays.py`
 
 ---
 
-## Completed capabilities (through Phase 6)
+## Completed capabilities (through Phase 7)
 
 - **Delegated authentication** with two providers behind one protocol: a deterministic dev provider
   (no credentials, no network — used by local development, CI and the demo) and GitHub OAuth with
@@ -134,6 +135,22 @@ Phase 6 shipped in PR [#25](https://github.com/JCHETAN26/AgentRail/pull/25).
   filtering.
 - Added aggregation and tenant-isolation tests for comparison reads.
 
+## Phase 8 progress
+
+- Added `TrajectoryReplay` persistence model.
+- Added Alembic revision `0008_trajectory_replays`.
+- Added recorded, live-labelled and forked replay creation from persisted trajectories and optional
+  checkpoints.
+- Recorded replays reproduce deterministic trajectory digests; forked replays store deterministic
+  divergence metadata from explicit overrides.
+- Replay records persist safety summaries proving original side effects were not repeated.
+- Added replay create/list APIs under `/api/v1/trajectories/{trajectory_id}/replays`.
+- Added audit events and tenant-isolation tests for replay creation.
+- Review fixes: replay creation requires `run:create`; fork digests are taken over raw (not redacted)
+  overrides so sensitive-keyed forks cannot collide; recorded replays reject `fork_overrides` with
+  `validation_failed`; `safety_summary` reports the replay that actually ran rather than the mode
+  requested.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -158,6 +175,7 @@ Phase 6 shipped in PR [#25](https://github.com/JCHETAN26/AgentRail/pull/25).
 | `0005_durable_execution`     | Adds evaluation runs, run items, retry/lease metadata and durable outbox events                                                                                                  |
 | `0006_trajectories`          | Adds trajectory headers, ordered steps, named checkpoints and redacted diagnostic payloads                                                                                       |
 | `0007_evaluators_comparison` | Adds evaluator versions, per-item evaluator results and reproducible comparison reports                                                                                          |
+| `0008_trajectory_replays`    | Adds durable recorded, live-labelled and forked replay records for trajectories                                                                                                  |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -281,6 +299,36 @@ Latest Phase 7 branch checks, run locally on 2026-07-27:
 | `pnpm build`                                            | Pass — web production build                            |
 | `uv build --all-packages`                               | Pass                                                   |
 
+Latest Phase 8 branch checks, run locally on 2026-07-27:
+
+| Command                                                 | Result                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| `uv run ruff check .`                                   | Pass                                                   |
+| `uv run mypy packages/core-py/src services/api/src ...` | Pass — 76 source files                                 |
+| `uv run pytest -q`                                      | 199 passed, 103 skipped locally due sandboxed Postgres |
+| `uv run python scripts/export_openapi.py --check`       | Pass                                                   |
+| `pnpm run format:check`                                 | Pass                                                   |
+| `pnpm run lint`                                         | Pass                                                   |
+| `pnpm run typecheck`                                    | Pass                                                   |
+| `pnpm run test`                                         | Pass — 34 JS tests                                     |
+| `@agentrail/contracts check`                            | Pass                                                   |
+| `@agentrail/contracts test`                             | Pass — 10 tests                                        |
+| `pnpm build`                                            | Pass — web production build                            |
+| `uv build --all-packages`                               | Pass                                                   |
+
+Phase 8 review fixes, run locally on 2026-07-26 against Docker Compose PostgreSQL — the first
+session in which the integration suite ran on this machine rather than skipping:
+
+| Command                                             | Result                                             |
+| --------------------------------------------------- | -------------------------------------------------- |
+| `uv run pytest -q`                                  | **305 passed, 0 skipped** — full integration suite |
+| `uv run ruff format --check .` / `ruff check .`     | Pass                                               |
+| `uv run mypy packages/core-py/src services/api/src` | Pass — 63 source files                             |
+| `uv run python scripts/export_openapi.py`           | Pass — snapshot unchanged                          |
+
+The three new replay tests were confirmed to fail with the fixes reverted, so none of them is
+vacuous.
+
 ---
 
 ## Known limitations
@@ -290,9 +338,9 @@ Latest Phase 7 branch checks, run locally on 2026-07-27:
   there; RLS as defence in depth is Phase 14.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
 - **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
-- The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture and
-  the first programmatic evaluator are synthetic/deterministic. Live model evaluators are not built
-  yet.
+- The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture,
+  replay records and the first programmatic evaluator are synthetic/deterministic. Live model
+  evaluators and true live replay execution are not built yet.
 - Failed legacy jobs remain terminal; retry budgets, leases and outbox are implemented for
   evaluation run items.
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
@@ -319,12 +367,22 @@ Latest Phase 7 branch checks, run locally on 2026-07-27:
 
 ---
 
-## Next tasks (Phase 7 — Evaluators and comparison)
+## Next tasks (Phase 8 — Replay and time travel)
 
-1. Let CI run the PostgreSQL-backed evaluator/comparison integration tests.
-2. Open and merge the Phase 7 pull request once CI is green.
+PR [#41](https://github.com/JCHETAN26/AgentRail/pull/41) is open with all 12 checks green. It was
+`BLOCKED` not on CI but on `required_conversation_resolution` with eight unresolved review threads —
+worth remembering, because required-review count is 0 and the check list looks clean.
 
-**Exit criteria:** comparison is reproducible; errors remain in denominators; green PR.
+1. Merge #41 once the review threads are resolved.
+2. Decide how to stop CodeQL's `security-and-quality` suite flagging `revision`, `down_revision`,
+   `branch_labels` and `depends_on` as unused globals on **every** new Alembic migration. Alembic
+   reads them as module attributes, so they are false positives, and one recurs per migration per
+   phase. A `.github/codeql/codeql-config.yml` with `paths-ignore` for
+   `services/api/alembic/versions/**` fixes it, at the cost of dropping those files from scanning —
+   a security-posture call, so it is deliberately not taken here.
+
+**Exit criteria:** deterministic replay reproduces; fork shows divergence; no original side effect
+repeats; green PR.
 
 ---
 

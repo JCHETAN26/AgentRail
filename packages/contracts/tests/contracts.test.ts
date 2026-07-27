@@ -70,6 +70,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/projects/{project_id}/jobs',
       '/api/v1/trajectories/{trajectory_id}',
       '/api/v1/trajectories/{trajectory_id}/checkpoints',
+      '/api/v1/trajectories/{trajectory_id}/replays',
       '/api/v1/trajectories/{trajectory_id}/steps',
       '/healthz',
       '/readyz',
@@ -99,6 +100,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/jobs/{job_id}',
       '/api/v1/trajectories/{trajectory_id}',
       '/api/v1/trajectories/{trajectory_id}/checkpoints',
+      '/api/v1/trajectories/{trajectory_id}/replays',
       '/api/v1/trajectories/{trajectory_id}/steps',
     ]);
     const unscoped = tenantPaths.filter(

@@ -9,10 +9,13 @@ from fastapi import APIRouter, Path, Query
 from agentrail_api.dependencies import ActorDep, SessionDep
 from agentrail_api.trajectories import service
 from agentrail_api.trajectories.schemas import (
+    CreateTrajectoryReplayRequest,
     RunItemTraceListResponse,
     RunItemTraceResponse,
     TrajectoryCheckpointListResponse,
     TrajectoryCheckpointResponse,
+    TrajectoryReplayListResponse,
+    TrajectoryReplayResponse,
     TrajectoryResponse,
     TrajectoryStepListResponse,
     TrajectoryStepResponse,
@@ -117,4 +120,41 @@ async def list_trajectory_checkpoints(
         items=[
             TrajectoryCheckpointResponse.model_validate(checkpoint) for checkpoint in checkpoints
         ]
+    )
+
+
+@router.post(
+    "/trajectories/{trajectory_id}/replays",
+    response_model=TrajectoryReplayResponse,
+    summary="Create a trajectory replay",
+    responses=_ERRORS,
+)
+async def create_trajectory_replay(
+    trajectory_id: TrajectoryId,
+    body: CreateTrajectoryReplayRequest,
+    actor: ActorDep,
+    session: SessionDep,
+) -> TrajectoryReplayResponse:
+    principal = await service.principal_for_trajectory(session, actor, trajectory_id)
+    replay = await service.create_replay(
+        session, actor, principal, trajectory_id=trajectory_id, request=body
+    )
+    await session.commit()
+    await session.refresh(replay)
+    return TrajectoryReplayResponse.model_validate(replay)
+
+
+@router.get(
+    "/trajectories/{trajectory_id}/replays",
+    response_model=TrajectoryReplayListResponse,
+    summary="List trajectory replays",
+    responses=_ERRORS,
+)
+async def list_trajectory_replays(
+    trajectory_id: TrajectoryId, actor: ActorDep, session: SessionDep
+) -> TrajectoryReplayListResponse:
+    principal = await service.principal_for_trajectory(session, actor, trajectory_id)
+    replays = await service.list_replays(session, principal, trajectory_id=trajectory_id)
+    return TrajectoryReplayListResponse(
+        items=[TrajectoryReplayResponse.model_validate(replay) for replay in replays]
     )
