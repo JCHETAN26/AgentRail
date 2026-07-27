@@ -22,6 +22,7 @@ from starlette.middleware.cors import CORSMiddleware
 from agentrail_api import __version__
 from agentrail_api.routers import (
     agents,
+    approvals,
     auth,
     datasets,
     evaluators,
@@ -153,6 +154,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     app.include_router(evaluators.router)
     app.include_router(execution.router)
     app.include_router(trajectories.router)
+    app.include_router(approvals.router)
     app.include_router(jobs.router)
     _use_route_names_as_operation_ids(app)
 

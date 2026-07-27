@@ -94,7 +94,7 @@ async def db_engine(
                     "TRUNCATE TABLE jobs, outbox_events, comparison_reports, "
                     "evaluation_results, evaluator_versions, trajectory_replays, "
                     "trajectory_checkpoints, trajectory_steps, trajectories, "
-                    "side_effect_records, run_items, evaluation_runs, "
+                    "side_effect_records, approval_requests, run_items, evaluation_runs, "
                     "evaluation_suites, dataset_versions, datasets, "
                     "audit_events, api_keys, sessions, "
                     "memberships, projects, organisations, users CASCADE"

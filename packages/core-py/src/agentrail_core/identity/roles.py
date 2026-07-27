@@ -47,6 +47,8 @@ class Permission(StrEnum):
     JOB_READ = "job:read"
     JOB_CREATE = "job:create"
     AUDIT_READ = "audit:read"
+    APPROVAL_READ = "approval:read"
+    APPROVAL_DECIDE = "approval:decide"
 
 
 _VIEWER: frozenset[Permission] = frozenset(
@@ -58,13 +60,17 @@ _VIEWER: frozenset[Permission] = frozenset(
         Permission.DATASET_READ,
         Permission.RUN_READ,
         Permission.JOB_READ,
+        Permission.APPROVAL_READ,
     }
 )
 
-#: A reviewer approves high-risk tool calls (Phase 10). Until then the role
-#: exists so memberships and audit records do not need migrating later, and it
-#: reads exactly like a viewer.
-_REVIEWER: frozenset[Permission] = _VIEWER | frozenset({Permission.AUDIT_READ})
+#: A reviewer approves high-risk tool calls. This is the permission that finally
+#: distinguishes the role from a viewer, as promised when it was created in
+#: Phase 1 — a reviewer can decide, and a developer can too, but a viewer who
+#: can watch a run cannot authorise anything it wants to do.
+_REVIEWER: frozenset[Permission] = _VIEWER | frozenset(
+    {Permission.AUDIT_READ, Permission.APPROVAL_DECIDE}
+)
 
 _DEVELOPER: frozenset[Permission] = _REVIEWER | frozenset(
     {

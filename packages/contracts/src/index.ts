@@ -84,6 +84,12 @@ export type ReplayState = Schemas['ReplayState'];
 export type TrajectoryReplay = Schemas['TrajectoryReplayResponse'];
 export type TrajectoryReplayListResponse = Schemas['TrajectoryReplayListResponse'];
 
+/** Policy and human approval. */
+export type Approval = Schemas['ApprovalResponse'];
+export type ApprovalListResponse = Schemas['ApprovalListResponse'];
+export type ApprovalState = Schemas['ApprovalState'];
+export type DecideApprovalRequest = Schemas['DecideApprovalRequest'];
+
 /** Failure injection and reliability. */
 export type RunRecovery = Schemas['RunRecoveryResponse'];
 export type RunItemRecovery = Schemas['RunItemRecoveryResponse'];

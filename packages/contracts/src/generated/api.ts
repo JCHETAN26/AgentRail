@@ -39,6 +39,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals/{approval_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch an approval request */
+        get: operations["get_approval"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{approval_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve, approve with edits, or reject a high-risk tool call */
+        post: operations["decide_approval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/dev/session": {
         parameters: {
             query?: never;
@@ -214,6 +248,23 @@ export interface paths {
         };
         /** Fetch an evaluation run */
         get: operations["get_evaluation_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluation-runs/{run_id}/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List approval requests raised by a run */
+        get: operations["list_run_approvals"];
         put?: never;
         post?: never;
         delete?: never;
@@ -771,6 +822,54 @@ export interface components {
             /** Scopes */
             scopes: string[];
         };
+        /** ApprovalListResponse */
+        ApprovalListResponse: {
+            /** Items */
+            items: components["schemas"]["ApprovalResponse"][];
+        };
+        /** ApprovalResponse */
+        ApprovalResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decided By */
+            decided_by?: string | null;
+            /** Edited Arguments */
+            edited_arguments?: Record<string, never> | null;
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Reason */
+            reason?: string | null;
+            /** Requested Arguments */
+            requested_arguments: Record<string, never>;
+            /** Risk Level */
+            risk_level: string;
+            /** Run Id */
+            run_id: string;
+            /** Run Item Id */
+            run_item_id: string;
+            state: components["schemas"]["ApprovalState"];
+            /** Tool */
+            tool: string;
+            /** Trajectory Id */
+            trajectory_id?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * ApprovalState
+         * @enum {string}
+         */
+        ApprovalState: "PENDING" | "APPROVED" | "REJECTED" | "WITHDRAWN";
         /** AuditEventListResponse */
         AuditEventListResponse: {
             /** Items */
@@ -1042,6 +1141,21 @@ export interface components {
             validation_report: Record<string, never>;
             /** Version */
             version: number;
+        };
+        /**
+         * DecideApprovalRequest
+         * @description Approve, approve-with-edits, or reject.
+         *
+         *     ``edited_arguments`` is only meaningful on an approval: there is nothing to
+         *     edit about an action that will not run.
+         */
+        DecideApprovalRequest: {
+            /** Approve */
+            approve: boolean;
+            /** Edited Arguments */
+            edited_arguments?: Record<string, never> | null;
+            /** Reason */
+            reason?: string | null;
         };
         /** DependencyStatus */
         DependencyStatus: {
@@ -1345,7 +1459,7 @@ export interface components {
          * @description A single authorisable action. Values are stable and appear in audit logs.
          * @enum {string}
          */
-        Permission: "organisation:read" | "organisation:update" | "member:read" | "member:manage" | "api_key:read" | "api_key:manage" | "project:read" | "project:create" | "project:update" | "agent:read" | "agent:manage" | "dataset:read" | "dataset:manage" | "run:read" | "run:create" | "run:cancel" | "job:read" | "job:create" | "audit:read";
+        Permission: "organisation:read" | "organisation:update" | "member:read" | "member:manage" | "api_key:read" | "api_key:manage" | "project:read" | "project:create" | "project:update" | "agent:read" | "agent:manage" | "dataset:read" | "dataset:manage" | "run:read" | "run:create" | "run:cancel" | "job:read" | "job:create" | "audit:read" | "approval:read" | "approval:decide";
         /**
          * ProblemDetail
          * @description The body returned for every non-2xx API response.
@@ -1464,7 +1578,7 @@ export interface components {
          * RunItemState
          * @enum {string}
          */
-        RunItemState: "PENDING" | "LEASED" | "EXECUTING" | "EVALUATING" | "COMPLETED" | "FAILED_RETRYABLE" | "FAILED_TERMINAL" | "CANCELLED";
+        RunItemState: "PENDING" | "LEASED" | "EXECUTING" | "EVALUATING" | "AWAITING_APPROVAL" | "COMPLETED" | "FAILED_RETRYABLE" | "FAILED_TERMINAL" | "CANCELLED";
         /** RunItemTraceListResponse */
         RunItemTraceListResponse: {
             /** Items */
@@ -1853,6 +1967,130 @@ export interface operations {
                 };
             };
             /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_approval: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already decided. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    decide_approval: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already decided. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2302,6 +2540,68 @@ export interface operations {
             };
             /** @description A required dependency is unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_run_approvals: {
+        parameters: {
+            query?: {
+                state?: components["schemas"]["ApprovalState"] | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already decided. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -8,8 +8,10 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.datasets import EvaluationSuite
 from agentrail_core.evaluators import (
     ComparisonReport,
@@ -34,10 +36,18 @@ from agentrail_core.faults import (
     parse_fault_profiles,
     plan_fault,
 )
+from agentrail_core.identity import AgentVersion
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.logging import get_logger
+from agentrail_core.policy import (
+    PolicyBundle,
+    PolicyDecision,
+    ToolRiskLevel,
+    decide,
+    parse_policy_bundle,
+)
 from agentrail_core.reliability import BudgetExceededError, BudgetKind, BudgetLedger
-from agentrail_core.side_effects import apply_side_effect_once
+from agentrail_core.side_effects import apply_side_effect_once, side_effect_key
 from agentrail_core.trajectories import (
     Trajectory,
     TrajectoryCheckpoint,
@@ -67,6 +77,21 @@ _FAULT_STEP_BASE = 50
 #: CloudOps remediation tool it stands in for, so the ledger reads the way it
 #: will once a real agent runtime is choosing the tool.
 _REMEDIATION_TOOL = "restart_service"
+
+#: Its own band again, above the fault steps, for the same reason: attempts
+#: share a trajectory, and an item can park for approval more than once.
+_APPROVAL_STEP_BASE = 70
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyGate:
+    """The outcome of asking policy whether a tool call may proceed."""
+
+    arguments: dict[str, Any]
+    #: The caller has nothing left to do — the item is parked or terminal.
+    halted: bool = False
+    required_approval: bool = False
+    approval_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,6 +351,23 @@ class EvaluationRunRunner:
                 await session.commit()
                 return
 
+            # Policy runs before anything reaches the world. A denial or an
+            # unanswered approval stops the attempt here, with the effect
+            # unapplied — which is the only ordering that makes the gate real.
+            gate = await self._policy_gate(
+                session,
+                run=run,
+                item=item,
+                trajectory=trajectory,
+                attempt=attempt,
+                arguments=arguments,
+                budget_state=ledger.as_payload(),
+            )
+            if gate.halted:
+                await session.commit()
+                return
+            arguments = gate.arguments
+
             # The effect reaches the world *before* any injected fault kills the
             # attempt. That ordering is the whole point: a retry then has to
             # find the ledger row and decline to act a second time.
@@ -339,6 +381,8 @@ class EvaluationRunRunner:
                 arguments=arguments,
                 attempt=attempt,
                 result={"status": "ok", "restarted": True},
+                required_approval=gate.required_approval,
+                approval_id=gate.approval_id,
             )
             await self._append_step(
                 session,
@@ -454,6 +498,217 @@ class EvaluationRunRunner:
                 )
             )
             await session.commit()
+
+    async def _policy_gate(
+        self,
+        session: AsyncSession,
+        *,
+        run: EvaluationRun,
+        item: RunItem,
+        trajectory: Trajectory,
+        attempt: int,
+        arguments: dict[str, Any],
+        budget_state: dict[str, Any],
+    ) -> PolicyGate:
+        """Decide whether this tool call may proceed, and on what arguments.
+
+        Returns a gate that either lets the caller continue or has already
+        parked or failed the item. Nothing here applies an effect.
+        """
+        bundle = await self._policy_bundle(session, run=run)
+        verdict, risk = decide(bundle, tool=_REMEDIATION_TOOL)
+
+        if verdict is PolicyDecision.ALLOW:
+            return PolicyGate(arguments=arguments)
+
+        if verdict is PolicyDecision.DENY:
+            await self._fail_item(
+                session,
+                item=item,
+                trajectory=trajectory,
+                attempt=attempt,
+                retryable=False,
+                error_code="policy_denied",
+                error_message=f"Policy prohibits {_REMEDIATION_TOOL}.",
+                fault_payload=None,
+                budget_state=budget_state,
+                title=f"Policy denied: {_REMEDIATION_TOOL}",
+            )
+            return PolicyGate(arguments=arguments, halted=True)
+
+        # REQUIRE_APPROVAL. The key is the same one the ledger will use, so the
+        # question is asked once per intended effect rather than once per
+        # attempt — a retried or redelivered item finds its own request here.
+        key = side_effect_key(
+            run_item_id=item.id, step_index=2, tool=_REMEDIATION_TOOL, arguments=arguments
+        )
+        approval = await self._approval_for(
+            session,
+            run=run,
+            item=item,
+            trajectory=trajectory,
+            key=key,
+            risk=risk,
+            arguments=arguments,
+        )
+
+        # The column is a plain string with a check constraint, as every other
+        # state column in this schema is, so a row read back carries a ``str``
+        # rather than the enum its annotation promises. Coerce once, here, so
+        # the branches below can use identity and ``.value`` safely.
+        state = ApprovalState(approval.state)
+
+        if state is ApprovalState.APPROVED:
+            # The reviewer's edit replaces the arguments, which changes the
+            # ledger key: a different action is a different effect, and must not
+            # inherit the authorisation recorded for the original.
+            return PolicyGate(
+                arguments=dict(approval.effective_arguments),
+                required_approval=True,
+                approval_id=approval.id,
+            )
+
+        if state is ApprovalState.PENDING:
+            await self._park_for_approval(
+                session,
+                item=item,
+                trajectory=trajectory,
+                attempt=attempt,
+                approval=approval,
+                budget_state=budget_state,
+            )
+            return PolicyGate(arguments=arguments, halted=True)
+
+        # REJECTED or WITHDRAWN. Both are terminal for the approval and there is
+        # no edge back to PENDING, so a delayed delivery arriving after the
+        # decision lands here too and stops just the same.
+        await self._fail_item(
+            session,
+            item=item,
+            trajectory=trajectory,
+            attempt=attempt,
+            retryable=False,
+            error_code="approval_rejected",
+            error_message=f"Approval {approval.id} is {state.value}.",
+            fault_payload=None,
+            budget_state=budget_state,
+            title=f"Approval {state.value.lower()}",
+        )
+        return PolicyGate(arguments=arguments, halted=True)
+
+    async def _approval_for(
+        self,
+        session: AsyncSession,
+        *,
+        run: EvaluationRun,
+        item: RunItem,
+        trajectory: Trajectory,
+        key: str,
+        risk: ToolRiskLevel,
+        arguments: dict[str, Any],
+    ) -> ApprovalRequest:
+        """Find this effect's approval request, creating it the first time.
+
+        Locked for update, because the decision is read and acted on in the same
+        transaction that writes the ledger row. Without the lock a reviewer
+        could reject between the read and the insert, and the effect would land
+        against a decision that had already been made.
+        """
+        existing = await session.scalar(
+            select(ApprovalRequest).where(ApprovalRequest.idempotency_key == key).with_for_update()
+        )
+        if existing is not None:
+            return existing
+
+        redacted_arguments, _summary = redact_payload(arguments)
+        request = ApprovalRequest(
+            id=new_sortable_id(),
+            project_id=run.project_id,
+            run_id=run.id,
+            run_item_id=item.id,
+            trajectory_id=trajectory.id,
+            idempotency_key=key,
+            tool=_REMEDIATION_TOOL,
+            risk_level=risk.value,
+            state=ApprovalState.PENDING,
+            requested_arguments=redacted_arguments,
+        )
+        try:
+            async with session.begin_nested():
+                session.add(request)
+                await session.flush()
+        except IntegrityError:
+            winner = await session.scalar(
+                select(ApprovalRequest)
+                .where(ApprovalRequest.idempotency_key == key)
+                .with_for_update()
+            )
+            if winner is None:  # pragma: no cover - only reachable if the row vanished
+                raise
+            return winner
+        return request
+
+    async def _park_for_approval(
+        self,
+        session: AsyncSession,
+        *,
+        item: RunItem,
+        trajectory: Trajectory,
+        attempt: int,
+        approval: ApprovalRequest,
+        budget_state: dict[str, Any],
+    ) -> None:
+        """Park the item on a human, holding no lease and burning no retry.
+
+        The lease is released because a reviewer is not on a worker's clock —
+        leaving it held would have the recovery sweep reclaim the item and hand
+        it to another worker, which would park it again, forever.
+        """
+        await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=_APPROVAL_STEP_BASE + attempt,
+            step_type=TrajectoryStepType.CHECKPOINT,
+            title=f"Awaiting approval: {approval.tool}",
+            input_payload={"tool": approval.tool, "arguments": approval.requested_arguments},
+            output_payload={
+                "approval_id": approval.id,
+                "risk_level": approval.risk_level,
+                "state": ApprovalState(approval.state).value,
+            },
+            checkpoint={
+                "stage": "awaiting_approval",
+                "approval_id": approval.id,
+                "attempt": attempt,
+            },
+        )
+        await session.execute(
+            update(RunItem)
+            .where(RunItem.id == item.id, RunItem.state == RunItemState.EVALUATING)
+            .values(
+                state=RunItemState.AWAITING_APPROVAL,
+                checkpoint={
+                    "stage": "awaiting_approval",
+                    "item_index": item.item_index,
+                    "trajectory_id": trajectory.id,
+                    "approval_id": approval.id,
+                },
+                budget_state=budget_state,
+                worker_id=None,
+                lease_expires_at=None,
+                # Waiting on a human is not an attempt. Charging one would let a
+                # slow reviewer exhaust the retry budget on the item's behalf.
+                attempt_count=RunItem.attempt_count - 1,
+                updated_at=func.now(),
+                version=RunItem.version + 1,
+            )
+        )
+
+    async def _policy_bundle(self, session: AsyncSession, *, run: EvaluationRun) -> PolicyBundle:
+        version = await session.get(AgentVersion, run.candidate_agent_version_id)
+        if version is None:
+            return PolicyBundle()
+        return parse_policy_bundle(version.policy_bundle)
 
     async def _fault_profiles(
         self, session: AsyncSession, *, run: EvaluationRun
@@ -941,7 +1196,12 @@ async def pending_outbox_run_ids(
                     select(OutboxEvent.id, OutboxEvent.aggregate_id)
                     .where(
                         OutboxEvent.published_at.is_(None),
-                        OutboxEvent.event_type == "evaluation_run.created",
+                        # A resume is published the same way a creation is: an
+                        # approved item is pending work again, and the consumer
+                        # cannot tell the difference — nor should it need to.
+                        OutboxEvent.event_type.in_(
+                            ("evaluation_run.created", "evaluation_run.resumed")
+                        ),
                     )
                     .order_by(OutboxEvent.created_at)
                     .limit(limit)

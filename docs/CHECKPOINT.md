@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 9 — Failure injection and reliability                                               |
-| **Status**     | In progress on branch `feat/p09-failure-injection`                                  |
-| **Base**       | `main` @ `0818d49` (Phase 8 merged)                                                 |
-| **Next phase** | 10 — Policy and human approval, after Phase 9 exits                                 |
+| **Phase**      | 10 — Policy and human approval                                                      |
+| **Status**     | In progress on branch `feat/p10-policy-approval`                                    |
+| **Base**       | `main` @ `41ef948` (Phase 9 merged)                                                 |
+| **Next phase** | 11 — Release gates and GitHub integration, after Phase 10 exits                     |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -24,20 +24,29 @@ Phase 5 shipped in PR [#24](https://github.com/JCHETAN26/AgentRail/pull/24).
 Phase 6 shipped in PR [#25](https://github.com/JCHETAN26/AgentRail/pull/25).
 Phase 7 shipped in PR [#26](https://github.com/JCHETAN26/AgentRail/pull/26).
 Phase 8 shipped in PR [#41](https://github.com/JCHETAN26/AgentRail/pull/41).
+Phase 9 shipped in PR [#42](https://github.com/JCHETAN26/AgentRail/pull/42).
+
+Merged branches through Phase 9 are deleted, local and remote. The repository does not
+auto-delete on merge, so each phase has to clean up after itself.
 
 ---
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 9 and section 15 — the fault families and the zero-duplicate-side-effect
-   invariant that is this phase's exit criterion
-2. `services/worker/src/agentrail_worker/run_runner.py` — the executor that must learn to fail
-3. `packages/core-py/src/agentrail_core/execution/models.py` — run item leases, attempts and retry
-   budgets, already in place since Phase 5
-4. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/app.py` — the `FaultMode` hooks from
-   Phase 2, currently injected per request by the caller rather than driven by a profile
-5. `packages/core-py/src/agentrail_core/datasets.py` — `EvaluationSuite.fault_profiles`, accepted and
-   counted since Phase 4 but never validated or acted on
+1. `BUILDPLAN.md` Phase 10 and section 16 — the four tool risk levels and the exit criterion: a
+   high-risk action cannot execute without approval, and a delayed event cannot bypass a rejection
+2. `packages/core-py/src/agentrail_core/side_effects.py` — the ledger. Phase 10's second exit
+   criterion is the same shape as Phase 9's: an effect that must not happen, enforced by the
+   database rather than by careful code
+3. `services/worker/src/agentrail_worker/run_runner.py` — where the executor applies its one side
+   effect, and therefore where an approval interrupt has to sit
+4. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/cloudops.py` — the per-tool risk,
+   side-effect class and approval-requirement metadata written in Phase 2 and still unused by any
+   caller
+5. `packages/core-py/src/agentrail_core/identity/roles.py` — `_REVIEWER`, which has read exactly like
+   a viewer since Phase 1 and is waiting for this phase to become load-bearing
+6. `packages/core-py/src/agentrail_core/execution/state.py` — the run-item state machine, which needs
+   a state for "waiting on a human" that is not a failure
 
 ---
 
@@ -182,6 +191,31 @@ on a second attempt, a refusal will not. And `BudgetExceededError` carries the o
 because the caller's own variable is still the pre-charge one and the recovery view would otherwise
 report a spend of zero for the charge that broke the budget.
 
+## Phase 10 progress
+
+- Added `agentrail_core.policy`: the four risk levels, a validated bundle parsed from the agent
+  version's existing `policy_bundle` column, and one pure `decide()`.
+- Added `agentrail_core.approvals`: `ApprovalRequest`, the approval state machine with no outgoing
+  edges from any decided state, and its transition guards.
+- Added `AWAITING_APPROVAL` to the run-item machine and rewrote its check constraint in
+  `0010_policy_and_approval`.
+- Extended the side-effect ledger with `required_approval` and `approval_id` under a `CHECK`, so an
+  unapproved high-risk effect is unrepresentable.
+- The executor now gates every tool call on policy before anything reaches the world, parks on a
+  human without holding a lease or spending a retry, and resumes from the approval — applying the
+  reviewer's edit when there is one.
+- Added approval APIs, audit events, and the `approval:read` / `approval:decide` permissions.
+
+**Design notes worth keeping.** An unclassified tool defaults to `HIGH_RISK_WRITE`: a policy engine
+that fails open is not one. That is a breaking change for agent versions with an empty
+`policy_bundle`, which now park instead of running — the existing worker fixtures had to be given an
+explicit bundle, which is the right outcome, since a suite that wants unattended execution should
+say so. A reviewer's edit changes the arguments and therefore the ledger key, so an edited action is
+a _different_ effect and cannot inherit the authorisation recorded for the original. And note the
+schema-wide gotcha this phase surfaced: state columns are `String` with a check constraint, so a
+loaded row carries a `str`, not the enum its `Mapped[...]` annotation promises — `is` comparisons
+and `.value` both fail until you coerce.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -208,6 +242,7 @@ report a spend of zero for the charge that broke the budget.
 | `0007_evaluators_comparison` | Adds evaluator versions, per-item evaluator results and reproducible comparison reports                                                                                          |
 | `0008_trajectory_replays`    | Adds durable recorded, live-labelled and forked replay records for trajectories                                                                                                  |
 | `0009_failure_injection`     | Adds the side-effect ledger and its unique idempotency key, plus per-item injected-fault and budget state                                                                        |
+| `0010_policy_and_approval`   | Adds approval requests, the AWAITING_APPROVAL item state, and the ledger's approval columns under a CHECK constraint                                                             |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -417,30 +452,21 @@ none of them is vacuous.
 
 ---
 
-## Next tasks (Phase 9 — Failure injection and reliability)
+## Next tasks (Phase 10 — Policy and human approval)
 
-Phase 8 merged as `0818d49`. Two things carried over from it:
+Built and verified locally. Remaining:
 
-- A PR can be `BLOCKED` on `required_conversation_resolution` while every check is green and the
-  required-review count is 0. Check the review threads before assuming CI is at fault.
-- CodeQL's `security-and-quality` suite flags `revision`, `down_revision`, `branch_labels` and
-  `depends_on` as unused globals in **every** Alembic migration. Alembic reads them as module
-  attributes, so they are false positives, and one set recurs per migration per phase — including
-  `0009` below. A `.github/codeql/codeql-config.yml` with `paths-ignore` for
-  `services/api/alembic/versions/**` fixes it permanently, at the cost of dropping those files from
-  scanning. That is a security-posture call and is deliberately left to the owner.
+1. Let CI run the PostgreSQL-backed policy and approval suites, then merge the Phase 10 PR.
+2. **No console UI for approvals.** The APIs exist and are tested; nothing in `apps/web` surfaces a
+   pending approval yet, so a reviewer has to use the API directly. The build plan puts the
+   approve/edit/reject UI in this phase — it is the one part of Phase 10 not delivered.
+3. The circuit breaker from Phase 9 still has no caller. This phase did not introduce live tool
+   calls either, so it stays unwired.
+4. CodeQL will raise its four Alembic false positives again on `0010`. Same fix, still the owner's
+   call.
 
-Everything in the phase is built and verified locally. Remaining:
-
-1. Let CI run the PostgreSQL-backed reliability suite, then merge the Phase 9 PR.
-2. The circuit breaker is implemented, unit-tested and exported, but nothing calls it yet — the
-   recorded executor has no real dependency to trip it against. Wire it to the CloudOps sandbox
-   client when the agent runtime starts making live tool calls (Phase 10 onwards), and surface its
-   state in the recovery view at the same time.
-3. `chaos.py` is exercised by hand, not in CI. It needs a running stack, so it stays out of the
-   required checks until there is a job that provides one.
-
-**Exit criteria:** zero duplicate side effects and correct state under forced failure; green PR.
+**Exit criteria:** a high-risk action cannot execute without approval; delayed events cannot bypass
+a rejection; green PR.
 
 ---
 
