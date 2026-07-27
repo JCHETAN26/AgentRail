@@ -1475,7 +1475,7 @@ export interface components {
          * @description Stable error codes. Values are part of the public API contract.
          * @enum {string}
          */
-        ErrorCode: "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "idempotency_key_reused" | "payload_too_large" | "dependency_unavailable" | "internal_error";
+        ErrorCode: "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "idempotency_key_reused" | "payload_too_large" | "rate_limited" | "replayed_webhook" | "dependency_unavailable" | "internal_error";
         /**
          * EvaluateGateRequest
          * @description Judge one run against one policy.
@@ -4006,6 +4006,7 @@ export interface operations {
             header?: {
                 "x-hub-signature-256"?: string | null;
                 "x-github-event"?: string | null;
+                "x-github-delivery"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -4023,6 +4024,15 @@ export interface operations {
             };
             /** @description Signature missing or invalid. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Webhook delivery already accepted. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

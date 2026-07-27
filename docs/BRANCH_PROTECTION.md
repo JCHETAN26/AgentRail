@@ -37,17 +37,16 @@ python
 contracts
 integration
 e2e
-build (agentrail-api)
-build (agentrail-worker)
-build (agentrail-cloudops-sandbox)
+containers / scan (agentrail-api)
+containers / scan (agentrail-worker)
+containers / scan (agentrail-cloudops-sandbox)
 codeql (javascript-typescript)
 codeql (python)
 ```
 
 `dependency-review` is deliberately **not** required — see "Deviations".
 
-Checks to add in later phases: `agent-quality / smoke-gate` (Phase 17), `containers / scan`
-(Phase 14).
+Checks to add in later phases: `agent-quality / smoke-gate` (Phase 17).
 
 ## Deviations from the build plan, and why
 

@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 13 — Observability, SLOs and operations                                             |
-| **Status**     | In progress on branch `feat/p13-observability-ops`                                  |
-| **Base**       | `main` @ `f44f406` (Phase 12 merged)                                                |
-| **Next phase** | 14 — Security and supply chain, after Phase 13 exits                                |
+| **Phase**      | 14 — Security and supply chain                                                      |
+| **Status**     | In progress on branch `feat/p14-security-supply-chain`                              |
+| **Base**       | `main` @ `8ccedca` (Phase 13 merged)                                                |
+| **Next phase** | 15 — Performance and analytical scale, after Phase 14 exits                         |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -29,6 +29,7 @@ Phase 10 shipped in PR [#43](https://github.com/JCHETAN26/AgentRail/pull/43), wi
 [#44](https://github.com/JCHETAN26/AgentRail/pull/44).
 Phase 11 shipped in PR [#45](https://github.com/JCHETAN26/AgentRail/pull/45).
 Phase 12 shipped in PR [#46](https://github.com/JCHETAN26/AgentRail/pull/46).
+Phase 13 shipped in PR [#47](https://github.com/JCHETAN26/AgentRail/pull/47).
 
 Merged branches through Phase 9 are deleted, local and remote. The repository does not
 auto-delete on merge, so each phase has to clean up after itself.
@@ -37,11 +38,12 @@ auto-delete on merge, so each phase has to clean up after itself.
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 13 — the exit criterion: incident traced end to end
-2. `packages/core-py/src/agentrail_core/observability.py` — run SLO decision logic
-3. `services/api/src/agentrail_api/execution/service.py` — run metrics aggregation
-4. `GET /api/v1/evaluation-runs/{run_id}/metrics` in `services/api/src/agentrail_api/routers/execution.py`
-5. `docs/operations/SLO.md` and `docs/operations/INCIDENT_RUNBOOK.md`
+1. `BUILDPLAN.md` Phase 14 — the exit criterion: cross-tenant/security workflows green
+2. `services/api/src/agentrail_api/security.py` — Redis-backed rate and replay guards
+3. `services/api/src/agentrail_api/dependencies.py` — authenticated caller rate-limit wiring
+4. `services/api/src/agentrail_api/routers/integrations.py` — GitHub webhook replay defence
+5. `.github/workflows/ci.yml` — `containers / scan`
+6. `docs/security/THREAT_MODEL.md`
 
 ---
 
@@ -282,6 +284,15 @@ grant write access to use the gate.
 - Added operations docs: `docs/operations/SLO.md` and `docs/operations/INCIDENT_RUNBOOK.md`.
 - Added pure SLO tests and API coverage for correlation/trace visibility and tenant isolation.
 
+## Phase 14 progress
+
+- Added Redis-backed fixed-window request limits per authenticated user or API key.
+- Added signed GitHub webhook replay defence using `X-GitHub-Delivery` reservations.
+- Added `rate_limited` and `replayed_webhook` public error codes.
+- Expanded console security headers with CSP and Permissions-Policy.
+- Renamed the container CI job to `containers / scan`; it builds each Python service image, checks
+  the shared Dockerfile's pinned runtime inputs and proves the runtime user is non-root.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -468,9 +479,10 @@ vacuous.
 
 ## Known limitations
 
-- **No rate limiting or quotas.** An authenticated caller can create unbounded work (Phase 14).
 - **No PostgreSQL row-level security.** Tenant scoping is enforced in the application and tested
   there; RLS as defence in depth is Phase 14.
+- **No durable per-organisation quota ledger.** Authenticated callers now have short-lived
+  Redis-backed rate limits, but monthly/workload quotas are not implemented.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
 - **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
 - The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture,
@@ -556,14 +568,32 @@ Latest Phase 13 branch checks, run locally on 2026-07-27:
 | `pnpm build`                                            | Pass — web production build                            |
 | `uv build --all-packages`                               | Pass after network approval for `hatchling` build deps |
 
+Latest Phase 14 branch checks, run locally on 2026-07-27:
+
+| Command                                                 | Result                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| `uv run ruff check .`                                   | Pass                                                   |
+| `uv run mypy packages/core-py/src services/api/src ...` | Pass — 99 source files                                 |
+| `uv run pytest -q`                                      | 291 passed, 175 skipped locally due sandboxed Postgres |
+| `uv run python scripts/export_openapi.py --check`       | Pass                                                   |
+| `pnpm run format:check`                                 | Pass                                                   |
+| `pnpm run lint`                                         | Pass                                                   |
+| `pnpm run typecheck`                                    | Pass                                                   |
+| `pnpm run test`                                         | Pass — 46 JS tests                                     |
+| `@agentrail/contracts check`                            | Pass                                                   |
+| `pnpm build`                                            | Pass — web production build                            |
+| `uv build --all-packages`                               | Pass after network approval for `hatchling` build deps |
+
 ---
 
-## Next tasks (Phase 13 — Observability, SLOs and operations)
+## Next tasks (Phase 14 — Security and supply chain)
 
-1. Open the Phase 13 pull request and let CI run the PostgreSQL-backed metrics tests.
-2. Merge once green.
+1. Open the Phase 14 pull request and let CI run the PostgreSQL-backed security tests plus
+   `containers / scan`.
+2. If the new container check is stable, add it to the live required status checks.
+3. Continue Phase 14 with PostgreSQL RLS and durable quota/retention work.
 
-**Exit criteria:** incident traced end to end; correlation IDs visible; green PR.
+**Exit criteria:** cross-tenant tests pass across all surfaces; security workflows green; green PR.
 
 ---
 

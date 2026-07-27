@@ -19,6 +19,11 @@ class ApiSettings(DatabaseSettings, QueueSettings):
     #: dataset upload in Phase 4 will introduce a separate streaming path.
     max_request_bytes: int = Field(default=64 * 1024, ge=1024, le=10 * 1024 * 1024)
 
+    #: Fixed-window limit for authenticated API callers. The key is the user or
+    #: API-key id, so one tenant cannot spend another tenant's request budget.
+    api_rate_limit_requests: int = Field(default=600, ge=1, le=100_000)
+    api_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
+
     # --- Authentication ----------------------------------------------------
     #: Where the console lives. Sign-in redirects back here.
     web_base_url: str = "http://localhost:3737"
@@ -34,6 +39,7 @@ class ApiSettings(DatabaseSettings, QueueSettings):
     #: why the webhook endpoint rejects everything until it is configured — an
     #: unauthenticated public write is worse than a disabled integration.
     github_webhook_secret: str | None = None
+    github_webhook_replay_ttl_seconds: int = Field(default=60 * 10, ge=60, le=60 * 60 * 24)
 
     @property
     def cookies_are_secure(self) -> bool:

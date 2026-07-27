@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentrail_api.auth.providers import AuthProvider, DevAuthProvider, GitHubOAuthProvider
 from agentrail_api.auth.service import SESSION_COOKIE_NAME, Actor, authenticate
+from agentrail_api.security import enforce_authenticated_rate_limit
 from agentrail_api.settings import ApiSettings
 from agentrail_core.correlation import CorrelationContext, context_from_headers
 from agentrail_core.github import CheckRunPublisher, RecordingCheckRunPublisher
@@ -108,14 +109,25 @@ def build_auth_provider(settings: ApiSettings, name: str) -> AuthProvider:
 async def get_actor(
     session: SessionDep,
     request: Request,
+    client: RedisDep,
+    settings: SettingsDep,
     authorization: Annotated[str | None, Header()] = None,
 ) -> Actor:
     """Authenticate the caller, or raise 401."""
-    return await authenticate(
+    actor = await authenticate(
         session,
         cookie_token=request.cookies.get(SESSION_COOKIE_NAME),
         authorization=authorization,
     )
+    if actor.user is not None:
+        await enforce_authenticated_rate_limit(
+            client, settings, actor_kind="user", actor_id=actor.user.id
+        )
+    elif actor.api_key is not None:
+        await enforce_authenticated_rate_limit(
+            client, settings, actor_kind="api_key", actor_id=actor.api_key.id
+        )
+    return actor
 
 
 ActorDep = Annotated[Actor, Depends(get_actor)]
