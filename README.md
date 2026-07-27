@@ -8,7 +8,7 @@ The question AgentRail exists to answer:
 > How can a team prove that an agent change is safer, more reliable and more useful **before**
 > exposing it to users?
 
-> [!NOTE] > **Status: Phase 12 of 18 is in progress.** The repository has the deterministic request
+> [!NOTE] > **Status: Phase 13 of 18 is in progress.** The repository has the deterministic request
 > path, authentication and tenancy, the CloudOps sandbox, the agent registry, dataset and
 > suite-builder APIs, the first durable evaluation-run executor, and redacted trajectory capture for
 > deterministic runs. It now has the first reproducible programmatic evaluator and comparison
@@ -16,8 +16,8 @@ The question AgentRail exists to answer:
 > fault injection with a side-effect ledger that makes a duplicate effect impossible at the database
 > level, a policy engine that stops high-risk tool calls for human approval, and release gates that
 > block a regressed change. It also has simulated canary deployment records that promote healthy
-> candidates and roll back degraded ones. Nothing in this README describes a capability that does not
-> exist — see
+> candidates and roll back degraded ones, plus run-level observability metrics and SLO verdicts for
+> incident response. Nothing in this README describes a capability that does not exist — see
 > [Known limitations](#known-limitations).
 
 ---
@@ -28,6 +28,8 @@ The question AgentRail exists to answer:
 dataset/suite records, execute a frozen suite as a durable evaluation run, inspect redacted
 per-item trajectories, create safe replay records from checkpoints, and read reproducible comparison
 summaries, release-gate verdicts and canary deployment history inside one of its projects.**
+Operators can fetch a run metrics snapshot with correlation and trace identifiers, queue/retry
+health, budget spend, release and canary status, and the SLO verdict.
 
 Authentication is delegated and pluggable: local development, CI and the demo use a deterministic
 provider that needs no credentials at all, while deployed environments use GitHub OAuth. Sessions are
@@ -197,8 +199,8 @@ Deliberate, and scheduled:
 - Faults are injected by the executor from a declarative profile, not by a live model or a real
   failing dependency. The circuit breaker is implemented and tested but has no caller yet, because
   the recorded executor makes no live tool call to trip it.
-- Correlation and trace identifiers are propagated, but no spans are exported. The OpenTelemetry SDK
-  and Collector pipeline are Phase 13.
+- Correlation and trace identifiers are propagated and exposed in run metrics. External
+  OpenTelemetry export and a hosted Collector are not wired yet.
 - The legacy deterministic job path still has terminal failures only. Evaluation run items have
   leases, retry budgets and outbox-backed delivery; the older job path keeps its `PENDING` recovery
   sweep.

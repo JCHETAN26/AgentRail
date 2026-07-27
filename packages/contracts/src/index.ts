@@ -61,6 +61,7 @@ export type CreateEvaluationSuiteRequest = Schemas['CreateEvaluationSuiteRequest
 export type CreateEvaluationRunRequest = Schemas['CreateEvaluationRunRequest'];
 export type EvaluationRun = Schemas['EvaluationRunResponse'];
 export type EvaluationRunState = Schemas['EvaluationRunState'];
+export type EvaluationRunMetrics = Schemas['EvaluationRunMetricsResponse'];
 export type ComparisonReport = Schemas['ComparisonReportResponse'];
 export type EvaluationResult = Schemas['EvaluationResultResponse'];
 export type EvaluationResultListResponse = Schemas['EvaluationResultListResponse'];

@@ -427,6 +427,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluation-runs/{run_id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect run observability metrics and SLO status */
+        get: operations["get_evaluation_run_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evaluation-runs/{run_id}/recovery": {
         parameters: {
             query?: never;
@@ -1510,6 +1527,28 @@ export interface components {
             /** Threshold */
             threshold: number;
         };
+        /**
+         * EvaluationRunMetricsResponse
+         * @description One operational snapshot for tracing an incident end to end.
+         */
+        EvaluationRunMetricsResponse: {
+            budgets: components["schemas"]["RunMetricsBudgets"];
+            canary: components["schemas"]["RunMetricsCanary"];
+            correlation: components["schemas"]["RunMetricsCorrelation"];
+            policy: components["schemas"]["RunMetricsPolicy"];
+            /** Project Id */
+            project_id: string;
+            quality: components["schemas"]["RunMetricsQuality"];
+            queue: components["schemas"]["RunMetricsQueue"];
+            release: components["schemas"]["RunMetricsRelease"];
+            reliability: components["schemas"]["RunMetricsReliability"];
+            run: components["schemas"]["RunMetricsRun"];
+            /** Run Id */
+            run_id: string;
+            runbook: components["schemas"]["RunMetricsRunbook"];
+            slo: components["schemas"]["RunMetricsSlo"];
+            trace_links: components["schemas"]["RunMetricsTraceLinks"];
+        };
         /** EvaluationRunResponse */
         EvaluationRunResponse: {
             /** Baseline Agent Version Id */
@@ -1985,6 +2024,173 @@ export interface components {
             state: components["schemas"]["RunItemState"];
             /** Trajectory Id */
             trajectory_id?: string | null;
+        };
+        /** RunMetricsBudgets */
+        RunMetricsBudgets: {
+            /** Limits */
+            limits: {
+                [key: string]: number;
+            };
+            /** Remaining */
+            remaining: {
+                [key: string]: number;
+            };
+            /** Spent */
+            spent: {
+                [key: string]: number;
+            };
+        };
+        /** RunMetricsCanary */
+        RunMetricsCanary: {
+            /** Deployment Count */
+            deployment_count: number;
+            /** Latest Deltas */
+            latest_deltas?: {
+                [key: string]: unknown;
+            };
+            /** Latest Rollback Reason */
+            latest_rollback_reason?: string | null;
+            /** Latest State */
+            latest_state?: string | null;
+            /** Promoted Count */
+            promoted_count: number;
+            /** Rollback Count */
+            rollback_count: number;
+        };
+        /** RunMetricsCorrelation */
+        RunMetricsCorrelation: {
+            /** Correlation Id */
+            correlation_id: string;
+            /** Trace Id */
+            trace_id: string;
+            /** Traceparent */
+            traceparent: string;
+        };
+        /** RunMetricsPolicy */
+        RunMetricsPolicy: {
+            /** Approval Counts */
+            approval_counts: {
+                [key: string]: number;
+            };
+            /** Awaiting Approval Count */
+            awaiting_approval_count: number;
+        };
+        /** RunMetricsQuality */
+        RunMetricsQuality: {
+            /** Category Metrics */
+            category_metrics?: {
+                [key: string]: unknown;
+            };
+            /** Completed Items */
+            completed_items: number;
+            /** Evaluator Metrics */
+            evaluator_metrics?: {
+                [key: string]: unknown;
+            };
+            /** Failed Items */
+            failed_items: number;
+            /** Has Report */
+            has_report: boolean;
+            /** Pass Rate */
+            pass_rate: number;
+            /** Regression Count */
+            regression_count: number;
+        };
+        /** RunMetricsQueue */
+        RunMetricsQueue: {
+            /** Item States */
+            item_states: {
+                [key: string]: number;
+            };
+            /** Leased Count */
+            leased_count: number;
+            /** Outbox Attempts */
+            outbox_attempts: number;
+            /** Outbox Event Count */
+            outbox_event_count: number;
+            /** Outbox Pending Count */
+            outbox_pending_count: number;
+            /** Outbox Published */
+            outbox_published: boolean;
+            /** Outbox Published Count */
+            outbox_published_count: number;
+            /** Pending Count */
+            pending_count: number;
+        };
+        /** RunMetricsRelease */
+        RunMetricsRelease: {
+            /** Blocked Count */
+            blocked_count: number;
+            /** Gate Count */
+            gate_count: number;
+            /** Latest */
+            latest?: {
+                [key: string]: unknown;
+            } | null;
+            /** Passed Count */
+            passed_count: number;
+        };
+        /** RunMetricsReliability */
+        RunMetricsReliability: {
+            /** Retried Count */
+            retried_count: number;
+            /** Side Effect Count */
+            side_effect_count: number;
+            /** Stranded Count */
+            stranded_count: number;
+        };
+        /** RunMetricsRun */
+        RunMetricsRun: {
+            /** Completed At */
+            completed_at?: string | null;
+            /** Completed Count */
+            completed_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Failed Count */
+            failed_count: number;
+            /** Item Count */
+            item_count: number;
+            /** Started At */
+            started_at?: string | null;
+            /** State */
+            state: string;
+        };
+        /** RunMetricsRunbook */
+        RunMetricsRunbook: {
+            /** First Steps */
+            first_steps: string[];
+            /** Path */
+            path: string;
+            /** Title */
+            title: string;
+        };
+        /** RunMetricsSlo */
+        RunMetricsSlo: {
+            /** Objectives */
+            objectives: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
+            /** Violations */
+            violations: string[];
+        };
+        /** RunMetricsTraceLinks */
+        RunMetricsTraceLinks: {
+            /** Events */
+            events: string;
+            /** Items */
+            items: string;
+            /** Recovery */
+            recovery: string;
+            /** Run */
+            run: string;
+            /** Trajectories */
+            trajectories: number;
         };
         /** RunRecoveryResponse */
         RunRecoveryResponse: {
@@ -3587,6 +3793,75 @@ export interface operations {
             };
             /** @description Validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_evaluation_run_metrics: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationRunMetricsResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Idempotency key reused. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A required dependency is unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
