@@ -13,7 +13,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentrail_api.auth.service import Actor, principal_for_organisation
-from agentrail_api.execution.schemas import CreateEvaluationRunRequest
+from agentrail_api.execution.schemas import (
+    CreateEvaluationRunRequest,
+    RunItemRecoveryResponse,
+    RunRecoveryResponse,
+)
 from agentrail_core.correlation import CorrelationContext
 from agentrail_core.errors import (
     ForbiddenError,
@@ -42,6 +46,7 @@ from agentrail_core.identity import (
 )
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.queue import publish_job
+from agentrail_core.side_effects import SideEffectRecord
 
 MAX_RUN_ITEMS = 1_000
 OUTBOX_EVENT_RUN_CREATED = "evaluation_run.created"
@@ -304,3 +309,73 @@ async def cancel_run(
     )
     await session.flush()
     return run
+
+
+async def run_recovery(
+    session: AsyncSession, principal: Principal, *, run_id: str
+) -> RunRecoveryResponse:
+    """The reliability view of a run: attempts, leases, faults and effects.
+
+    Answers the question an operator actually asks during an incident — what is
+    stuck, what has been retried, and did anything act on the world twice —
+    without making them join four tables by hand.
+    """
+    run = await get_run(session, principal, run_id=run_id)
+    items = list(
+        (
+            await session.scalars(
+                select(RunItem).where(RunItem.run_id == run.id).order_by(RunItem.item_index)
+            )
+        ).all()
+    )
+    effects_by_item = {
+        str(item_id): int(count)
+        for item_id, count in (
+            await session.execute(
+                select(SideEffectRecord.run_item_id, func.count())
+                .where(SideEffectRecord.run_id == run.id)
+                .group_by(SideEffectRecord.run_item_id)
+            )
+        ).all()
+    }
+
+    now = datetime.now(UTC)
+    item_states: dict[RunItemState, int] = {}
+    stranded = 0
+    retried = 0
+    rows: list[RunItemRecoveryResponse] = []
+    for item in items:
+        item_states[item.state] = item_states.get(item.state, 0) + 1
+        expired = item.lease_expires_at is not None and item.lease_expires_at < now
+        if expired and item.state not in TERMINAL_ITEM_STATES:
+            stranded += 1
+        if item.attempt_count > 1:
+            retried += 1
+        rows.append(
+            RunItemRecoveryResponse(
+                id=item.id,
+                item_index=item.item_index,
+                partition=item.partition,
+                state=item.state,
+                attempt_count=item.attempt_count,
+                max_attempts=item.max_attempts,
+                retries_remaining=max(item.max_attempts - item.attempt_count, 0),
+                worker_id=item.worker_id,
+                lease_expires_at=item.lease_expires_at,
+                lease_expired=expired,
+                injected_fault=item.injected_fault,
+                budget_state=item.budget_state,
+                side_effect_count=effects_by_item.get(item.id, 0),
+                error_code=item.error_code,
+                error_message=item.error_message,
+            )
+        )
+
+    return RunRecoveryResponse(
+        run_id=run.id,
+        item_states=item_states,
+        stranded_count=stranded,
+        retried_count=retried,
+        side_effect_count=sum(effects_by_item.values()),
+        items=rows,
+    )

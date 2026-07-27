@@ -62,6 +62,15 @@ test: ## Unit tests (integration tests are skipped when dependencies are absent)
 integration: ## Tests that require real PostgreSQL and Redis (make compose-up first)
 	AGENTRAIL_REQUIRE_INTEGRATION=1 $(UV) run pytest -m integration
 
+chaos-duplicate: ## Redeliver a run id to the queue N times (RUN_ID=... [TIMES=3])
+	$(UV) run python scripts/chaos.py duplicate-delivery --run-id $(RUN_ID) --times $(or $(TIMES),3)
+
+chaos-strand: ## Expire every live lease on a run, as a killed worker would (RUN_ID=...)
+	$(UV) run python scripts/chaos.py strand-leases --run-id $(RUN_ID)
+
+chaos-report: ## Report side effects vs attempts for a run; non-zero exit on a duplicate (RUN_ID=...)
+	$(UV) run python scripts/chaos.py report --run-id $(RUN_ID)
+
 e2e: ## Playwright end-to-end tests against a running stack (make compose-up-apps first)
 	$(PNPM) --filter @agentrail/web exec playwright install chromium
 	$(PNPM) --filter @agentrail/web build

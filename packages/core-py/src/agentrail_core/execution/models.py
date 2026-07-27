@@ -134,6 +134,14 @@ class RunItem(Base):
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    #: The fault injected into the most recent attempt, or null for a clean run.
+    #: Kept per item rather than per attempt because the trajectory already
+    #: carries the full per-attempt history; this is the recovery view's index.
+    injected_fault: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    #: Budget limits, spend and remaining headroom for this item.
+    budget_state: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

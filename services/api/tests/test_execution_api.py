@@ -144,3 +144,52 @@ class TestEvaluationRuns:
         assert second.status_code == 200
         assert first.json()["state"] == "CANCELLED"
         assert second.json()["cancelled_at"] == first.json()["cancelled_at"]
+
+    async def test_recovery_view_reports_attempts_leases_and_side_effects(
+        self, tenant: Tenant
+    ) -> None:
+        suite = await create_frozen_suite(tenant, count=2)
+        candidate = await create_agent_version(tenant, "Recovery Candidate")
+        created = await tenant.client.post(
+            "/api/v1/evaluation-runs",
+            json={
+                "evaluation_suite_id": suite["id"],
+                "candidate_agent_version_id": candidate["id"],
+            },
+        )
+        assert created.status_code == 201, created.text
+
+        response = await tenant.client.get(
+            f"/api/v1/evaluation-runs/{created.json()['id']}/recovery"
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["run_id"] == created.json()["id"]
+        assert len(body["items"]) == 2
+        # Nothing has executed yet, so nothing is stranded and nothing has acted.
+        assert body["stranded_count"] == 0
+        assert body["retried_count"] == 0
+        assert body["side_effect_count"] == 0
+        assert body["items"][0]["retries_remaining"] == body["items"][0]["max_attempts"]
+        assert body["items"][0]["lease_expired"] is False
+
+    async def test_cannot_read_another_tenants_recovery_view(
+        self, tenant: Tenant, other_tenant: Tenant
+    ) -> None:
+        suite = await create_frozen_suite(other_tenant)
+        candidate = await create_agent_version(other_tenant, "Theirs")
+        created = await other_tenant.client.post(
+            "/api/v1/evaluation-runs",
+            json={
+                "evaluation_suite_id": suite["id"],
+                "candidate_agent_version_id": candidate["id"],
+            },
+        )
+        assert created.status_code == 201, created.text
+
+        response = await tenant.client.get(
+            f"/api/v1/evaluation-runs/{created.json()['id']}/recovery"
+        )
+
+        assert response.status_code == 403

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -27,8 +28,11 @@ from agentrail_core.execution import (
     RunItem,
     RunItemState,
 )
+from agentrail_core.faults import FaultProfile, parse_fault_profiles, plan_fault
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.logging import get_logger
+from agentrail_core.reliability import BudgetExceededError, BudgetKind, BudgetLedger
+from agentrail_core.side_effects import apply_side_effect_once
 from agentrail_core.trajectories import (
     Trajectory,
     TrajectoryCheckpoint,
@@ -47,6 +51,17 @@ class RunOutcome(StrEnum):
     CANCELLED = "cancelled"
     SKIPPED = "skipped"
     MISSING = "missing"
+
+
+#: Attempts share one trajectory — it is keyed by run item, not by attempt — so
+#: fault steps need an index band of their own that the clean-path steps (0-5)
+#: can never collide with, however many times an item is retried.
+_FAULT_STEP_BASE = 50
+
+#: The one side-effecting call the recorded executor makes. Named after the
+#: CloudOps remediation tool it stands in for, so the ledger reads the way it
+#: will once a real agent runtime is choosing the tool.
+_REMEDIATION_TOOL = "restart_service"
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,23 +263,84 @@ class EvaluationRunRunner:
                     version=RunItem.version + 1,
                 )
             )
+
+            attempt = max(item.attempt_count, 1)
+            profiles = await self._fault_profiles(session, run=run)
+            fault = plan_fault(profiles, item_index=item.item_index, attempt=attempt)
+            ledger = BudgetLedger.create(await self._budget_limits(session, run=run))
+
+            arguments = {
+                "service": f"service-{item.item_index}",
+                "api_key": "test-secret-key",
+            }
+            try:
+                ledger = ledger.charge(BudgetKind.TOOL_CALLS, 1)
+                ledger = ledger.charge(BudgetKind.LOOP_ITERATIONS, 1)
+                ledger = ledger.charge(BudgetKind.TOKENS, 1_000)
+            except BudgetExceededError as exceeded:
+                await self._fail_item(
+                    session,
+                    item=item,
+                    trajectory=trajectory,
+                    attempt=attempt,
+                    retryable=False,
+                    error_code="budget_exhausted",
+                    error_message=str(exceeded),
+                    fault_payload=None,
+                    budget_state=exceeded.ledger.as_payload(),
+                    title=f"Budget exhausted: {exceeded.kind.value}",
+                )
+                await session.commit()
+                return
+
+            # The effect reaches the world *before* any injected fault kills the
+            # attempt. That ordering is the whole point: a retry then has to
+            # find the ledger row and decline to act a second time.
+            record, applied = await apply_side_effect_once(
+                session,
+                project_id=run.project_id,
+                run_id=run.id,
+                run_item_id=item.id,
+                step_index=2,
+                tool=_REMEDIATION_TOOL,
+                arguments=arguments,
+                attempt=attempt,
+                result={"status": "ok", "restarted": True},
+            )
             await self._append_step(
                 session,
                 trajectory_id=trajectory.id,
                 step_index=2,
                 step_type=TrajectoryStepType.TOOL_CALL,
                 title="Recorded tool call",
-                input_payload={
-                    "tool": "recorded_success",
-                    "arguments": {
-                        "service": f"service-{item.item_index}",
-                        "api_key": "test-secret-key",
-                    },
+                input_payload={"tool": _REMEDIATION_TOOL, "arguments": arguments},
+                output_payload={
+                    "status": "ok",
+                    "latency_ms": 0,
+                    "side_effect_applied": applied,
+                    "idempotent_replay": not applied,
+                    "applied_on_attempt": record.applied_on_attempt,
                 },
-                output_payload={"status": "ok", "latency_ms": 0},
-                checkpoint={"stage": "tool_call", "tool": "recorded_success"},
+                checkpoint={"stage": "tool_call", "tool": _REMEDIATION_TOOL},
                 latency_ms=0,
             )
+
+            if fault is not None:
+                retryable = fault.retryable and attempt < item.max_attempts
+                await self._fail_item(
+                    session,
+                    item=item,
+                    trajectory=trajectory,
+                    attempt=attempt,
+                    retryable=retryable,
+                    error_code=fault.kind.value,
+                    error_message=f"Injected {fault.family.value} fault {fault.kind.value}.",
+                    fault_payload=fault.as_payload(),
+                    budget_state=ledger.as_payload(),
+                    title=f"Injected fault: {fault.kind.value}",
+                )
+                await session.commit()
+                return
             await self._append_step(
                 session,
                 trajectory_id=trajectory.id,
@@ -325,12 +401,19 @@ class EvaluationRunRunner:
                 .where(RunItem.id == item.id, RunItem.state == RunItemState.EVALUATING)
                 .values(
                     state=RunItemState.COMPLETED,
-                    result={"passed": True, "mode": "recorded", "trajectory_id": trajectory.id},
+                    result={
+                        "passed": True,
+                        "mode": "recorded",
+                        "trajectory_id": trajectory.id,
+                        "side_effect_applied_on_attempt": record.applied_on_attempt,
+                    },
                     checkpoint={
                         "stage": "completed",
                         "item_index": item.item_index,
                         "trajectory_id": trajectory.id,
                     },
+                    injected_fault=None,
+                    budget_state=ledger.as_payload(),
                     lease_expires_at=None,
                     completed_at=func.now(),
                     updated_at=func.now(),
@@ -338,6 +421,96 @@ class EvaluationRunRunner:
                 )
             )
             await session.commit()
+
+    async def _fault_profiles(
+        self, session: AsyncSession, *, run: EvaluationRun
+    ) -> tuple[FaultProfile, ...]:
+        suite = await session.get(EvaluationSuite, run.evaluation_suite_id)
+        if suite is None:
+            return ()
+        return parse_fault_profiles(suite.fault_profiles)
+
+    async def _budget_limits(
+        self, session: AsyncSession, *, run: EvaluationRun
+    ) -> dict[str, Any] | None:
+        suite = await session.get(EvaluationSuite, run.evaluation_suite_id)
+        if suite is None:
+            return None
+        budgets = suite.thresholds.get("budgets")
+        return budgets if isinstance(budgets, dict) else None
+
+    async def _fail_item(
+        self,
+        session: AsyncSession,
+        *,
+        item: RunItem,
+        trajectory: Trajectory,
+        attempt: int,
+        retryable: bool,
+        error_code: str,
+        error_message: str,
+        fault_payload: dict[str, Any] | None,
+        budget_state: dict[str, Any],
+        title: str,
+    ) -> None:
+        """End one attempt in failure, recording why in the trajectory.
+
+        A retryable failure goes straight back to ``PENDING``. The state machine
+        allows ``FAILED_RETRYABLE`` as a resting place, but parking there would
+        need a second sweep to wake it, and the run loop is already looking for
+        pending work — so the retry budget is spent by the lease, not by a timer.
+        """
+        await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=_FAULT_STEP_BASE + attempt,
+            step_type=TrajectoryStepType.FINAL_RESULT,
+            title=title,
+            input_payload={"attempt": attempt, "item_index": item.item_index},
+            output_payload={
+                "passed": False,
+                "error_code": error_code,
+                "retryable": retryable,
+                "fault": fault_payload,
+            },
+            evidence={"budget": budget_state},
+            checkpoint={"stage": "failed", "attempt": attempt, "error_code": error_code},
+        )
+        next_state = RunItemState.PENDING if retryable else RunItemState.FAILED_TERMINAL
+        await session.execute(
+            update(RunItem)
+            .where(RunItem.id == item.id, RunItem.state == RunItemState.EVALUATING)
+            .values(
+                state=next_state,
+                error_code=error_code,
+                error_message=error_message,
+                injected_fault=fault_payload,
+                budget_state=budget_state,
+                worker_id=None,
+                lease_expires_at=None,
+                completed_at=None if retryable else func.now(),
+                updated_at=func.now(),
+                version=RunItem.version + 1,
+            )
+        )
+        if retryable:
+            return
+        trajectory.state = TrajectoryState.FAILED
+        trajectory.summary = {
+            **trajectory.summary,
+            "result": "failed",
+            "error_code": error_code,
+            "failing_step_id": None,
+            "attempts": attempt,
+        }
+        trajectory.graph_state = {
+            "node": "recorded_executor",
+            "state": "failed",
+            "item_index": item.item_index,
+        }
+        trajectory.final_checkpoint = {"stage": "failed", "error_code": error_code}
+        trajectory.completed_at = datetime.now(UTC)
+        trajectory.updated_at = trajectory.completed_at
 
     async def _create_trajectory(
         self, session: AsyncSession, *, item: RunItem, run: EvaluationRun

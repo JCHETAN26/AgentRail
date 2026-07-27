@@ -8,13 +8,14 @@ The question AgentRail exists to answer:
 > How can a team prove that an agent change is safer, more reliable and more useful **before**
 > exposing it to users?
 
-> [!NOTE] > **Status: Phase 8 of 18 is in progress.** The repository has the deterministic request
+> [!NOTE] > **Status: Phase 9 of 18 is in progress.** The repository has the deterministic request
 > path, authentication and tenancy, the CloudOps sandbox, the agent registry, dataset and
 > suite-builder APIs, the first durable evaluation-run executor, and redacted trajectory capture for
 > deterministic runs. It now has the first reproducible programmatic evaluator and comparison
-> substrate, plus durable recorded/forked replay records for persisted trajectories. Policy, release
-> gates and canary deployment are not built yet. Nothing in this README describes a capability that
-> does not exist — see
+> substrate, durable recorded/forked replay records for persisted trajectories, and deterministic
+> fault injection with a side-effect ledger that makes a duplicate effect impossible at the database
+> level. Policy, release gates and canary deployment are not built yet. Nothing in this README
+> describes a capability that does not exist — see
 > [Known limitations](#known-limitations).
 
 ---
@@ -183,8 +184,11 @@ Deliberate, and scheduled:
   services, metrics, logs, runbooks, fault hooks and 25 scenario manifests; the agent runtime that
   consumes them is still scheduled for later phases.
 - Agent definitions, immutable agent versions, dataset versions, frozen suite records, durable
-  evaluation runs and redacted trajectories exist, but real evaluators, replay, policy engine,
-  release gates and canary deployment are not built yet (Phases 7–12).
+  evaluation runs, redacted trajectories, replay records and deterministic fault injection exist, but
+  the policy engine, release gates and canary deployment are not built yet (Phases 10–12).
+- Faults are injected by the executor from a declarative profile, not by a live model or a real
+  failing dependency. The circuit breaker is implemented and tested but has no caller yet, because
+  the recorded executor makes no live tool call to trip it.
 - Correlation and trace identifiers are propagated, but no spans are exported. The OpenTelemetry SDK
   and Collector pipeline are Phase 13.
 - The legacy deterministic job path still has terminal failures only. Evaluation run items have

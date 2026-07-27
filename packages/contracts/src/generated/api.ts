@@ -307,6 +307,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluation-runs/{run_id}/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect run reliability: attempts, leases, faults and side effects */
+        get: operations["get_evaluation_run_recovery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evaluation-suites/{suite_id}/freeze": {
         parameters: {
             query?: never;
@@ -1409,6 +1426,41 @@ export interface components {
          */
         Role: "owner" | "admin" | "developer" | "reviewer" | "viewer";
         /**
+         * RunItemRecoveryResponse
+         * @description One item, seen from the reliability angle rather than the result angle.
+         */
+        RunItemRecoveryResponse: {
+            /** Attempt Count */
+            attempt_count: number;
+            /** Budget State */
+            budget_state: Record<string, never>;
+            /** Error Code */
+            error_code?: string | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Id */
+            id: string;
+            /** Injected Fault */
+            injected_fault?: Record<string, never> | null;
+            /** Item Index */
+            item_index: number;
+            /** Lease Expired */
+            lease_expired: boolean;
+            /** Lease Expires At */
+            lease_expires_at?: string | null;
+            /** Max Attempts */
+            max_attempts: number;
+            /** Partition */
+            partition: string;
+            /** Retries Remaining */
+            retries_remaining: number;
+            /** Side Effect Count */
+            side_effect_count: number;
+            state: components["schemas"]["RunItemState"];
+            /** Worker Id */
+            worker_id?: string | null;
+        };
+        /**
          * RunItemState
          * @enum {string}
          */
@@ -1437,6 +1489,23 @@ export interface components {
             state: components["schemas"]["RunItemState"];
             /** Trajectory Id */
             trajectory_id?: string | null;
+        };
+        /** RunRecoveryResponse */
+        RunRecoveryResponse: {
+            /** Item States */
+            item_states: {
+                [key: string]: number;
+            };
+            /** Items */
+            items: components["schemas"]["RunItemRecoveryResponse"][];
+            /** Retried Count */
+            retried_count: number;
+            /** Run Id */
+            run_id: string;
+            /** Side Effect Count */
+            side_effect_count: number;
+            /** Stranded Count */
+            stranded_count: number;
         };
         /** SignOutResponse */
         SignOutResponse: {
@@ -2526,6 +2595,75 @@ export interface operations {
             };
             /** @description Validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_evaluation_run_recovery: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRecoveryResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Idempotency key reused. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A required dependency is unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

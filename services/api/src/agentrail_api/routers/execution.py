@@ -23,6 +23,7 @@ from agentrail_api.execution.schemas import (
     CreateEvaluationRunRequest,
     EvaluationRunProgressResponse,
     EvaluationRunResponse,
+    RunRecoveryResponse,
 )
 from agentrail_core.errors import ProblemDetail
 from agentrail_core.execution import TERMINAL_RUN_STATES
@@ -113,6 +114,19 @@ async def cancel_evaluation_run(
     await session.commit()
     await session.refresh(run)
     return EvaluationRunResponse.model_validate(run)
+
+
+@router.get(
+    "/evaluation-runs/{run_id}/recovery",
+    response_model=RunRecoveryResponse,
+    summary="Inspect run reliability: attempts, leases, faults and side effects",
+    responses=_ERRORS,
+)
+async def get_evaluation_run_recovery(
+    run_id: RunId, actor: ActorDep, session: SessionDep
+) -> RunRecoveryResponse:
+    principal = await service.principal_for_run(session, actor, run_id)
+    return await service.run_recovery(session, principal, run_id=run_id)
 
 
 @router.get(
