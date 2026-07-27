@@ -11,6 +11,7 @@ import pytest
 from api_test_support import Tenant
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentrail_api.routers.integrations import _KNOWN_EVENTS, _known
 from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import EvaluationRun, EvaluationRunState
 from agentrail_core.ids import new_sortable_id
@@ -408,6 +409,30 @@ class TestRepositoryBindings:
         )
 
         assert response.status_code == 403
+
+
+class TestWebhookLogSafety:
+    """Nothing a caller writes may reach a log line.
+
+    The logs are the record that holds an unauthenticated caller to account, so
+    the caller must not be able to write to them.
+    """
+
+    def test_a_recognised_value_returns_our_own_constant(self) -> None:
+        event = _known("pull_request", _KNOWN_EVENTS)
+
+        assert event == "pull_request"
+        # Equal as strings, but it must be *our* object, not the caller's —
+        # that is the property that makes the log line ours to trust.
+        assert any(event is member for member in _KNOWN_EVENTS)
+
+    def test_an_unrecognised_value_never_reaches_the_log(self) -> None:
+        forged = "pull_request\ninfo: forged entry that looks legitimate"
+
+        assert _known(forged, _KNOWN_EVENTS) == "<unrecognised>"
+
+    def test_an_absent_header_is_not_an_error(self) -> None:
+        assert _known(None, _KNOWN_EVENTS) == "<unrecognised>"
 
 
 class TestGitHubWebhook:

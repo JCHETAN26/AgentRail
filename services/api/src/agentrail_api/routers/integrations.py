@@ -29,16 +29,24 @@ _ACTED_ACTIONS: frozenset[str] = frozenset({"synchronize", "opened", "reopened"}
 
 
 def _known(value: str | None, allowed: frozenset[str]) -> str:
-    """Return the caller's value only when it is one of our own constants.
+    """Return *our* matching constant, never the caller's string.
 
     An allowlist rather than an escape. Everything reaching this endpoint is
     unauthenticated until the signature is checked, and some of it is logged
-    before that — so nothing a caller writes ever reaches a log line verbatim.
-    The logs are meant to be evidence, and evidence must not be writable by the
-    subject of the investigation.
+    before that — so nothing a caller writes may reach a log line. The logs are
+    meant to be evidence, and evidence must not be writable by the subject of
+    the investigation.
+
+    Note the loop rather than ``return value`` after a membership test. The two
+    are equal as strings but not the same object, and only returning the element
+    from our own set makes the log argument provably ours — which is both the
+    real property we want and what a taint analysis can verify.
     """
-    if value is not None and value in allowed:
-        return value
+    if value is None:
+        return "<unrecognised>"
+    for candidate in sorted(allowed):
+        if value == candidate:
+            return candidate
     return "<unrecognised>"
 
 
