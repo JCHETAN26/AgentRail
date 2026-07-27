@@ -822,6 +822,55 @@
             "default": "recorded",
             "title": "Execution Mode",
             "type": "string"
+          },
+          "github_head_sha": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 7,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Head Sha"
+          },
+          "github_owner": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Owner"
+          },
+          "github_pull_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Pull Number"
+          },
+          "github_repository": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Repository"
           }
         },
         "required": [
@@ -936,6 +985,50 @@
           "name"
         ],
         "title": "CreateProjectRequest",
+        "type": "object"
+      },
+      "CreateReleasePolicyRequest": {
+        "properties": {
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "definition"
+        ],
+        "title": "CreateReleasePolicyRequest",
+        "type": "object"
+      },
+      "CreateRepositoryBindingRequest": {
+        "description": "Claim a GitHub repository for this project.\n\nExclusive: the binding is what lets an unauthenticated, deployment-wide\nwebhook resolve which tenant a repository belongs to.",
+        "properties": {
+          "owner": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Owner",
+            "type": "string"
+          },
+          "repository": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Repository",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "repository"
+        ],
+        "title": "CreateRepositoryBindingRequest",
         "type": "object"
       },
       "CreateTrajectoryReplayRequest": {
@@ -1257,6 +1350,35 @@
         ],
         "title": "ErrorCode",
         "type": "string"
+      },
+      "EvaluateGateRequest": {
+        "description": "Judge one run against one policy.\n\n``head_sha`` is optional, like every other GitHub field here: the gate is\nfully usable with no integration configured, and CI can call it and read the\nverdict straight out of the response body.",
+        "properties": {
+          "head_sha": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 7,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Sha"
+          },
+          "release_policy_id": {
+            "maxLength": 26,
+            "minLength": 26,
+            "title": "Release Policy Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "release_policy_id"
+        ],
+        "title": "EvaluateGateRequest",
+        "type": "object"
       },
       "EvaluationResultListResponse": {
         "properties": {
@@ -1623,6 +1745,103 @@
           "ERROR"
         ],
         "title": "EvaluatorResultState",
+        "type": "string"
+      },
+      "GateEvaluationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GateEvaluationResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "GateEvaluationListResponse",
+        "type": "object"
+      },
+      "GateEvaluationResponse": {
+        "properties": {
+          "check_run": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Run"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "head_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Sha"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/GateOutcome"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "release_policy_id": {
+            "title": "Release Policy Id",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "violations": {
+            "items": {
+              "type": "object"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "run_id",
+          "release_policy_id",
+          "outcome",
+          "violations",
+          "summary",
+          "created_at"
+        ],
+        "title": "GateEvaluationResponse",
+        "type": "object"
+      },
+      "GateOutcome": {
+        "enum": [
+          "passed",
+          "blocked"
+        ],
+        "title": "GateOutcome",
         "type": "string"
       },
       "HTTPValidationError": {
@@ -2118,6 +2337,82 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "ReleasePolicyListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReleasePolicyResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ReleasePolicyListResponse",
+        "type": "object"
+      },
+      "ReleasePolicyResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "definition": {
+            "title": "Definition",
+            "type": "object"
+          },
+          "definition_digest": {
+            "title": "Definition Digest",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "slug",
+          "version",
+          "definition",
+          "definition_digest",
+          "created_at"
+        ],
+        "title": "ReleasePolicyResponse",
+        "type": "object"
+      },
       "ReplayMode": {
         "enum": [
           "recorded",
@@ -2135,6 +2430,67 @@
         ],
         "title": "ReplayState",
         "type": "string"
+      },
+      "RepositoryBindingListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RepositoryBindingResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RepositoryBindingListResponse",
+        "type": "object"
+      },
+      "RepositoryBindingResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "owner": {
+            "title": "Owner",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "repository": {
+            "title": "Repository",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "owner",
+          "repository",
+          "created_at"
+        ],
+        "title": "RepositoryBindingResponse",
+        "type": "object"
       },
       "Role": {
         "description": "A member's role within one organisation.",
@@ -4448,6 +4804,194 @@
         ]
       }
     },
+    "/api/v1/evaluation-runs/{run_id}/gate": {
+      "get": {
+        "operationId": "list_gate_evaluations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateEvaluationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Duplicate policy, or no report to gate yet."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List gate verdicts recorded for a run",
+        "tags": [
+          "release"
+        ]
+      },
+      "post": {
+        "operationId": "evaluate_gate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateGateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateEvaluationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Duplicate policy, or no report to gate yet."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Judge a run against a release policy",
+        "tags": [
+          "release"
+        ]
+      }
+    },
     "/api/v1/evaluation-runs/{run_id}/items": {
       "get": {
         "operationId": "list_evaluation_run_items",
@@ -4731,6 +5275,79 @@
         "summary": "Freeze an evaluation suite",
         "tags": [
           "datasets"
+        ]
+      }
+    },
+    "/api/v1/integrations/github/webhook": {
+      "post": {
+        "operationId": "receive_github_webhook",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-hub-signature-256",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Hub-Signature-256"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-github-event",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Github-Event"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Signature missing or invalid."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unparseable body."
+          }
+        },
+        "summary": "Receive a signed GitHub webhook",
+        "tags": [
+          "integrations"
         ]
       }
     },
@@ -6441,6 +7058,194 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/github-repositories": {
+      "get": {
+        "operationId": "list_repository_bindings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryBindingListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Duplicate policy, or no report to gate yet."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List the GitHub repositories bound to this project",
+        "tags": [
+          "release"
+        ]
+      },
+      "post": {
+        "operationId": "create_repository_binding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRepositoryBindingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryBindingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Duplicate policy, or no report to gate yet."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Claim a GitHub repository for this project",
+        "tags": [
+          "release"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/jobs": {
       "get": {
         "operationId": "list_jobs",
@@ -6694,6 +7499,194 @@
         "summary": "Create a job in a project",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/release-policies": {
+      "get": {
+        "operationId": "list_release_policies",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleasePolicyListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Duplicate policy, or no report to gate yet."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List release policies",
+        "tags": [
+          "release"
+        ]
+      },
+      "post": {
+        "operationId": "create_release_policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReleasePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleasePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Duplicate policy, or no report to gate yet."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Create an immutable release policy version",
+        "tags": [
+          "release"
         ]
       }
     },

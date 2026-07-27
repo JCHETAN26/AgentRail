@@ -1,0 +1,104 @@
+# Sample workflow: block a pull request whose agent change made things worse.
+#
+# Copy this into a repository that contains an agent, set AGENTRAIL_API_KEY and
+# AGENTRAIL_URL as secrets, and the gate runs on every pull request.
+#
+# One setup step first: claim the repository for your project, so AgentRail
+# knows which tenant it belongs to. Without it the run is refused, and a push
+# to a pull request cannot supersede the run it replaces.
+#
+#   curl -X POST "$AGENTRAIL_URL/api/v1/projects/$PROJECT_ID/github-repositories" \
+#     -H "authorization: Bearer $AGENTRAIL_API_KEY" \
+#     -H 'content-type: application/json' \
+#     -d '{"owner":"your-org","repository":"your-repo"}'
+#
+# Note what this does *not* need: no GitHub App, no webhook, no write access to
+# your repository. The gate returns its verdict in the response body and the job
+# fails on it. The GitHub App integration exists for teams that want the verdict
+# rendered as a Check Run with inline annotations, but it is an addition, never
+# a prerequisite.
+
+name: agent release gate
+
+on:
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Start an evaluation run for this commit
+        id: run
+        env:
+          AGENTRAIL_URL: ${{ secrets.AGENTRAIL_URL }}
+          AGENTRAIL_API_KEY: ${{ secrets.AGENTRAIL_API_KEY }}
+          SUITE_ID: ${{ vars.AGENTRAIL_SUITE_ID }}
+          CANDIDATE_ID: ${{ vars.AGENTRAIL_CANDIDATE_AGENT_VERSION_ID }}
+        run: |
+          set -euo pipefail
+          run_id=$(curl -sS --fail-with-body \
+            -X POST "$AGENTRAIL_URL/api/v1/evaluation-runs" \
+            -H "authorization: Bearer $AGENTRAIL_API_KEY" \
+            -H 'content-type: application/json' \
+            -H "idempotency-key: ${{ github.event.pull_request.head.sha }}" \
+            -d "$(jq -nc \
+              --arg suite "$SUITE_ID" \
+              --arg candidate "$CANDIDATE_ID" \
+              --arg owner "${{ github.repository_owner }}" \
+              --arg repo "${{ github.event.repository.name }}" \
+              --argjson pull ${{ github.event.pull_request.number }} \
+              --arg sha "${{ github.event.pull_request.head.sha }}" \
+              '{evaluation_suite_id:$suite, candidate_agent_version_id:$candidate,
+                github_owner:$owner, github_repository:$repo,
+                github_pull_number:$pull, github_head_sha:$sha}')" \
+            | jq -r .id)
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      # The idempotency key is the head commit, so re-running this job for the
+      # same commit joins the existing run instead of starting a second one.
+      - name: Wait for the run to finish
+        env:
+          AGENTRAIL_URL: ${{ secrets.AGENTRAIL_URL }}
+          AGENTRAIL_API_KEY: ${{ secrets.AGENTRAIL_API_KEY }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 120); do
+            state=$(curl -sS --fail-with-body \
+              "$AGENTRAIL_URL/api/v1/evaluation-runs/$RUN_ID" \
+              -H "authorization: Bearer $AGENTRAIL_API_KEY" | jq -r .state)
+            case "$state" in
+              PASSED|FAILED) exit 0 ;;
+              CANCELLED) echo "Run cancelled — a newer commit superseded it."; exit 0 ;;
+              ERROR) echo "Run errored."; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Timed out waiting for the run."; exit 1
+
+      - name: Apply the release gate
+        env:
+          AGENTRAIL_URL: ${{ secrets.AGENTRAIL_URL }}
+          AGENTRAIL_API_KEY: ${{ secrets.AGENTRAIL_API_KEY }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+          POLICY_ID: ${{ vars.AGENTRAIL_RELEASE_POLICY_ID }}
+        run: |
+          set -euo pipefail
+          verdict=$(curl -sS --fail-with-body \
+            -X POST "$AGENTRAIL_URL/api/v1/evaluation-runs/$RUN_ID/gate" \
+            -H "authorization: Bearer $AGENTRAIL_API_KEY" \
+            -H 'content-type: application/json' \
+            -d "{\"release_policy_id\":\"$POLICY_ID\",\"head_sha\":\"${{ github.event.pull_request.head.sha }}\"}")
+
+          echo "$verdict" | jq -r '.summary'
+          echo "$verdict" | jq -r '.violations[]? | "  - \(.message)"'
+
+          # Every gate verdict is recorded server-side, so this step failing and
+          # the stored evaluation always agree.
+          if [ "$(echo "$verdict" | jq -r .outcome)" = "blocked" ]; then
+            echo "::error::The release gate blocked this change."
+            exit 1
+          fi

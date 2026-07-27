@@ -90,6 +90,17 @@ export type ApprovalListResponse = Schemas['ApprovalListResponse'];
 export type ApprovalState = Schemas['ApprovalState'];
 export type DecideApprovalRequest = Schemas['DecideApprovalRequest'];
 
+/** Release gates and GitHub integration. */
+export type ReleasePolicy = Schemas['ReleasePolicyResponse'];
+export type ReleasePolicyListResponse = Schemas['ReleasePolicyListResponse'];
+export type CreateReleasePolicyRequest = Schemas['CreateReleasePolicyRequest'];
+export type GateEvaluation = Schemas['GateEvaluationResponse'];
+export type GateEvaluationListResponse = Schemas['GateEvaluationListResponse'];
+export type GateOutcome = Schemas['GateOutcome'];
+export type RepositoryBinding = Schemas['RepositoryBindingResponse'];
+export type RepositoryBindingListResponse = Schemas['RepositoryBindingListResponse'];
+export type CreateRepositoryBindingRequest = Schemas['CreateRepositoryBindingRequest'];
+
 /** Failure injection and reliability. */
 export type RunRecovery = Schemas['RunRecoveryResponse'];
 export type RunItemRecovery = Schemas['RunItemRecoveryResponse'];

@@ -29,6 +29,12 @@ class ApiSettings(DatabaseSettings, QueueSettings):
     github_oauth_client_id: str | None = None
     github_oauth_secret: str | None = None
 
+    # --- Release gates and GitHub integration ------------------------------
+    #: Shared secret GitHub signs webhook bodies with. Absent locally, which is
+    #: why the webhook endpoint rejects everything until it is configured — an
+    #: unauthenticated public write is worse than a disabled integration.
+    github_webhook_secret: str | None = None
+
     @property
     def cookies_are_secure(self) -> bool:
         """`Secure` is set on deployed environments only, so local HTTP works."""

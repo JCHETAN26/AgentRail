@@ -18,6 +18,7 @@ from agentrail_api.execution.schemas import (
     RunItemRecoveryResponse,
     RunRecoveryResponse,
 )
+from agentrail_api.release.service import assert_repository_claim
 from agentrail_core.correlation import CorrelationContext
 from agentrail_core.errors import (
     ForbiddenError,
@@ -208,6 +209,16 @@ async def create_run(
             details={"item_count": dataset_version.item_count, "max_items": MAX_RUN_ITEMS},
         )
 
+    # A project may only assert provenance for a repository it has bound.
+    # Without this, provenance is client-supplied and one tenant could name
+    # another's repository, so that tenant's own webhook would cancel its runs.
+    await assert_repository_claim(
+        session,
+        project_id=project_id,
+        owner=request.github_owner,
+        repository=request.github_repository,
+    )
+
     run = EvaluationRun(
         id=new_sortable_id(),
         project_id=project_id,
@@ -226,6 +237,13 @@ async def create_run(
             "storage_uri": dataset_version.storage_uri,
             "partition_counts": dataset_version.partition_counts,
         },
+        # Carried through from the request so the release gate can publish a
+        # Check Run against the right commit, and so a later push to the same
+        # pull request can supersede this run.
+        github_owner=request.github_owner,
+        github_repository=request.github_repository,
+        github_pull_number=request.github_pull_number,
+        github_head_sha=request.github_head_sha,
         created_by=actor.user.id if actor.user else None,
     )
     session.add(run)

@@ -38,6 +38,12 @@ class EvaluationRun(Base):
         ),
         Index("ix_evaluation_runs_project_id", "project_id"),
         Index("ix_evaluation_runs_state_created_at", "state", "created_at"),
+        Index(
+            "ix_evaluation_runs_pull_request",
+            "github_owner",
+            "github_repository",
+            "github_pull_number",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True)
@@ -79,6 +85,13 @@ class EvaluationRun(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Which pull request, if any, this run was started for. All nullable: a run
+    #: launched from the console has no pull request, and the release gate works
+    #: perfectly well without one.
+    github_owner: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    github_repository: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    github_pull_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    github_head_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by: Mapped[str | None] = mapped_column(
         String(26), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

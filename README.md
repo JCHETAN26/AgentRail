@@ -8,14 +8,14 @@ The question AgentRail exists to answer:
 > How can a team prove that an agent change is safer, more reliable and more useful **before**
 > exposing it to users?
 
-> [!NOTE] > **Status: Phase 10 of 18 is in progress.** The repository has the deterministic request
+> [!NOTE] > **Status: Phase 11 of 18 is in progress.** The repository has the deterministic request
 > path, authentication and tenancy, the CloudOps sandbox, the agent registry, dataset and
 > suite-builder APIs, the first durable evaluation-run executor, and redacted trajectory capture for
 > deterministic runs. It now has the first reproducible programmatic evaluator and comparison
 > substrate, durable recorded/forked replay records for persisted trajectories, and deterministic
 > fault injection with a side-effect ledger that makes a duplicate effect impossible at the database
-> level, and a policy engine that stops high-risk tool calls for human approval. Release gates and
-> canary deployment are not built yet. Nothing in this README describes a capability that does not
+> level, a policy engine that stops high-risk tool calls for human approval, and release gates that
+> block a regressed change. Canary deployment is not built yet. Nothing in this README describes a capability that does not
 > exist — see
 > [Known limitations](#known-limitations).
 
@@ -185,9 +185,11 @@ Deliberate, and scheduled:
   services, metrics, logs, runbooks, fault hooks and 25 scenario manifests; the agent runtime that
   consumes them is still scheduled for later phases.
 - Agent definitions, immutable agent versions, dataset versions, frozen suite records, durable
-  evaluation runs, redacted trajectories, replay records, deterministic fault injection and the
-  policy/approval engine exist, but release gates and canary deployment are not built yet
-  (Phases 11–12).
+  evaluation runs, redacted trajectories, replay records, deterministic fault injection, the
+  policy/approval engine and release gates exist. Canary deployment is not built yet (Phase 12).
+- The GitHub integration verifies webhooks and cancels superseded runs, but Check Runs are only
+  _recorded_, never delivered: no GitHub App client is implemented, so the publisher behind the
+  protocol is the no-network one. The gate itself is fully usable without it.
 - An unclassified tool defaults to `HIGH_RISK_WRITE` and stops for approval. Agent versions with an
   empty policy bundle will park rather than run unattended.
 - Faults are injected by the executor from a declarative profile, not by a live model or a real

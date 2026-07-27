@@ -22,6 +22,7 @@ _MODEL_MODULES = (
     "agentrail_core.evaluators",
     "agentrail_core.execution",
     "agentrail_core.jobs.models",
+    "agentrail_core.release",
     "agentrail_core.side_effects",
     "agentrail_core.trajectories",
 )

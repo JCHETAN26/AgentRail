@@ -6,6 +6,53 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 11: release gates and GitHub integration
+
+- Release policies: pass-rate floors, regression caps, and per-evaluator and per-category floors,
+  evaluated by one pure `evaluate_gate` over the comparison report. Every rule is checked, so a
+  reviewer sees the whole list rather than the first failure.
+- Policies are immutable and versioned, like agent versions: when a gate blocks a pull request,
+  "which rules was it judged against?" has exactly one answer.
+- A metric a policy names but the report lacks **blocks**. Otherwise deleting an evaluator would
+  silently disable the rule guarding it — the failure a release gate exists to prevent.
+- A run that does not claim reproducibility cannot gate a release, unless waived deliberately.
+- `POST /api/v1/evaluation-runs/{run_id}/gate`, idempotent on (run, policy) under a unique
+  constraint, so a redelivered webhook cannot produce a second, different verdict.
+- GitHub webhook receiver with constant-time HMAC verification. An unconfigured secret rejects
+  everything: an unauthenticated public write is worse than a disabled integration.
+- Check Runs behind a publisher protocol with a recording, no-network default — the same pattern as
+  the Phase 1 auth providers, so tests and the demo need no GitHub App.
+- Superseded-run cancellation: a new head commit cancels in-flight runs for earlier commits on the
+  same pull request, rather than letting them post a stale verdict.
+- A sample workflow in `docs/examples/release-gate-workflow.yml` that needs no GitHub App at all —
+  CI reads the verdict from the response body and fails on it.
+- Alembic revision `0011_release_gates`.
+
+### Fixed — Phase 11 review
+
+- An empty policy definition (`{}`) bypassed the "must contain at least one threshold" check and was
+  persisted, reporting `passed` for every run — defeating the guarantee the check exists to make.
+  Both `{}` and a null definition are now refused.
+- Unknown rule names are refused rather than ignored. `{"min_pass_rate": 0.9, "max_regressons": 0}`
+  was accepted because one valid rule remained, and the misspelled cap was never enforced.
+- Pull-request provenance is now accepted on run creation and persisted. The columns existed and were
+  read, but nothing populated them, so superseded-run cancellation and Check Run publishing were both
+  unreachable in production — only a test helper set them.
+- The gate reserves its row before publishing. Two concurrent callers could both publish a Check Run
+  before either reached the unique insert; the loser then returned the winner's verdict but had
+  already spoken on the pull request.
+- **Tenant isolation on the webhook.** Superseded-run cancellation matched on repository coordinates
+  with no tenant scoping, and provenance is client-supplied — so any tenant could name another's
+  repository and have that tenant's own webhook cancel its in-flight runs. A project must now claim a
+  repository (`POST /api/v1/projects/{project_id}/github-repositories`, exclusive and first-come), a
+  run may only assert provenance for a repository its project holds, and the webhook resolves the
+  owning project from that binding. No binding means no cancellation.
+- The sample workflow now sends pull-request provenance and documents the one-time repository claim.
+  Without either, anybody copying it would get no Check Run and no superseded-run cancellation.
+- Webhook log fields use an allowlist rather than character stripping. They arrive unauthenticated and some are
+  logged before the signature is checked, so a caller could otherwise forge log entries — and these
+  logs are meant to be evidence.
+
 ### Added — Phase 10: approval console
 
 - Reviewer queue in the web console: pending high-risk calls for a project, with approve,

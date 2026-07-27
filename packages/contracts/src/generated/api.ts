@@ -341,6 +341,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluation-runs/{run_id}/gate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List gate verdicts recorded for a run */
+        get: operations["list_gate_evaluations"];
+        put?: never;
+        /** Judge a run against a release policy */
+        post: operations["evaluate_gate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evaluation-runs/{run_id}/items": {
         parameters: {
             query?: never;
@@ -386,6 +404,23 @@ export interface paths {
         put?: never;
         /** Freeze an evaluation suite */
         post: operations["freeze_evaluation_suite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/github/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive a signed GitHub webhook */
+        post: operations["receive_github_webhook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -612,6 +647,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/github-repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the GitHub repositories bound to this project */
+        get: operations["list_repository_bindings"];
+        put?: never;
+        /** Claim a GitHub repository for this project */
+        post: operations["create_repository_binding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/jobs": {
         parameters: {
             query?: never;
@@ -624,6 +677,24 @@ export interface paths {
         put?: never;
         /** Create a job in a project */
         post: operations["create_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/release-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List release policies */
+        get: operations["list_release_policies"];
+        put?: never;
+        /** Create an immutable release policy version */
+        post: operations["create_release_policy"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1027,6 +1098,14 @@ export interface components {
              * @constant
              */
             execution_mode: "recorded";
+            /** Github Head Sha */
+            github_head_sha?: string | null;
+            /** Github Owner */
+            github_owner?: string | null;
+            /** Github Pull Number */
+            github_pull_number?: number | null;
+            /** Github Repository */
+            github_repository?: string | null;
         };
         /** CreateEvaluationSuiteRequest */
         CreateEvaluationSuiteRequest: {
@@ -1065,6 +1144,28 @@ export interface components {
         CreateProjectRequest: {
             /** Name */
             name: string;
+        };
+        /** CreateReleasePolicyRequest */
+        CreateReleasePolicyRequest: {
+            /** Definition */
+            definition: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+        };
+        /**
+         * CreateRepositoryBindingRequest
+         * @description Claim a GitHub repository for this project.
+         *
+         *     Exclusive: the binding is what lets an unauthenticated, deployment-wide
+         *     webhook resolve which tenant a repository belongs to.
+         */
+        CreateRepositoryBindingRequest: {
+            /** Owner */
+            owner: string;
+            /** Repository */
+            repository: string;
         };
         /** CreateTrajectoryReplayRequest */
         CreateTrajectoryReplayRequest: {
@@ -1202,6 +1303,20 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation_failed" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "idempotency_key_reused" | "payload_too_large" | "dependency_unavailable" | "internal_error";
+        /**
+         * EvaluateGateRequest
+         * @description Judge one run against one policy.
+         *
+         *     ``head_sha`` is optional, like every other GitHub field here: the gate is
+         *     fully usable with no integration configured, and CI can call it and read the
+         *     verdict straight out of the response body.
+         */
+        EvaluateGateRequest: {
+            /** Head Sha */
+            head_sha?: string | null;
+            /** Release Policy Id */
+            release_policy_id: string;
+        };
         /** EvaluationResultListResponse */
         EvaluationResultListResponse: {
             /** Items */
@@ -1332,6 +1447,41 @@ export interface components {
          * @enum {string}
          */
         EvaluatorResultState: "PASSED" | "FAILED" | "ERROR";
+        /** GateEvaluationListResponse */
+        GateEvaluationListResponse: {
+            /** Items */
+            items: components["schemas"]["GateEvaluationResponse"][];
+        };
+        /** GateEvaluationResponse */
+        GateEvaluationResponse: {
+            /** Check Run */
+            check_run?: Record<string, never> | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Head Sha */
+            head_sha?: string | null;
+            /** Id */
+            id: string;
+            outcome: components["schemas"]["GateOutcome"];
+            /** Project Id */
+            project_id: string;
+            /** Release Policy Id */
+            release_policy_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Summary */
+            summary: string;
+            /** Violations */
+            violations: Record<string, never>[];
+        };
+        /**
+         * GateOutcome
+         * @enum {string}
+         */
+        GateOutcome: "passed" | "blocked";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1542,6 +1692,35 @@ export interface components {
             /** Version */
             version: string;
         };
+        /** ReleasePolicyListResponse */
+        ReleasePolicyListResponse: {
+            /** Items */
+            items: components["schemas"]["ReleasePolicyResponse"][];
+        };
+        /** ReleasePolicyResponse */
+        ReleasePolicyResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Definition */
+            definition: Record<string, never>;
+            /** Definition Digest */
+            definition_digest: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string;
+            /** Slug */
+            slug: string;
+            /** Version */
+            version: number;
+        };
         /**
          * ReplayMode
          * @enum {string}
@@ -1552,6 +1731,29 @@ export interface components {
          * @enum {string}
          */
         ReplayState: "CREATED" | "COMPLETED" | "FAILED";
+        /** RepositoryBindingListResponse */
+        RepositoryBindingListResponse: {
+            /** Items */
+            items: components["schemas"]["RepositoryBindingResponse"][];
+        };
+        /** RepositoryBindingResponse */
+        RepositoryBindingResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Id */
+            id: string;
+            /** Owner */
+            owner: string;
+            /** Project Id */
+            project_id: string;
+            /** Repository */
+            repository: string;
+        };
         /**
          * Role
          * @description A member's role within one organisation.
@@ -2870,6 +3072,130 @@ export interface operations {
             };
         };
     };
+    list_gate_evaluations: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GateEvaluationListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Duplicate policy, or no report to gate yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    evaluate_gate: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluateGateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GateEvaluationResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Duplicate policy, or no report to gate yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     list_evaluation_run_items: {
         parameters: {
             query?: {
@@ -3042,6 +3368,47 @@ export interface operations {
                 };
             };
             /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    receive_github_webhook: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-hub-signature-256"?: string | null;
+                "x-github-event"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Signature missing or invalid. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unparseable body. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4170,6 +4537,130 @@ export interface operations {
             };
         };
     };
+    list_repository_bindings: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryBindingListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Duplicate policy, or no report to gate yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_repository_binding: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRepositoryBindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryBindingResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Duplicate policy, or no report to gate yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
     list_jobs: {
         parameters: {
             query?: {
@@ -4308,6 +4799,130 @@ export interface operations {
             };
             /** @description A required dependency is unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_release_policies: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleasePolicyListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Duplicate policy, or no report to gate yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_release_policy: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReleasePolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleasePolicyResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Duplicate policy, or no report to gate yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
