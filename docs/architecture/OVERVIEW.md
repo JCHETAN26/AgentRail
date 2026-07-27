@@ -157,8 +157,13 @@ Every request is assigned a `CorrelationContext` (`correlation_id`, `trace_id`, 
 headers, forwarded on outbound calls, and stored on the job row so the whole path can be recovered
 after the fact. Logs are single-line JSON with automatic redaction of sensitive keys.
 
-Spans are **not** exported yet. The OpenTelemetry SDK and Collector pipeline are Phase 13; the
-identifier plumbing exists now so that work is an addition rather than a retrofit. See
+Phase 13 adds `GET /api/v1/evaluation-runs/{run_id}/metrics`, which joins the run, queue, retry,
+budget, evaluator, policy, release-gate and canary records into one incident snapshot. The response
+includes the run's `correlation_id`, `trace_id`, trace links and SLO verdict, so an operator can
+trace a failed release without joining tables by hand.
+
+External span export is not wired yet. The identifier plumbing exists now so that an OpenTelemetry
+SDK and Collector can attach to real context rather than a retrofit. See
 [ADR 0004](../adr/0004-correlation-identifiers-before-opentelemetry.md).
 
 ## Evaluators And Comparison
@@ -185,5 +190,5 @@ rollback reasons preserved in release history.
 
 ## Not built yet
 
-OpenTelemetry export, dashboards and SLO operations (Phase 13), security hardening (Phase 14), real
-deploy provider integration and production packaging.
+External OpenTelemetry export, security hardening (Phase 14), real deploy provider integration and
+production packaging.

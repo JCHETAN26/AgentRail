@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
 
 from agentrail_core.execution import EvaluationRunState, RunItemState
 
 ExecutionMode = Literal["recorded"]
+
+JsonObject = Annotated[
+    dict[str, Any], WithJsonSchema({"type": "object", "additionalProperties": True})
+]
 
 
 class CreateEvaluationRunRequest(BaseModel):
@@ -115,3 +119,112 @@ class RunRecoveryResponse(BaseModel):
     #: items that reached a side-effecting step: they must never exceed it.
     side_effect_count: int
     items: list[RunItemRecoveryResponse]
+
+
+class RunMetricsCorrelation(BaseModel):
+    correlation_id: str
+    trace_id: str
+    traceparent: str
+
+
+class RunMetricsTraceLinks(BaseModel):
+    run: str
+    events: str
+    recovery: str
+    items: str
+    trajectories: int
+
+
+class RunMetricsRun(BaseModel):
+    state: str
+    item_count: int
+    completed_count: int
+    failed_count: int
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class RunMetricsQueue(BaseModel):
+    item_states: dict[str, int]
+    pending_count: int
+    leased_count: int
+    outbox_published: bool
+    outbox_attempts: int
+    outbox_event_count: int
+    outbox_pending_count: int
+    outbox_published_count: int
+
+
+class RunMetricsReliability(BaseModel):
+    retried_count: int
+    stranded_count: int
+    side_effect_count: int
+
+
+class RunMetricsBudgets(BaseModel):
+    limits: dict[str, int]
+    spent: dict[str, int]
+    remaining: dict[str, int]
+
+
+class RunMetricsQuality(BaseModel):
+    has_report: bool
+    pass_rate: float
+    regression_count: int
+    completed_items: int
+    failed_items: int
+    evaluator_metrics: JsonObject = Field(default_factory=dict)
+    category_metrics: JsonObject = Field(default_factory=dict)
+
+
+class RunMetricsPolicy(BaseModel):
+    approval_counts: dict[str, int]
+    awaiting_approval_count: int
+
+
+class RunMetricsRelease(BaseModel):
+    gate_count: int
+    passed_count: int
+    blocked_count: int
+    latest: JsonObject | None = None
+
+
+class RunMetricsCanary(BaseModel):
+    deployment_count: int
+    promoted_count: int
+    rollback_count: int
+    latest_state: str | None = None
+    latest_deltas: JsonObject = Field(default_factory=dict)
+    latest_rollback_reason: str | None = None
+
+
+class RunMetricsSlo(BaseModel):
+    status: str
+    objectives: JsonObject
+    violations: list[str]
+
+
+class RunMetricsRunbook(BaseModel):
+    title: str
+    path: str
+    first_steps: list[str]
+
+
+class EvaluationRunMetricsResponse(BaseModel):
+    """One operational snapshot for tracing an incident end to end."""
+
+    run_id: str
+    project_id: str
+    correlation: RunMetricsCorrelation
+    trace_links: RunMetricsTraceLinks
+    run: RunMetricsRun
+    queue: RunMetricsQueue
+    reliability: RunMetricsReliability
+    budgets: RunMetricsBudgets
+    quality: RunMetricsQuality
+    policy: RunMetricsPolicy
+    release: RunMetricsRelease
+    canary: RunMetricsCanary
+    slo: RunMetricsSlo
+    runbook: RunMetricsRunbook

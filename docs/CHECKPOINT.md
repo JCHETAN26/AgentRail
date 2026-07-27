@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 12 — Canary and rollback                                                            |
-| **Status**     | In progress on branch `feat/p12-canary-rollback`                                    |
-| **Base**       | `main` @ `0c6a4d5` (Phase 11 merged)                                                |
-| **Next phase** | 13 — Observability, SLOs and operations, after Phase 12 exits                       |
+| **Phase**      | 13 — Observability, SLOs and operations                                             |
+| **Status**     | In progress on branch `feat/p13-observability-ops`                                  |
+| **Base**       | `main` @ `f44f406` (Phase 12 merged)                                                |
+| **Next phase** | 14 — Security and supply chain, after Phase 13 exits                                |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -28,6 +28,7 @@ Phase 9 shipped in PR [#42](https://github.com/JCHETAN26/AgentRail/pull/42).
 Phase 10 shipped in PR [#43](https://github.com/JCHETAN26/AgentRail/pull/43), with its console in
 [#44](https://github.com/JCHETAN26/AgentRail/pull/44).
 Phase 11 shipped in PR [#45](https://github.com/JCHETAN26/AgentRail/pull/45).
+Phase 12 shipped in PR [#46](https://github.com/JCHETAN26/AgentRail/pull/46).
 
 Merged branches through Phase 9 are deleted, local and remote. The repository does not
 auto-delete on merge, so each phase has to clean up after itself.
@@ -36,11 +37,11 @@ auto-delete on merge, so each phase has to clean up after itself.
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 12 — the exit criterion: healthy candidate promotes, degraded rolls back
-2. `packages/core-py/src/agentrail_core/deployments.py` — pure canary decision and deployment model
-3. `services/api/src/agentrail_api/deployments/service.py` — gate requirement, promotion, rollback
-4. `services/api/src/agentrail_api/routers/deployments.py` — deployment history API
-5. `services/api/tests/test_deployments_api.py` and `packages/core-py/tests/test_deployments.py`
+1. `BUILDPLAN.md` Phase 13 — the exit criterion: incident traced end to end
+2. `packages/core-py/src/agentrail_core/observability.py` — run SLO decision logic
+3. `services/api/src/agentrail_api/execution/service.py` — run metrics aggregation
+4. `GET /api/v1/evaluation-runs/{run_id}/metrics` in `services/api/src/agentrail_api/routers/execution.py`
+5. `docs/operations/SLO.md` and `docs/operations/INCIDENT_RUNBOOK.md`
 
 ---
 
@@ -270,6 +271,17 @@ grant write access to use the gate.
 - Added pure canary tests and API coverage for promotion, rollback, blocked gates and tenant
   isolation.
 
+## Phase 13 progress
+
+- Added `agentrail_core.observability`: pure SLO evaluation for task success, failed items,
+  stranded leases, canary rollbacks and cost.
+- Added `GET /api/v1/evaluation-runs/{run_id}/metrics`.
+- Metrics snapshots expose the run's correlation ID, trace ID, trace links, queue state,
+  retry/lease health, budget spend, quality metrics, approval counts, release-gate status, canary
+  rollback data and SLO verdict.
+- Added operations docs: `docs/operations/SLO.md` and `docs/operations/INCIDENT_RUNBOOK.md`.
+- Added pure SLO tests and API coverage for correlation/trace visibility and tenant isolation.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -469,6 +481,8 @@ vacuous.
 - Failed legacy jobs remain terminal; retry budgets, leases and outbox are implemented for
   evaluation run items.
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
+- Run-level metrics expose correlation/trace identifiers and SLO status, but external OpenTelemetry
+  export and a hosted Collector are not wired yet.
 - `dependency-review` warns and skips while the dependency graph is disabled, and is excluded from
   the required checks until that browser-only repository setting is enabled.
 
@@ -525,14 +539,31 @@ Latest Phase 12 branch checks, run locally on 2026-07-27:
 | `pnpm build`                                            | Pass — web production build                            |
 | `uv build --all-packages`                               | Pass after network approval for `hatchling` build deps |
 
+Latest Phase 13 branch checks, run locally on 2026-07-27:
+
+| Command                                                 | Result                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| `uv run ruff check .`                                   | Pass                                                   |
+| `uv run mypy packages/core-py/src services/api/src ...` | Pass — 98 source files                                 |
+| `uv run pytest -q`                                      | 291 passed, 172 skipped locally due sandboxed Postgres |
+| `uv run python scripts/export_openapi.py --check`       | Pass                                                   |
+| `pnpm run format:check`                                 | Pass                                                   |
+| `pnpm run lint`                                         | Pass                                                   |
+| `pnpm run typecheck`                                    | Pass                                                   |
+| `pnpm run test`                                         | Pass — 46 JS tests                                     |
+| `@agentrail/contracts check`                            | Pass                                                   |
+| `@agentrail/contracts test`                             | Pass — 10 tests                                        |
+| `pnpm build`                                            | Pass — web production build                            |
+| `uv build --all-packages`                               | Pass after network approval for `hatchling` build deps |
+
 ---
 
-## Next tasks (Phase 12 — Canary and rollback)
+## Next tasks (Phase 13 — Observability, SLOs and operations)
 
-1. Open the Phase 12 pull request and let CI run the PostgreSQL-backed deployment tests.
+1. Open the Phase 13 pull request and let CI run the PostgreSQL-backed metrics tests.
 2. Merge once green.
 
-**Exit criteria:** a healthy candidate promotes; a degraded candidate rolls back; green PR.
+**Exit criteria:** incident traced end to end; correlation IDs visible; green PR.
 
 ---
 

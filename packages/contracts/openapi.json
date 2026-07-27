@@ -1704,6 +1704,73 @@
         "title": "EvaluationResultResponse",
         "type": "object"
       },
+      "EvaluationRunMetricsResponse": {
+        "description": "One operational snapshot for tracing an incident end to end.",
+        "properties": {
+          "budgets": {
+            "$ref": "#/components/schemas/RunMetricsBudgets"
+          },
+          "canary": {
+            "$ref": "#/components/schemas/RunMetricsCanary"
+          },
+          "correlation": {
+            "$ref": "#/components/schemas/RunMetricsCorrelation"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/RunMetricsPolicy"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/RunMetricsQuality"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/RunMetricsQueue"
+          },
+          "release": {
+            "$ref": "#/components/schemas/RunMetricsRelease"
+          },
+          "reliability": {
+            "$ref": "#/components/schemas/RunMetricsReliability"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunMetricsRun"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "runbook": {
+            "$ref": "#/components/schemas/RunMetricsRunbook"
+          },
+          "slo": {
+            "$ref": "#/components/schemas/RunMetricsSlo"
+          },
+          "trace_links": {
+            "$ref": "#/components/schemas/RunMetricsTraceLinks"
+          }
+        },
+        "required": [
+          "run_id",
+          "project_id",
+          "correlation",
+          "trace_links",
+          "run",
+          "queue",
+          "reliability",
+          "budgets",
+          "quality",
+          "policy",
+          "release",
+          "canary",
+          "slo",
+          "runbook"
+        ],
+        "title": "EvaluationRunMetricsResponse",
+        "type": "object"
+      },
       "EvaluationRunResponse": {
         "properties": {
           "baseline_agent_version_id": {
@@ -2963,6 +3030,428 @@
           "state"
         ],
         "title": "RunItemTraceResponse",
+        "type": "object"
+      },
+      "RunMetricsBudgets": {
+        "properties": {
+          "limits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Limits",
+            "type": "object"
+          },
+          "remaining": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Remaining",
+            "type": "object"
+          },
+          "spent": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Spent",
+            "type": "object"
+          }
+        },
+        "required": [
+          "limits",
+          "spent",
+          "remaining"
+        ],
+        "title": "RunMetricsBudgets",
+        "type": "object"
+      },
+      "RunMetricsCanary": {
+        "properties": {
+          "deployment_count": {
+            "title": "Deployment Count",
+            "type": "integer"
+          },
+          "latest_deltas": {
+            "additionalProperties": true,
+            "title": "Latest Deltas",
+            "type": "object"
+          },
+          "latest_rollback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Rollback Reason"
+          },
+          "latest_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest State"
+          },
+          "promoted_count": {
+            "title": "Promoted Count",
+            "type": "integer"
+          },
+          "rollback_count": {
+            "title": "Rollback Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deployment_count",
+          "promoted_count",
+          "rollback_count"
+        ],
+        "title": "RunMetricsCanary",
+        "type": "object"
+      },
+      "RunMetricsCorrelation": {
+        "properties": {
+          "correlation_id": {
+            "title": "Correlation Id",
+            "type": "string"
+          },
+          "trace_id": {
+            "title": "Trace Id",
+            "type": "string"
+          },
+          "traceparent": {
+            "title": "Traceparent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "correlation_id",
+          "trace_id",
+          "traceparent"
+        ],
+        "title": "RunMetricsCorrelation",
+        "type": "object"
+      },
+      "RunMetricsPolicy": {
+        "properties": {
+          "approval_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Approval Counts",
+            "type": "object"
+          },
+          "awaiting_approval_count": {
+            "title": "Awaiting Approval Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "approval_counts",
+          "awaiting_approval_count"
+        ],
+        "title": "RunMetricsPolicy",
+        "type": "object"
+      },
+      "RunMetricsQuality": {
+        "properties": {
+          "category_metrics": {
+            "additionalProperties": true,
+            "title": "Category Metrics",
+            "type": "object"
+          },
+          "completed_items": {
+            "title": "Completed Items",
+            "type": "integer"
+          },
+          "evaluator_metrics": {
+            "additionalProperties": true,
+            "title": "Evaluator Metrics",
+            "type": "object"
+          },
+          "failed_items": {
+            "title": "Failed Items",
+            "type": "integer"
+          },
+          "has_report": {
+            "title": "Has Report",
+            "type": "boolean"
+          },
+          "pass_rate": {
+            "title": "Pass Rate",
+            "type": "number"
+          },
+          "regression_count": {
+            "title": "Regression Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "has_report",
+          "pass_rate",
+          "regression_count",
+          "completed_items",
+          "failed_items"
+        ],
+        "title": "RunMetricsQuality",
+        "type": "object"
+      },
+      "RunMetricsQueue": {
+        "properties": {
+          "item_states": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Item States",
+            "type": "object"
+          },
+          "leased_count": {
+            "title": "Leased Count",
+            "type": "integer"
+          },
+          "outbox_attempts": {
+            "title": "Outbox Attempts",
+            "type": "integer"
+          },
+          "outbox_event_count": {
+            "title": "Outbox Event Count",
+            "type": "integer"
+          },
+          "outbox_pending_count": {
+            "title": "Outbox Pending Count",
+            "type": "integer"
+          },
+          "outbox_published": {
+            "title": "Outbox Published",
+            "type": "boolean"
+          },
+          "outbox_published_count": {
+            "title": "Outbox Published Count",
+            "type": "integer"
+          },
+          "pending_count": {
+            "title": "Pending Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "item_states",
+          "pending_count",
+          "leased_count",
+          "outbox_published",
+          "outbox_attempts",
+          "outbox_event_count",
+          "outbox_pending_count",
+          "outbox_published_count"
+        ],
+        "title": "RunMetricsQueue",
+        "type": "object"
+      },
+      "RunMetricsRelease": {
+        "properties": {
+          "blocked_count": {
+            "title": "Blocked Count",
+            "type": "integer"
+          },
+          "gate_count": {
+            "title": "Gate Count",
+            "type": "integer"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest"
+          },
+          "passed_count": {
+            "title": "Passed Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gate_count",
+          "passed_count",
+          "blocked_count"
+        ],
+        "title": "RunMetricsRelease",
+        "type": "object"
+      },
+      "RunMetricsReliability": {
+        "properties": {
+          "retried_count": {
+            "title": "Retried Count",
+            "type": "integer"
+          },
+          "side_effect_count": {
+            "title": "Side Effect Count",
+            "type": "integer"
+          },
+          "stranded_count": {
+            "title": "Stranded Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "retried_count",
+          "stranded_count",
+          "side_effect_count"
+        ],
+        "title": "RunMetricsReliability",
+        "type": "object"
+      },
+      "RunMetricsRun": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "completed_count": {
+            "title": "Completed Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "item_count": {
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "item_count",
+          "completed_count",
+          "failed_count",
+          "created_at"
+        ],
+        "title": "RunMetricsRun",
+        "type": "object"
+      },
+      "RunMetricsRunbook": {
+        "properties": {
+          "first_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "First Steps",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "path",
+          "first_steps"
+        ],
+        "title": "RunMetricsRunbook",
+        "type": "object"
+      },
+      "RunMetricsSlo": {
+        "properties": {
+          "objectives": {
+            "additionalProperties": true,
+            "title": "Objectives",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "violations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "objectives",
+          "violations"
+        ],
+        "title": "RunMetricsSlo",
+        "type": "object"
+      },
+      "RunMetricsTraceLinks": {
+        "properties": {
+          "events": {
+            "title": "Events",
+            "type": "string"
+          },
+          "items": {
+            "title": "Items",
+            "type": "string"
+          },
+          "recovery": {
+            "title": "Recovery",
+            "type": "string"
+          },
+          "run": {
+            "title": "Run",
+            "type": "string"
+          },
+          "trajectories": {
+            "title": "Trajectories",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run",
+          "events",
+          "recovery",
+          "items",
+          "trajectories"
+        ],
+        "title": "RunMetricsTraceLinks",
         "type": "object"
       },
       "RunRecoveryResponse": {
@@ -5604,6 +6093,106 @@
         "summary": "List run items with trajectory links",
         "tags": [
           "trajectories"
+        ]
+      }
+    },
+    "/api/v1/evaluation-runs/{run_id}/metrics": {
+      "get": {
+        "operationId": "get_evaluation_run_metrics",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationRunMetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Idempotency key reused."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "A required dependency is unavailable."
+          }
+        },
+        "summary": "Inspect run observability metrics and SLO status",
+        "tags": [
+          "evaluation-runs"
         ]
       }
     },

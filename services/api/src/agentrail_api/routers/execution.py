@@ -21,6 +21,7 @@ from agentrail_api.dependencies import (
 from agentrail_api.execution import service
 from agentrail_api.execution.schemas import (
     CreateEvaluationRunRequest,
+    EvaluationRunMetricsResponse,
     EvaluationRunProgressResponse,
     EvaluationRunResponse,
     RunRecoveryResponse,
@@ -127,6 +128,19 @@ async def get_evaluation_run_recovery(
 ) -> RunRecoveryResponse:
     principal = await service.principal_for_run(session, actor, run_id)
     return await service.run_recovery(session, principal, run_id=run_id)
+
+
+@router.get(
+    "/evaluation-runs/{run_id}/metrics",
+    response_model=EvaluationRunMetricsResponse,
+    summary="Inspect run observability metrics and SLO status",
+    responses=_ERRORS,
+)
+async def get_evaluation_run_metrics(
+    run_id: RunId, actor: ActorDep, session: SessionDep
+) -> EvaluationRunMetricsResponse:
+    principal = await service.principal_for_run(session, actor, run_id)
+    return await service.run_metrics(session, principal, run_id=run_id)
 
 
 @router.get(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 import redis.asyncio as redis
 from sqlalchemy import func, select, update
@@ -15,16 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentrail_api.auth.service import Actor, principal_for_organisation
 from agentrail_api.execution.schemas import (
     CreateEvaluationRunRequest,
+    EvaluationRunMetricsResponse,
     RunItemRecoveryResponse,
     RunRecoveryResponse,
 )
 from agentrail_api.release.service import assert_repository_claim
+from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.correlation import CorrelationContext
+from agentrail_core.deployments import Deployment, DeploymentState
 from agentrail_core.errors import (
     ForbiddenError,
     IdempotencyKeyReusedError,
     ValidationFailedError,
 )
+from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import (
     TERMINAL_ITEM_STATES,
     TERMINAL_RUN_STATES,
@@ -46,8 +50,11 @@ from agentrail_core.identity import (
     authorize,
 )
 from agentrail_core.ids import new_sortable_id
+from agentrail_core.observability import evaluate_run_slo
 from agentrail_core.queue import publish_job
+from agentrail_core.release import GateEvaluation, GateOutcome
 from agentrail_core.side_effects import SideEffectRecord
+from agentrail_core.trajectories import Trajectory
 
 MAX_RUN_ITEMS = 1_000
 OUTBOX_EVENT_RUN_CREATED = "evaluation_run.created"
@@ -103,6 +110,238 @@ async def progress_snapshot(
     )
     counts = {RunItemState(state): int(count) for state, count in rows.all()}
     return run, counts
+
+
+async def run_metrics(
+    session: AsyncSession, principal: Principal, *, run_id: str
+) -> EvaluationRunMetricsResponse:
+    run = await get_run(session, principal, run_id=run_id)
+    items = list(
+        (
+            await session.scalars(
+                select(RunItem).where(RunItem.run_id == run.id).order_by(RunItem.item_index)
+            )
+        ).all()
+    )
+    comparison = await session.scalar(
+        select(ComparisonReport).where(ComparisonReport.run_id == run.id)
+    )
+    gates = list(
+        (
+            await session.scalars(
+                select(GateEvaluation)
+                .where(GateEvaluation.run_id == run.id)
+                .order_by(GateEvaluation.created_at)
+            )
+        ).all()
+    )
+    deployments = list(
+        (
+            await session.scalars(
+                select(Deployment)
+                .where(Deployment.run_id == run.id)
+                .order_by(Deployment.created_at)
+            )
+        ).all()
+    )
+    outbox_events = list(
+        (
+            await session.scalars(
+                select(OutboxEvent)
+                .where(
+                    OutboxEvent.aggregate_type == "evaluation_run",
+                    OutboxEvent.aggregate_id == run.id,
+                )
+                .order_by(OutboxEvent.created_at)
+            )
+        ).all()
+    )
+    trajectory_count = int(
+        await session.scalar(
+            select(func.count()).select_from(Trajectory).where(Trajectory.run_id == run.id)
+        )
+        or 0
+    )
+    approval_counts = {
+        str(state): int(count)
+        for state, count in (
+            await session.execute(
+                select(ApprovalRequest.state, func.count())
+                .where(ApprovalRequest.run_id == run.id)
+                .group_by(ApprovalRequest.state)
+            )
+        ).all()
+    }
+    side_effect_count = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(SideEffectRecord)
+            .where(SideEffectRecord.run_id == run.id)
+        )
+        or 0
+    )
+
+    item_states: dict[str, int] = {}
+    retry_count = 0
+    stranded_count = 0
+    now = datetime.now(UTC)
+    budgets = _budget_totals(items)
+    for item in items:
+        item_states[str(item.state)] = item_states.get(str(item.state), 0) + 1
+        if item.attempt_count > 1:
+            retry_count += 1
+        if (
+            item.lease_expires_at is not None
+            and item.lease_expires_at < now
+            and item.state not in TERMINAL_ITEM_STATES
+        ):
+            stranded_count += 1
+
+    quality = _quality_metrics(comparison=comparison, run=run)
+    release = _release_metrics(gates)
+    canary = _canary_metrics(deployments)
+    metrics_payload = {
+        "run": {"failed_count": run.failed_count},
+        "quality": quality,
+        "reliability": {"stranded_count": stranded_count},
+        "budgets": budgets,
+        "canary": canary,
+    }
+    slo = evaluate_run_slo(metrics_payload).as_payload()
+
+    return EvaluationRunMetricsResponse.model_validate(
+        {
+            "run_id": run.id,
+            "project_id": run.project_id,
+            "correlation": {
+                "correlation_id": run.correlation_id,
+                "trace_id": run.trace_id,
+                "traceparent": f"00-{run.trace_id}-0000000000000001-01",
+            },
+            "trace_links": {
+                "run": f"/api/v1/evaluation-runs/{run.id}",
+                "events": f"/api/v1/evaluation-runs/{run.id}/events",
+                "recovery": f"/api/v1/evaluation-runs/{run.id}/recovery",
+                "items": f"/api/v1/evaluation-runs/{run.id}/items",
+                "trajectories": trajectory_count,
+            },
+            "run": {
+                "state": str(run.state),
+                "item_count": run.item_count,
+                "completed_count": run.completed_count,
+                "failed_count": run.failed_count,
+                "created_at": run.created_at,
+                "started_at": run.started_at,
+                "completed_at": run.completed_at,
+            },
+            "queue": {
+                "item_states": item_states,
+                "pending_count": item_states.get(str(RunItemState.PENDING), 0),
+                "leased_count": item_states.get(str(RunItemState.LEASED), 0),
+                "outbox_published": bool(outbox_events)
+                and all(event.published_at is not None for event in outbox_events),
+                "outbox_attempts": sum(event.attempts for event in outbox_events),
+                "outbox_event_count": len(outbox_events),
+                "outbox_pending_count": sum(
+                    1 for event in outbox_events if event.published_at is None
+                ),
+                "outbox_published_count": sum(
+                    1 for event in outbox_events if event.published_at is not None
+                ),
+            },
+            "reliability": {
+                "retried_count": retry_count,
+                "stranded_count": stranded_count,
+                "side_effect_count": side_effect_count,
+            },
+            "budgets": budgets,
+            "quality": quality,
+            "policy": {
+                "approval_counts": approval_counts,
+                "awaiting_approval_count": approval_counts.get(str(ApprovalState.PENDING), 0),
+            },
+            "release": release,
+            "canary": canary,
+            "slo": slo,
+            "runbook": {
+                "title": "Evaluation run incident",
+                "path": "docs/operations/INCIDENT_RUNBOOK.md",
+                "first_steps": [
+                    "Quote the correlation_id in every handoff.",
+                    "Open the recovery link to identify stranded leases or duplicate effects.",
+                    "Inspect quality, release and canary sections before deciding rollback.",
+                ],
+            },
+        }
+    )
+
+
+def _budget_totals(items: list[RunItem]) -> dict[str, dict[str, int]]:
+    totals: dict[str, dict[str, int]] = {"limits": {}, "spent": {}, "remaining": {}}
+    for item in items:
+        for section in totals:
+            raw = item.budget_state.get(section) if isinstance(item.budget_state, dict) else None
+            if not isinstance(raw, dict):
+                continue
+            for key, value in raw.items():
+                if isinstance(value, bool) or not isinstance(value, int | float):
+                    continue
+                bucket = totals[section]
+                bucket[str(key)] = bucket.get(str(key), 0) + int(value)
+    return totals
+
+
+def _quality_metrics(*, comparison: ComparisonReport | None, run: EvaluationRun) -> dict[str, Any]:
+    if comparison is None:
+        completed = max(run.completed_count, 0)
+        return {
+            "has_report": False,
+            "pass_rate": 0.0,
+            "regression_count": 0,
+            "completed_items": completed,
+            "failed_items": run.failed_count,
+        }
+    return {
+        "has_report": True,
+        "pass_rate": _number(comparison.summary.get("pass_rate")),
+        "regression_count": int(comparison.summary.get("regression_count", 0) or 0),
+        "completed_items": run.completed_count,
+        "failed_items": run.failed_count,
+        "evaluator_metrics": comparison.evaluator_metrics,
+        "category_metrics": comparison.category_metrics,
+    }
+
+
+def _release_metrics(gates: list[GateEvaluation]) -> dict[str, Any]:
+    blocked = sum(1 for gate in gates if gate.outcome == GateOutcome.BLOCKED.value)
+    passed = sum(1 for gate in gates if gate.outcome == GateOutcome.PASSED.value)
+    return {
+        "gate_count": len(gates),
+        "passed_count": passed,
+        "blocked_count": blocked,
+        "latest": gates[-1].summary if gates else None,
+    }
+
+
+def _canary_metrics(deployments: list[Deployment]) -> dict[str, Any]:
+    promoted = sum(1 for deployment in deployments if deployment.state == DeploymentState.PROMOTED)
+    rolled_back = sum(
+        1 for deployment in deployments if deployment.state == DeploymentState.ROLLED_BACK
+    )
+    return {
+        "deployment_count": len(deployments),
+        "promoted_count": promoted,
+        "rollback_count": rolled_back,
+        "latest_state": str(deployments[-1].state) if deployments else None,
+        "latest_deltas": deployments[-1].deltas if deployments else {},
+        "latest_rollback_reason": deployments[-1].rollback_reason if deployments else None,
+    }
+
+
+def _number(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0.0
+    return float(value)
 
 
 async def _suite_scope(

@@ -6,6 +6,14 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 13: observability, SLOs and operations
+
+- Run-level operational metrics via `GET /api/v1/evaluation-runs/{run_id}/metrics`.
+- A pure SLO evaluator for task success, failed items, stranded leases, canary rollbacks and cost.
+- Metrics snapshots include correlation and trace identifiers, queue state, retry/lease health,
+  budget spend, evaluator quality, approval counts, release-gate status and canary rollback data.
+- Operations docs for SLOs and evaluation-run incident response.
+
 ### Added — Phase 12: canary and rollback
 
 - PostgreSQL-backed deployment history with Alembic revision `0012_canary_deployments`.
