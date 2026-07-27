@@ -24,6 +24,10 @@ class ApiSettings(DatabaseSettings, QueueSettings):
     api_rate_limit_requests: int = Field(default=600, ge=1, le=100_000)
     api_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
 
+    #: Durable monthly cap on evaluation workload per organisation. The charge
+    #: unit is one run item, so a suite with 50 dataset records spends 50.
+    evaluation_item_monthly_quota: int = Field(default=50_000, ge=1, le=10_000_000)
+
     # --- Authentication ----------------------------------------------------
     #: Where the console lives. Sign-in redirects back here.
     web_base_url: str = "http://localhost:3737"

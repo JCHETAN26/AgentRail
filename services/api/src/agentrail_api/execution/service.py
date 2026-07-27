@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, cast
 
 import redis.asyncio as redis
-from sqlalchemy import func, select, update
+from sqlalchemy import Table, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,12 +21,14 @@ from agentrail_api.execution.schemas import (
     RunRecoveryResponse,
 )
 from agentrail_api.release.service import assert_repository_claim
+from agentrail_api.settings import ApiSettings
 from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.correlation import CorrelationContext
 from agentrail_core.deployments import Deployment, DeploymentState
 from agentrail_core.errors import (
     ForbiddenError,
     IdempotencyKeyReusedError,
+    QuotaExceededError,
     ValidationFailedError,
 )
 from agentrail_core.evaluators import ComparisonReport
@@ -52,6 +55,7 @@ from agentrail_core.identity import (
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.observability import evaluate_run_slo
 from agentrail_core.queue import publish_job
+from agentrail_core.quotas import OrganisationQuotaPeriod
 from agentrail_core.release import GateEvaluation, GateOutcome
 from agentrail_core.side_effects import SideEffectRecord
 from agentrail_core.trajectories import Trajectory
@@ -404,12 +408,79 @@ async def _find_by_idempotency_key(
     return run
 
 
+def _quota_period_start(now: datetime) -> date:
+    return date(now.year, now.month, 1)
+
+
+async def _charge_evaluation_item_quota(
+    session: AsyncSession,
+    settings: ApiSettings,
+    *,
+    organisation_id: str,
+    item_count: int,
+    now: datetime,
+) -> None:
+    limit = settings.evaluation_item_monthly_quota
+    period_start = _quota_period_start(now)
+    if item_count > limit:
+        raise QuotaExceededError(
+            "This evaluation suite exceeds the organisation's monthly item quota.",
+            details={
+                "limit": limit,
+                "requested": item_count,
+                "period_start": period_start.isoformat(),
+            },
+        )
+
+    table = cast(Table, OrganisationQuotaPeriod.__table__)
+    statement = (
+        insert(table)
+        .values(
+            id=new_sortable_id(),
+            organisation_id=organisation_id,
+            period_start=period_start,
+            evaluation_item_limit=limit,
+            evaluation_items_used=item_count,
+        )
+        .on_conflict_do_update(
+            index_elements=[table.c.organisation_id, table.c.period_start],
+            set_={
+                "evaluation_item_limit": limit,
+                "evaluation_items_used": table.c.evaluation_items_used + item_count,
+                "updated_at": func.now(),
+            },
+            where=(table.c.evaluation_items_used + item_count) <= limit,
+        )
+        .returning(table.c.evaluation_items_used)
+    )
+    used_after = (await session.execute(statement)).scalar_one_or_none()
+    if used_after is not None:
+        return
+
+    used = await session.scalar(
+        select(OrganisationQuotaPeriod.evaluation_items_used).where(
+            OrganisationQuotaPeriod.organisation_id == organisation_id,
+            OrganisationQuotaPeriod.period_start == period_start,
+        )
+    )
+    raise QuotaExceededError(
+        "This evaluation run would exceed the organisation's monthly item quota.",
+        details={
+            "limit": limit,
+            "used": int(used or 0),
+            "requested": item_count,
+            "period_start": period_start.isoformat(),
+        },
+    )
+
+
 async def create_run(
     session: AsyncSession,
     actor: Actor,
     principal: Principal,
     request: CreateEvaluationRunRequest,
     context: CorrelationContext,
+    settings: ApiSettings,
     *,
     idempotency_key: str | None = None,
 ) -> tuple[EvaluationRun, bool, OutboxEvent | None]:
@@ -447,6 +518,14 @@ async def create_run(
             "Dataset version item count is outside the executable range.",
             details={"item_count": dataset_version.item_count, "max_items": MAX_RUN_ITEMS},
         )
+
+    await _charge_evaluation_item_quota(
+        session,
+        settings,
+        organisation_id=project.organisation_id,
+        item_count=dataset_version.item_count,
+        now=datetime.now(UTC),
+    )
 
     # A project may only assert provenance for a repository it has bound.
     # Without this, provenance is client-supplied and one tenant could name

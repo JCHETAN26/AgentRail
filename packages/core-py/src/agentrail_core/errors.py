@@ -25,6 +25,7 @@ class ErrorCode(StrEnum):
     IDEMPOTENCY_KEY_REUSED = "idempotency_key_reused"
     PAYLOAD_TOO_LARGE = "payload_too_large"
     RATE_LIMITED = "rate_limited"
+    QUOTA_EXCEEDED = "quota_exceeded"
     REPLAYED_WEBHOOK = "replayed_webhook"
     DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
     INTERNAL_ERROR = "internal_error"
@@ -112,6 +113,11 @@ class PayloadTooLargeError(PlatformError):
 
 class RateLimitedError(PlatformError):
     code = ErrorCode.RATE_LIMITED
+    status_code = 429
+
+
+class QuotaExceededError(PlatformError):
+    code = ErrorCode.QUOTA_EXCEEDED
     status_code = 429
 
 
