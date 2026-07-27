@@ -138,6 +138,44 @@ describe('ApprovalQueue', () => {
     expect(screen.getByTestId('reject-button').hasAttribute('disabled')).toBe(true);
   });
 
+  it('picks up an approval that parks after the first fetch', async () => {
+    // The normal case: a reviewer is already looking at the screen when a run
+    // stops. Focus refetching is disabled app-wide and an empty queue is never
+    // invalidated, so only the poll can surface this.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(json({ items: [] }))
+        .mockImplementation(() => Promise.resolve(json({ items: [APPROVAL] })));
+
+      renderWithQueryClient(<ApprovalQueue projectId={PROJECT_ID} role="reviewer" />);
+      await screen.findByTestId('approvals-empty');
+
+      await vi.advanceTimersByTimeAsync(6_000);
+
+      await waitFor(() => expect(screen.queryByTestId('approval-card')).toBeTruthy());
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refuses edited JSON that is not an object', async () => {
+    // JSON.parse accepts arrays and bare values happily; casting them through
+    // would send the API something its contract does not describe.
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({ items: [APPROVAL] }));
+
+    renderWithQueryClient(<ApprovalQueue projectId={PROJECT_ID} role="reviewer" />);
+    await screen.findByTestId('approval-card');
+    // `[` opens a key descriptor in userEvent's syntax, so it is escaped.
+    await userEvent.type(screen.getByLabelText(/Edited arguments/), '[[1, 2]');
+    await userEvent.click(screen.getByTestId('approve-button'));
+
+    expect(await screen.findByText(/must be a JSON object/)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a viewer the request without the controls to decide it', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({ items: [APPROVAL] }));
 

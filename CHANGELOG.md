@@ -18,6 +18,14 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ### Fixed — Phase 10 follow-up
 
+- The approval queue now polls, so an approval that parks while a reviewer is watching actually
+  appears. Focus refetching is disabled app-wide and an empty queue is invalidated by nothing, so
+  without a poll the panel kept claiming nothing was waiting while a run sat blocked behind it.
+- Added a project picker. `projectId` was pinned to the first project, so an approval parked in any
+  other project was invisible and its run could not be released from the console at all.
+- Edited arguments must parse to a JSON _object_. `JSON.parse` accepts arrays and bare values, and
+  casting them through produced exactly the `422` the client-side parsing exists to prevent.
+
 - `DecideApprovalRequest.edited_arguments` declared `{"type": "object"}` with no
   `additionalProperties`, which openapi-typescript rendered as `Record<string, never>` — an object
   permitting no properties. The generated client could not send an edit at all. Response-only

@@ -21,10 +21,30 @@ import { ApiError, decideApproval, listProjectApprovals } from '@/lib/api';
 /** Roles that may decide, mirroring `approval:decide` in the permission matrix. */
 const DECIDING_ROLES: readonly Role[] = ['reviewer', 'developer', 'admin', 'owner'];
 
+/** How often to look for newly parked approvals. A blocked run is waiting. */
+const APPROVAL_POLL_MS = 5_000;
+
+/**
+ * True for a plain JSON object — not an array, not `null`, not a primitive.
+ *
+ * `JSON.parse` accepts all of those happily, and casting the result would send
+ * the API something its contract does not describe, producing exactly the `422`
+ * this parsing exists to prevent.
+ */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export function ApprovalQueue({ projectId, role }: { projectId: string; role: Role }) {
   const approvals = useQuery({
     queryKey: ['approvals', projectId, 'PENDING'],
     queryFn: () => listProjectApprovals(projectId, 'PENDING'),
+    // A run parks *while* a reviewer is looking at this screen — that is the
+    // normal case, not the exception. The app-wide client disables
+    // refetch-on-focus, and an empty queue is never invalidated by anything, so
+    // without a poll the panel would keep saying nothing is waiting while a run
+    // sits blocked behind it.
+    refetchInterval: APPROVAL_POLL_MS,
   });
 
   const canDecide = DECIDING_ROLES.includes(role);
@@ -104,14 +124,20 @@ function ApprovalCard({
     setEditError(null);
     let editedArguments: Record<string, unknown> | undefined;
     if (approve && edited.trim().length > 0) {
+      let parsed: unknown;
       try {
         // Parsed here so a typo is a message next to the field rather than a
         // 422 from the server after the reviewer has already committed.
-        editedArguments = JSON.parse(edited) as Record<string, unknown>;
+        parsed = JSON.parse(edited);
       } catch {
         setEditError('Edited arguments must be valid JSON.');
         return;
       }
+      if (!isJsonObject(parsed)) {
+        setEditError('Edited arguments must be a JSON object, not an array or a bare value.');
+        return;
+      }
+      editedArguments = parsed;
     }
     decision.mutate({
       approve,
