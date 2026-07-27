@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 10 — Policy and human approval                                                      |
-| **Status**     | In progress on branch `feat/p10-policy-approval`                                    |
-| **Base**       | `main` @ `41ef948` (Phase 9 merged)                                                 |
-| **Next phase** | 11 — Release gates and GitHub integration, after Phase 10 exits                     |
+| **Phase**      | 11 — Release gates and GitHub integration                                           |
+| **Status**     | In progress on branch `feat/p11-release-gates`                                      |
+| **Base**       | `main` @ `e0d81c5` (Phase 10 and its console merged)                                |
+| **Next phase** | 12 — Canary and rollback, after Phase 11 exits                                      |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -25,6 +25,8 @@ Phase 6 shipped in PR [#25](https://github.com/JCHETAN26/AgentRail/pull/25).
 Phase 7 shipped in PR [#26](https://github.com/JCHETAN26/AgentRail/pull/26).
 Phase 8 shipped in PR [#41](https://github.com/JCHETAN26/AgentRail/pull/41).
 Phase 9 shipped in PR [#42](https://github.com/JCHETAN26/AgentRail/pull/42).
+Phase 10 shipped in PR [#43](https://github.com/JCHETAN26/AgentRail/pull/43), with its console in
+[#44](https://github.com/JCHETAN26/AgentRail/pull/44).
 
 Merged branches through Phase 9 are deleted, local and remote. The repository does not
 auto-delete on merge, so each phase has to clean up after itself.
@@ -33,20 +35,15 @@ auto-delete on merge, so each phase has to clean up after itself.
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 10 and section 16 — the four tool risk levels and the exit criterion: a
-   high-risk action cannot execute without approval, and a delayed event cannot bypass a rejection
-2. `packages/core-py/src/agentrail_core/side_effects.py` — the ledger. Phase 10's second exit
-   criterion is the same shape as Phase 9's: an effect that must not happen, enforced by the
-   database rather than by careful code
-3. `services/worker/src/agentrail_worker/run_runner.py` — where the executor applies its one side
-   effect, and therefore where an approval interrupt has to sit
-4. `services/cloudops-sandbox/src/agentrail_cloudops_sandbox/cloudops.py` — the per-tool risk,
-   side-effect class and approval-requirement metadata written in Phase 2 and still unused by any
-   caller
-5. `packages/core-py/src/agentrail_core/identity/roles.py` — `_REVIEWER`, which has read exactly like
-   a viewer since Phase 1 and is waiting for this phase to become load-bearing
-6. `packages/core-py/src/agentrail_core/execution/state.py` — the run-item state machine, which needs
-   a state for "waiting on a human" that is not a failure
+1. `BUILDPLAN.md` Phase 11 — the exit criterion: a regressed pull request is blocked and a passing
+   one succeeds
+2. `packages/core-py/src/agentrail_core/release.py` — the rules and the pure `evaluate_gate`
+3. `packages/core-py/src/agentrail_core/github.py` — signature verification and the Check Run
+   publisher protocol, whose only implementation records rather than delivers
+4. `services/api/src/agentrail_api/release/service.py` — the gate, its idempotency, and
+   superseded-run cancellation
+5. `docs/examples/release-gate-workflow.yml` — what a consuming team actually copies; note that it
+   needs no GitHub App
 
 ---
 
@@ -230,6 +227,25 @@ schema-wide gotcha this phase surfaced: state columns are `String` with a check 
 loaded row carries a `str`, not the enum its `Mapped[...]` annotation promises — `is` comparisons
 and `.value` both fail until you coerce.
 
+## Phase 11 progress
+
+- Added `agentrail_core.release`: the rule kinds, a validated immutable policy, and one pure
+  `evaluate_gate` that checks every rule rather than stopping at the first failure.
+- Added `agentrail_core.github`: constant-time webhook signature verification and a Check Run
+  publisher protocol whose only implementation records rather than delivers.
+- Added Alembic revision `0011_release_gates`: immutable versioned policies, gate evaluations unique
+  on (run, policy), and nullable pull-request provenance on `evaluation_runs`.
+- Added the offline gate API, the webhook receiver, superseded-run cancellation, and a sample
+  workflow at `docs/examples/release-gate-workflow.yml`.
+
+**Design notes worth keeping.** A metric a policy names but the report lacks _blocks_ — otherwise
+deleting an evaluator silently disables the rule guarding it, which is the exact failure a gate
+exists to prevent. The gate is idempotent on (run, policy) under a unique constraint, so a
+redelivered webhook cannot produce a second, different verdict; the pre-read is only an
+optimisation, and the tests still pass with it removed. And the whole integration is optional by
+construction: CI reads the verdict from the response body, so no team needs to install an app or
+grant write access to use the gate.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -257,6 +273,7 @@ and `.value` both fail until you coerce.
 | `0008_trajectory_replays`    | Adds durable recorded, live-labelled and forked replay records for trajectories                                                                                                  |
 | `0009_failure_injection`     | Adds the side-effect ledger and its unique idempotency key, plus per-item injected-fault and budget state                                                                        |
 | `0010_policy_and_approval`   | Adds approval requests, the AWAITING_APPROVAL item state, and the ledger's approval columns under a CHECK constraint                                                             |
+| `0011_release_gates`         | Adds immutable release policies, gate evaluations unique on (run, policy), and nullable pull-request provenance on evaluation runs                                               |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -466,25 +483,24 @@ none of them is vacuous.
 
 ---
 
-## Next tasks (Phase 11 — Release gates and GitHub integration)
+## Next tasks (Phase 12 — Canary and rollback)
 
-Phase 10 merged as `96db62b`; the approval console follows on branch
-`feat/p10-approval-console`. With it, Phase 10 is complete against the build plan.
+Phase 11 is built and verified locally. Remaining:
 
-Carried forward:
+1. Let CI run the PostgreSQL-backed gate suites, then merge the Phase 11 PR.
+2. **No GitHub App client exists.** Webhooks are verified and superseded runs are cancelled, but
+   Check Runs are only _recorded_ — the publisher behind the protocol is the no-network one. A real
+   one needs an App id, a private key and installation-token exchange. The gate is fully usable
+   without it, which is why this was not blocking.
+3. **No console UI for gates.** Policies and verdicts have APIs and no screen, the same gap the
+   approval queue had before #44.
+4. The circuit breaker from Phase 9 still has no caller — three phases now.
+5. CodeQL will raise its four Alembic false positives again on `0011`.
 
-1. **The circuit breaker still has no caller.** Two phases now. It needs a live dependency to trip
-   against, which no phase has introduced yet.
-2. **CodeQL's Alembic false positives** will recur on every new migration. Three phases running.
-   The `paths-ignore` fix costs scanning coverage on those files, so it stays the owner's call.
-3. **`chaos.py` is not in CI** — it needs a running stack.
-4. **The console is thin.** It has sign-in, tenancy, a job launcher and now the approval queue.
-   There is still no UI for runs, trajectories, comparisons or recovery, all of which have APIs.
+Phase 12 itself: the deployment model, a traffic simulator, replay workload, approval, deltas,
+promotion, rollback and history.
 
-Phase 11 itself: release policies, an offline gate, the GitHub App and webhook verification, Check
-Runs, PR annotations, deep links, superseded-run cancellation and a sample workflow.
-
-**Exit criteria:** a regressed PR is blocked and a passing PR succeeds; green PR.
+**Exit criteria:** a healthy candidate promotes; a degraded candidate rolls back; green PR.
 
 ---
 

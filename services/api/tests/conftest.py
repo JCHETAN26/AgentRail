@@ -18,7 +18,12 @@ from agentrail_core.settings import QueueSettings
 @pytest.fixture
 def api_settings(queue_settings: QueueSettings) -> ApiSettings:
     return ApiSettings(
-        service_name="agentrail-api-tests", job_queue_key=queue_settings.job_queue_key
+        service_name="agentrail-api-tests",
+        job_queue_key=queue_settings.job_queue_key,
+        # Configured so the webhook tests can exercise a *valid* signature. The
+        # unconfigured case is covered by the unit tests, which assert that an
+        # absent secret rejects everything.
+        github_webhook_secret="test-webhook-secret",
     )
 
 

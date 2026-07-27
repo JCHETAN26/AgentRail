@@ -6,6 +6,28 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 11: release gates and GitHub integration
+
+- Release policies: pass-rate floors, regression caps, and per-evaluator and per-category floors,
+  evaluated by one pure `evaluate_gate` over the comparison report. Every rule is checked, so a
+  reviewer sees the whole list rather than the first failure.
+- Policies are immutable and versioned, like agent versions: when a gate blocks a pull request,
+  "which rules was it judged against?" has exactly one answer.
+- A metric a policy names but the report lacks **blocks**. Otherwise deleting an evaluator would
+  silently disable the rule guarding it — the failure a release gate exists to prevent.
+- A run that does not claim reproducibility cannot gate a release, unless waived deliberately.
+- `POST /api/v1/evaluation-runs/{run_id}/gate`, idempotent on (run, policy) under a unique
+  constraint, so a redelivered webhook cannot produce a second, different verdict.
+- GitHub webhook receiver with constant-time HMAC verification. An unconfigured secret rejects
+  everything: an unauthenticated public write is worse than a disabled integration.
+- Check Runs behind a publisher protocol with a recording, no-network default — the same pattern as
+  the Phase 1 auth providers, so tests and the demo need no GitHub App.
+- Superseded-run cancellation: a new head commit cancels in-flight runs for earlier commits on the
+  same pull request, rather than letting them post a stale verdict.
+- A sample workflow in `docs/examples/release-gate-workflow.yml` that needs no GitHub App at all —
+  CI reads the verdict from the response body and fails on it.
+- Alembic revision `0011_release_gates`.
+
 ### Added — Phase 10: approval console
 
 - Reviewer queue in the web console: pending high-risk calls for a project, with approve,

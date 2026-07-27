@@ -57,9 +57,11 @@ describe('the OpenAPI document', () => {
       '/api/v1/evaluation-runs/{run_id}/comparison',
       '/api/v1/evaluation-runs/{run_id}/evaluator-results',
       '/api/v1/evaluation-runs/{run_id}/events',
+      '/api/v1/evaluation-runs/{run_id}/gate',
       '/api/v1/evaluation-runs/{run_id}/items',
       '/api/v1/evaluation-runs/{run_id}/recovery',
       '/api/v1/evaluation-suites/{suite_id}/freeze',
+      '/api/v1/integrations/github/webhook',
       '/api/v1/jobs/{job_id}',
       '/api/v1/organisations',
       '/api/v1/organisations/{organisation_id}',
@@ -73,6 +75,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/projects/{project_id}/datasets',
       '/api/v1/projects/{project_id}/evaluation-suites',
       '/api/v1/projects/{project_id}/jobs',
+      '/api/v1/projects/{project_id}/release-policies',
       '/api/v1/trajectories/{trajectory_id}',
       '/api/v1/trajectories/{trajectory_id}/checkpoints',
       '/api/v1/trajectories/{trajectory_id}/replays',
@@ -103,24 +106,27 @@ describe('the OpenAPI document', () => {
       '/api/v1/evaluation-runs/{run_id}/cancel',
       '/api/v1/evaluation-runs/{run_id}/comparison',
       '/api/v1/evaluation-runs/{run_id}/events',
+      '/api/v1/evaluation-runs/{run_id}/gate',
       '/api/v1/evaluation-runs/{run_id}/evaluator-results',
       '/api/v1/evaluation-runs/{run_id}/items',
       '/api/v1/evaluation-runs/{run_id}/recovery',
-      '/api/v1/evaluation-runs/{run_id}/approvals',
-      '/api/v1/approvals/{approval_id}',
-      '/api/v1/approvals/{approval_id}/decision',
       '/api/v1/jobs/{job_id}',
       '/api/v1/trajectories/{trajectory_id}',
       '/api/v1/trajectories/{trajectory_id}/checkpoints',
       '/api/v1/trajectories/{trajectory_id}/replays',
       '/api/v1/trajectories/{trajectory_id}/steps',
     ]);
+    // The GitHub webhook is deliberately not tenant-scoped: it carries no
+    // session and names no tenant. Its authenticity comes from the HMAC
+    // signature, and the runs it may touch come from the verified payload.
+    const signedIntegrations = new Set(['/api/v1/integrations/github/webhook']);
     const unscoped = tenantPaths.filter(
       (path) =>
         !path.includes('{organisation_id}') &&
         !path.includes('{project_id}') &&
         path !== '/api/v1/organisations' &&
-        !scopedByLookup.has(path),
+        !scopedByLookup.has(path) &&
+        !signedIntegrations.has(path),
     );
 
     expect(unscoped).toEqual([]);

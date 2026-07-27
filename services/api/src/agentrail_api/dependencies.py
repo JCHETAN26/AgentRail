@@ -21,6 +21,7 @@ from agentrail_api.auth.providers import AuthProvider, DevAuthProvider, GitHubOA
 from agentrail_api.auth.service import SESSION_COOKIE_NAME, Actor, authenticate
 from agentrail_api.settings import ApiSettings
 from agentrail_core.correlation import CorrelationContext, context_from_headers
+from agentrail_core.github import CheckRunPublisher, RecordingCheckRunPublisher
 
 
 def get_settings(request: Request) -> ApiSettings:
@@ -36,6 +37,21 @@ def get_session_factory(request: Request) -> async_sessionmaker[AsyncSession]:
 def get_redis(request: Request) -> redis.Redis:
     client: redis.Redis = request.app.state.redis
     return client
+
+
+def get_check_run_publisher(request: Request) -> CheckRunPublisher:
+    """Where gate verdicts are delivered.
+
+    The recording publisher is the default and the only one wired today, so the
+    platform is fully exercisable with no GitHub App — the same reasoning as the
+    deterministic auth provider. A real publisher slots in behind this protocol
+    without any caller changing.
+    """
+    publisher = getattr(request.app.state, "check_run_publisher", None)
+    if publisher is None:
+        publisher = RecordingCheckRunPublisher()
+        request.app.state.check_run_publisher = publisher
+    return publisher
 
 
 def get_correlation_context(request: Request) -> CorrelationContext:
@@ -62,6 +78,7 @@ async def get_session(
 SettingsDep = Annotated[ApiSettings, Depends(get_settings)]
 SessionFactoryDep = Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+CheckRunPublisherDep = Annotated[CheckRunPublisher, Depends(get_check_run_publisher)]
 RedisDep = Annotated[redis.Redis, Depends(get_redis)]
 ContextDep = Annotated[CorrelationContext, Depends(get_correlation_context)]
 
