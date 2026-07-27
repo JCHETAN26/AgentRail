@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from agentrail_core.execution import RunItemState
 from agentrail_core.trajectories import ReplayMode, ReplayState, TrajectoryState, TrajectoryStepType
@@ -85,6 +85,18 @@ class CreateTrajectoryReplayRequest(BaseModel):
     mode: ReplayMode = ReplayMode.RECORDED
     checkpoint_id: str | None = None
     fork_overrides: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def _overrides_require_a_divergent_mode(self) -> CreateTrajectoryReplayRequest:
+        """A recorded replay reproduces the original exactly, by definition.
+
+        Accepting overrides here and ignoring them would report
+        ``reproduced: true`` for a request that asked for something else — a
+        false claim in a record kept as evidence. Refuse instead.
+        """
+        if self.mode == ReplayMode.RECORDED and self.fork_overrides:
+            raise ValueError("fork_overrides is only valid for a forked or live replay")
+        return self
 
 
 class TrajectoryReplayResponse(BaseModel):

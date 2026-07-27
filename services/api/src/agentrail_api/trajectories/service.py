@@ -119,13 +119,23 @@ async def create_replay(
     request: CreateTrajectoryReplayRequest,
 ) -> TrajectoryReplay:
     trajectory = await get_trajectory(session, principal, trajectory_id=trajectory_id)
+    # Creating a replay persists a row and an audit event, so it is a write even
+    # though every byte it reads is already readable. ``get_trajectory`` above
+    # only proves ``run:read``; a viewer must not get past here.
+    authorize(principal, Permission.RUN_CREATE, organisation_id=principal.organisation_id)
     checkpoint = await _checkpoint_for_replay(
         session, trajectory_id=trajectory_id, checkpoint_id=request.checkpoint_id
     )
     steps = await list_steps(session, principal, trajectory_id=trajectory_id)
     source_digest = _trajectory_digest(trajectory=trajectory, steps=steps, checkpoint=checkpoint)
     redacted_request, request_redaction = redact_payload(request.model_dump(mode="json"))
-    fork_overrides, override_redaction = redact_payload(request.fork_overrides or {})
+    # The digest is taken over the *raw* overrides. Redacting first would make
+    # two forks that differ only in a sensitive-keyed value — ``{"token": "a"}``
+    # and ``{"token": "b"}`` — collapse onto one digest and report no
+    # divergence. A SHA-256 is not a replayable form of the value, and only the
+    # redacted copy is ever persisted or returned.
+    raw_overrides = request.fork_overrides or {}
+    fork_overrides, override_redaction = redact_payload(raw_overrides)
     replay_digest = (
         source_digest
         if request.mode == ReplayMode.RECORDED
@@ -134,7 +144,7 @@ async def create_replay(
                 "source_digest": source_digest,
                 "mode": request.mode,
                 "checkpoint": checkpoint.state if checkpoint is not None else None,
-                "fork_overrides": fork_overrides,
+                "fork_overrides": raw_overrides,
             }
         )
     )
@@ -171,7 +181,12 @@ async def create_replay(
             "side_effect_policy": "never_replay_original",
             "original_side_effect_replayed": False,
             "replayed_side_effect_count": 0,
-            "live_model_calls": request.mode == ReplayMode.LIVE,
+            # What happened, not what was asked for. ``create_replay`` invokes no
+            # model in any mode, so a "live" request produces a live-*labelled*
+            # record and this stays false until a real executor exists. The mode
+            # the caller asked for is on the row already.
+            "live_model_calls": 0,
+            "executed_live": False,
         },
         created_by=actor.user.id if actor.user else None,
         completed_at=datetime.now(UTC),

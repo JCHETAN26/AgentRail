@@ -16,6 +16,18 @@ All notable changes to AgentRail are recorded here. The format follows
   `/api/v1/trajectories/{trajectory_id}/replays` for create and list.
 - Audit events and tenant-isolation coverage for replay creation.
 
+### Fixed — Phase 8 review
+
+- Replay creation now requires `run:create`. It persists a row and an audit event, so authorising it
+  as a read let a viewer or a read-scoped API key write.
+- Fork digests are taken over the raw overrides rather than the redacted copy, so two forks differing
+  only in a sensitive-keyed value no longer collapse onto one digest and report no divergence. Only
+  the redacted copy is persisted or returned.
+- A recorded replay sent with `fork_overrides` is now rejected with `validation_failed` instead of
+  silently ignoring them and recording `reproduced: true`.
+- `safety_summary` reports the replay that actually ran, not the mode requested: no mode invokes a
+  model today, so `live_model_calls` is `0` and `executed_live` is `false` for live-labelled records.
+
 ### Added — Phase 7: evaluators and comparison
 
 - PostgreSQL-backed evaluator versions, per-item evaluator results and comparison reports, plus

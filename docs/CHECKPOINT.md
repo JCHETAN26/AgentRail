@@ -146,6 +146,10 @@ Phase 7 shipped in PR [#26](https://github.com/JCHETAN26/AgentRail/pull/26).
 - Replay records persist safety summaries proving original side effects were not repeated.
 - Added replay create/list APIs under `/api/v1/trajectories/{trajectory_id}/replays`.
 - Added audit events and tenant-isolation tests for replay creation.
+- Review fixes: replay creation requires `run:create`; fork digests are taken over raw (not redacted)
+  overrides so sensitive-keyed forks cannot collide; recorded replays reject `fork_overrides` with
+  `validation_failed`; `safety_summary` reports the replay that actually ran rather than the mode
+  requested.
 
 ## Architecture decisions taken
 
@@ -312,6 +316,19 @@ Latest Phase 8 branch checks, run locally on 2026-07-27:
 | `pnpm build`                                            | Pass — web production build                            |
 | `uv build --all-packages`                               | Pass                                                   |
 
+Phase 8 review fixes, run locally on 2026-07-26 against Docker Compose PostgreSQL — the first
+session in which the integration suite ran on this machine rather than skipping:
+
+| Command                                             | Result                                             |
+| --------------------------------------------------- | -------------------------------------------------- |
+| `uv run pytest -q`                                  | **305 passed, 0 skipped** — full integration suite |
+| `uv run ruff format --check .` / `ruff check .`     | Pass                                               |
+| `uv run mypy packages/core-py/src services/api/src` | Pass — 63 source files                             |
+| `uv run python scripts/export_openapi.py`           | Pass — snapshot unchanged                          |
+
+The three new replay tests were confirmed to fail with the fixes reverted, so none of them is
+vacuous.
+
 ---
 
 ## Known limitations
@@ -352,8 +369,17 @@ Latest Phase 8 branch checks, run locally on 2026-07-27:
 
 ## Next tasks (Phase 8 — Replay and time travel)
 
-1. Let CI run the PostgreSQL-backed replay integration tests.
-2. Open and merge the Phase 8 pull request once CI is green.
+PR [#41](https://github.com/JCHETAN26/AgentRail/pull/41) is open with all 12 checks green. It was
+`BLOCKED` not on CI but on `required_conversation_resolution` with eight unresolved review threads —
+worth remembering, because required-review count is 0 and the check list looks clean.
+
+1. Merge #41 once the review threads are resolved.
+2. Decide how to stop CodeQL's `security-and-quality` suite flagging `revision`, `down_revision`,
+   `branch_labels` and `depends_on` as unused globals on **every** new Alembic migration. Alembic
+   reads them as module attributes, so they are false positives, and one recurs per migration per
+   phase. A `.github/codeql/codeql-config.yml` with `paths-ignore` for
+   `services/api/alembic/versions/**` fixes it, at the cost of dropping those files from scanning —
+   a security-posture call, so it is deliberately not taken here.
 
 **Exit criteria:** deterministic replay reproduces; fork shows divergence; no original side effect
 repeats; green PR.
