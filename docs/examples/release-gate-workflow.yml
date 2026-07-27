@@ -3,6 +3,15 @@
 # Copy this into a repository that contains an agent, set AGENTRAIL_API_KEY and
 # AGENTRAIL_URL as secrets, and the gate runs on every pull request.
 #
+# One setup step first: claim the repository for your project, so AgentRail
+# knows which tenant it belongs to. Without it the run is refused, and a push
+# to a pull request cannot supersede the run it replaces.
+#
+#   curl -X POST "$AGENTRAIL_URL/api/v1/projects/$PROJECT_ID/github-repositories" \
+#     -H "authorization: Bearer $AGENTRAIL_API_KEY" \
+#     -H 'content-type: application/json' \
+#     -d '{"owner":"your-org","repository":"your-repo"}'
+#
 # Note what this does *not* need: no GitHub App, no webhook, no write access to
 # your repository. The gate returns its verdict in the response body and the job
 # fails on it. The GitHub App integration exists for teams that want the verdict
@@ -35,7 +44,16 @@ jobs:
             -H "authorization: Bearer $AGENTRAIL_API_KEY" \
             -H 'content-type: application/json' \
             -H "idempotency-key: ${{ github.event.pull_request.head.sha }}" \
-            -d "{\"evaluation_suite_id\":\"$SUITE_ID\",\"candidate_agent_version_id\":\"$CANDIDATE_ID\"}" \
+            -d "$(jq -nc \
+              --arg suite "$SUITE_ID" \
+              --arg candidate "$CANDIDATE_ID" \
+              --arg owner "${{ github.repository_owner }}" \
+              --arg repo "${{ github.event.repository.name }}" \
+              --argjson pull ${{ github.event.pull_request.number }} \
+              --arg sha "${{ github.event.pull_request.head.sha }}" \
+              '{evaluation_suite_id:$suite, candidate_agent_version_id:$candidate,
+                github_owner:$owner, github_repository:$repo,
+                github_pull_number:$pull, github_head_sha:$sha}')" \
             | jq -r .id)
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 

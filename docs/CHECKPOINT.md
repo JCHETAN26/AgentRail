@@ -241,7 +241,13 @@ and `.value` both fail until you coerce.
   unknown rule names are refused rather than silently ignored; pull-request provenance is accepted on
   run creation and persisted, without which cancellation and Check Runs were unreachable; the gate
   reserves its row before publishing so a losing racer cannot speak on a pull request; webhook log
-  fields are stripped of control characters.
+  fields go through an allowlist.
+- **Tenant isolation fix worth remembering.** Making provenance client-supplied opened a cross-tenant
+  denial of service: cancellation matched repository coordinates with no tenant filter, so any
+  project could name another's repository and have the victim's own webhook cancel its runs. Fixed
+  with an exclusive `github_repository_bindings` claim that the webhook resolves the project from,
+  plus a check that a run may only assert provenance its project holds. The general lesson: a field
+  that becomes client-supplied needs its authorisation reconsidered, not just its validation.
 
 **Design notes worth keeping.** A metric a policy names but the report lacks _blocks_ — otherwise
 deleting an evaluator silently disables the rule guarding it, which is the exact failure a gate

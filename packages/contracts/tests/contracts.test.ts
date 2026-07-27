@@ -74,6 +74,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/projects/{project_id}/approvals',
       '/api/v1/projects/{project_id}/datasets',
       '/api/v1/projects/{project_id}/evaluation-suites',
+      '/api/v1/projects/{project_id}/github-repositories',
       '/api/v1/projects/{project_id}/jobs',
       '/api/v1/projects/{project_id}/release-policies',
       '/api/v1/trajectories/{trajectory_id}',

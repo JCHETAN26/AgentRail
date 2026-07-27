@@ -12,11 +12,14 @@ from agentrail_api.identity import service as identity_service
 from agentrail_api.release import service
 from agentrail_api.release.schemas import (
     CreateReleasePolicyRequest,
+    CreateRepositoryBindingRequest,
     EvaluateGateRequest,
     GateEvaluationListResponse,
     GateEvaluationResponse,
     ReleasePolicyListResponse,
     ReleasePolicyResponse,
+    RepositoryBindingListResponse,
+    RepositoryBindingResponse,
 )
 from agentrail_core.errors import ProblemDetail
 
@@ -106,4 +109,47 @@ async def list_gate_evaluations(
     evaluations = await service.list_run_gate_evaluations(session, principal, run_id=run_id)
     return GateEvaluationListResponse(
         items=[GateEvaluationResponse.model_validate(item) for item in evaluations]
+    )
+
+
+@router.post(
+    "/projects/{project_id}/github-repositories",
+    response_model=RepositoryBindingResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Claim a GitHub repository for this project",
+    responses=_ERRORS,
+)
+async def create_repository_binding(
+    project_id: ProjectId,
+    body: CreateRepositoryBindingRequest,
+    actor: ActorDep,
+    session: SessionDep,
+) -> RepositoryBindingResponse:
+    principal, _project = await identity_service.resolve_project(session, actor, project_id)
+    binding = await service.create_repository_binding(
+        session,
+        actor,
+        principal,
+        project_id=project_id,
+        owner=body.owner,
+        repository=body.repository,
+    )
+    await session.commit()
+    await session.refresh(binding)
+    return RepositoryBindingResponse.model_validate(binding)
+
+
+@router.get(
+    "/projects/{project_id}/github-repositories",
+    response_model=RepositoryBindingListResponse,
+    summary="List the GitHub repositories bound to this project",
+    responses=_ERRORS,
+)
+async def list_repository_bindings(
+    project_id: ProjectId, actor: ActorDep, session: SessionDep
+) -> RepositoryBindingListResponse:
+    principal, _project = await identity_service.resolve_project(session, actor, project_id)
+    bindings = await service.list_repository_bindings(session, principal, project_id=project_id)
+    return RepositoryBindingListResponse(
+        items=[RepositoryBindingResponse.model_validate(item) for item in bindings]
     )

@@ -95,7 +95,7 @@ async def db_engine(
                     "evaluation_results, evaluator_versions, trajectory_replays, "
                     "trajectory_checkpoints, trajectory_steps, trajectories, "
                     "side_effect_records, approval_requests, gate_evaluations, "
-                    "release_policies, run_items, evaluation_runs, "
+                    "release_policies, github_repository_bindings, run_items, evaluation_runs, "
                     "evaluation_suites, dataset_versions, datasets, "
                     "audit_events, api_keys, sessions, "
                     "memberships, projects, organisations, users CASCADE"

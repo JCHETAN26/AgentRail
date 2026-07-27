@@ -69,3 +69,29 @@ class GateEvaluationResponse(BaseModel):
 
 class GateEvaluationListResponse(BaseModel):
     items: list[GateEvaluationResponse]
+
+
+class CreateRepositoryBindingRequest(BaseModel):
+    """Claim a GitHub repository for this project.
+
+    Exclusive: the binding is what lets an unauthenticated, deployment-wide
+    webhook resolve which tenant a repository belongs to.
+    """
+
+    owner: str = Field(min_length=1, max_length=200)
+    repository: str = Field(min_length=1, max_length=200)
+
+
+class RepositoryBindingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    project_id: str
+    owner: str
+    repository: str
+    created_by: str | None = None
+    created_at: datetime
+
+
+class RepositoryBindingListResponse(BaseModel):
+    items: list[RepositoryBindingResponse]

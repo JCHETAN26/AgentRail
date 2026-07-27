@@ -97,6 +97,9 @@ export type CreateReleasePolicyRequest = Schemas['CreateReleasePolicyRequest'];
 export type GateEvaluation = Schemas['GateEvaluationResponse'];
 export type GateEvaluationListResponse = Schemas['GateEvaluationListResponse'];
 export type GateOutcome = Schemas['GateOutcome'];
+export type RepositoryBinding = Schemas['RepositoryBindingResponse'];
+export type RepositoryBindingListResponse = Schemas['RepositoryBindingListResponse'];
+export type CreateRepositoryBindingRequest = Schemas['CreateRepositoryBindingRequest'];
 
 /** Failure injection and reliability. */
 export type RunRecovery = Schemas['RunRecoveryResponse'];

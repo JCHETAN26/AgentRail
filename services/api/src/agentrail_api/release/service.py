@@ -41,6 +41,7 @@ from agentrail_core.ids import new_sortable_id
 from agentrail_core.release import (
     GateEvaluation,
     GateOutcome,
+    GitHubRepositoryBinding,
     ReleasePolicyError,
     ReleasePolicyRecord,
     evaluate_gate,
@@ -295,6 +296,89 @@ async def evaluate_run_gate(
     return evaluation
 
 
+async def assert_repository_claim(
+    session: AsyncSession, *, project_id: str, owner: str | None, repository: str | None
+) -> None:
+    """Refuse provenance for a repository this project has not bound.
+
+    Provenance is client-supplied, so without this a project could assert
+    another tenant's coordinates and have that tenant's legitimate webhook
+    cancel its runs.
+    """
+    if owner is None and repository is None:
+        return
+    if owner is None or repository is None:
+        raise ValidationFailedError(
+            "github_owner and github_repository must be given together.",
+            details={"github_owner": owner, "github_repository": repository},
+        )
+    bound = await session.scalar(
+        select(GitHubRepositoryBinding.id).where(
+            GitHubRepositoryBinding.owner == owner,
+            GitHubRepositoryBinding.repository == repository,
+            GitHubRepositoryBinding.project_id == project_id,
+        )
+    )
+    if bound is None:
+        raise ForbiddenError()
+
+
+async def create_repository_binding(
+    session: AsyncSession,
+    actor: Actor,
+    principal: Principal,
+    *,
+    project_id: str,
+    owner: str,
+    repository: str,
+) -> GitHubRepositoryBinding:
+    """Claim a repository for this project. Exclusive and first-come."""
+    authorize(principal, Permission.RUN_CREATE, organisation_id=principal.organisation_id)
+    binding = GitHubRepositoryBinding(
+        id=new_sortable_id(),
+        project_id=project_id,
+        owner=owner,
+        repository=repository,
+        created_by=actor.user.id if actor.user else None,
+    )
+    try:
+        async with session.begin_nested():
+            session.add(binding)
+            await session.flush()
+    except IntegrityError as clash:
+        raise ConflictError(
+            "That repository is already bound to a project.",
+            details={"owner": owner, "repository": repository},
+        ) from clash
+    await record_audit(
+        session,
+        organisation_id=principal.organisation_id,
+        actor=actor,
+        action="github_binding.created",
+        target_type="github_repository_binding",
+        target_id=binding.id,
+        context={"project_id": project_id, "owner": owner, "repository": repository},
+    )
+    await session.flush()
+    return binding
+
+
+async def list_repository_bindings(
+    session: AsyncSession, principal: Principal, *, project_id: str
+) -> list[GitHubRepositoryBinding]:
+    authorize(principal, Permission.RUN_READ, organisation_id=principal.organisation_id)
+    rows = await session.scalars(
+        select(GitHubRepositoryBinding)
+        .join(Project, Project.id == GitHubRepositoryBinding.project_id)
+        .where(
+            GitHubRepositoryBinding.project_id == project_id,
+            Project.organisation_id == principal.organisation_id,
+        )
+        .order_by(GitHubRepositoryBinding.owner, GitHubRepositoryBinding.repository)
+    )
+    return list(rows.all())
+
+
 async def list_run_gate_evaluations(
     session: AsyncSession, principal: Principal, *, run_id: str
 ) -> list[GateEvaluation]:
@@ -340,12 +424,28 @@ async def cancel_superseded_runs(
 
     Runs for the *current* head are left alone, so a redelivered webhook for the
     same commit cancels nothing.
+
+    Scoped to the project that has *bound* this repository. The webhook arrives
+    at one URL under one deployment-wide secret and names a repository, not a
+    tenant; without the binding it would cancel matching runs in every
+    organisation, so any tenant could stop another's work by asserting the same
+    coordinates on its own runs. No binding means no cancellation.
     """
+    project_id = await session.scalar(
+        select(GitHubRepositoryBinding.project_id).where(
+            GitHubRepositoryBinding.owner == owner,
+            GitHubRepositoryBinding.repository == repository,
+        )
+    )
+    if project_id is None:
+        return []
+
     runs = list(
         (
             await session.scalars(
                 select(EvaluationRun)
                 .where(
+                    EvaluationRun.project_id == project_id,
                     EvaluationRun.github_owner == owner,
                     EvaluationRun.github_repository == repository,
                     EvaluationRun.github_pull_number == pull_number,

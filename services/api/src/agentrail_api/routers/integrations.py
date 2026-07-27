@@ -20,22 +20,26 @@ from agentrail_core.logging import get_logger
 
 logger = get_logger(__name__)
 
-#: Longest attacker-controlled value worth keeping in a log line.
-_LOG_FIELD_MAX = 64
+#: Event names this endpoint recognises. Anything else is logged as a literal.
+_KNOWN_EVENTS: frozenset[str] = frozenset(
+    {"pull_request", "ping", "push", "check_run", "check_suite", "installation"}
+)
+#: Pull-request actions this endpoint acts on.
+_ACTED_ACTIONS: frozenset[str] = frozenset({"synchronize", "opened", "reopened"})
 
 
-def _loggable(value: str | None) -> str:
-    """Make an attacker-controlled value safe to put in a log line.
+def _known(value: str | None, allowed: frozenset[str]) -> str:
+    """Return the caller's value only when it is one of our own constants.
 
-    Everything reaching this endpoint is unauthenticated until the signature is
-    checked, and some of it is logged before that. Newlines and control
-    characters would let a caller forge log entries — the logs are meant to be
-    evidence, so they must not be writable by the subject of the investigation.
+    An allowlist rather than an escape. Everything reaching this endpoint is
+    unauthenticated until the signature is checked, and some of it is logged
+    before that — so nothing a caller writes ever reaches a log line verbatim.
+    The logs are meant to be evidence, and evidence must not be writable by the
+    subject of the investigation.
     """
-    if value is None:
-        return "<none>"
-    cleaned = "".join(char for char in value if char.isprintable())
-    return cleaned[:_LOG_FIELD_MAX]
+    if value is not None and value in allowed:
+        return value
+    return "<unrecognised>"
 
 
 router = APIRouter(prefix="/api/v1/integrations/github", tags=["integrations"])
@@ -68,7 +72,9 @@ async def receive_github_webhook(
         signature=x_hub_signature_256,
         secret=settings.github_webhook_secret or "",
     ):
-        logger.warning("github_webhook_rejected", extra={"event": _loggable(x_github_event)})
+        logger.warning(
+            "github_webhook_rejected", extra={"event": _known(x_github_event, _KNOWN_EVENTS)}
+        )
         # 401 with no detail. Which part of the signature was wrong is exactly
         # what an attacker needs, and exactly what the log is for.
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
@@ -84,7 +90,7 @@ async def receive_github_webhook(
         return Response(status_code=status.HTTP_202_ACCEPTED)
 
     action = str(payload.get("action", ""))
-    if action not in {"synchronize", "opened", "reopened"}:
+    if action not in _ACTED_ACTIONS:
         return Response(status_code=status.HTTP_202_ACCEPTED)
 
     pull_request = payload.get("pull_request") or {}
@@ -109,7 +115,7 @@ async def receive_github_webhook(
     logger.info(
         "github_pull_request_received",
         extra={
-            "action": _loggable(action),
+            "action": _known(action, _ACTED_ACTIONS),
             "pull_number": pull_number,
             "superseded_run_count": len(cancelled),
         },

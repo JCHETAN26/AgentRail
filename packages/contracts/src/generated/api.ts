@@ -647,6 +647,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/github-repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the GitHub repositories bound to this project */
+        get: operations["list_repository_bindings"];
+        put?: never;
+        /** Claim a GitHub repository for this project */
+        post: operations["create_repository_binding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/jobs": {
         parameters: {
             query?: never;
@@ -1135,6 +1153,19 @@ export interface components {
             };
             /** Name */
             name: string;
+        };
+        /**
+         * CreateRepositoryBindingRequest
+         * @description Claim a GitHub repository for this project.
+         *
+         *     Exclusive: the binding is what lets an unauthenticated, deployment-wide
+         *     webhook resolve which tenant a repository belongs to.
+         */
+        CreateRepositoryBindingRequest: {
+            /** Owner */
+            owner: string;
+            /** Repository */
+            repository: string;
         };
         /** CreateTrajectoryReplayRequest */
         CreateTrajectoryReplayRequest: {
@@ -1700,6 +1731,29 @@ export interface components {
          * @enum {string}
          */
         ReplayState: "CREATED" | "COMPLETED" | "FAILED";
+        /** RepositoryBindingListResponse */
+        RepositoryBindingListResponse: {
+            /** Items */
+            items: components["schemas"]["RepositoryBindingResponse"][];
+        };
+        /** RepositoryBindingResponse */
+        RepositoryBindingResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Id */
+            id: string;
+            /** Owner */
+            owner: string;
+            /** Project Id */
+            project_id: string;
+            /** Repository */
+            repository: string;
+        };
         /**
          * Role
          * @description A member's role within one organisation.
@@ -4464,6 +4518,130 @@ export interface operations {
                 };
             };
             /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_repository_bindings: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryBindingListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Duplicate policy, or no report to gate yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_repository_binding: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRepositoryBindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryBindingResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Duplicate policy, or no report to gate yet. */
             409: {
                 headers: {
                     [name: string]: unknown;

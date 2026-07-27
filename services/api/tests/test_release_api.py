@@ -106,6 +106,17 @@ async def bind_to_pull_request(
         await session.commit()
 
 
+async def bind_repository(
+    tenant: Tenant, owner: str = "acme", repository: str = "agent"
+) -> dict[str, Any]:
+    response = await tenant.client.post(
+        f"/api/v1/projects/{tenant.project_id}/github-repositories",
+        json={"owner": owner, "repository": repository},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 async def create_policy(tenant: Tenant, name: str, definition: dict[str, Any]) -> dict[str, Any]:
     response = await tenant.client.post(
         f"/api/v1/projects/{tenant.project_id}/release-policies",
@@ -286,6 +297,7 @@ class TestPullRequestProvenance:
     ) -> None:
         """Without this the release gate can never publish a Check Run and a new
         commit can never supersede the run it replaces."""
+        await bind_repository(tenant)
         suite = await create_frozen_suite(tenant, count=1)
         candidate = await create_agent_version(tenant, "Provenance Candidate")
 
@@ -317,6 +329,7 @@ class TestPullRequestProvenance:
     async def test_a_ci_run_publishes_a_check_and_a_console_run_does_not(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
     ) -> None:
+        await bind_repository(tenant)
         suite = await create_frozen_suite(tenant, count=1)
         candidate = await create_agent_version(tenant, "Check Candidate")
         created = await tenant.client.post(
@@ -351,6 +364,52 @@ class TestPullRequestProvenance:
         )
 
 
+class TestRepositoryBindings:
+    async def test_a_repository_can_only_be_claimed_once(self, tenant: Tenant) -> None:
+        await bind_repository(tenant)
+
+        duplicate = await tenant.client.post(
+            f"/api/v1/projects/{tenant.project_id}/github-repositories",
+            json={"owner": "acme", "repository": "agent"},
+        )
+
+        assert duplicate.status_code == 409
+
+    async def test_another_tenant_cannot_claim_a_bound_repository(
+        self, tenant: Tenant, other_tenant: Tenant
+    ) -> None:
+        await bind_repository(tenant)
+
+        response = await other_tenant.client.post(
+            f"/api/v1/projects/{other_tenant.project_id}/github-repositories",
+            json={"owner": "acme", "repository": "agent"},
+        )
+
+        assert response.status_code == 409
+
+    async def test_a_run_cannot_claim_a_repository_the_project_has_not_bound(
+        self, tenant: Tenant
+    ) -> None:
+        """Provenance is client-supplied, so it has to be checked against a
+        claim the project actually holds."""
+        suite = await create_frozen_suite(tenant, count=1)
+        candidate = await create_agent_version(tenant, "Unclaimed Candidate")
+
+        response = await tenant.client.post(
+            "/api/v1/evaluation-runs",
+            json={
+                "evaluation_suite_id": suite["id"],
+                "candidate_agent_version_id": candidate["id"],
+                "github_owner": "someone-else",
+                "github_repository": "their-repo",
+                "github_pull_number": 1,
+                "github_head_sha": "a" * 40,
+            },
+        )
+
+        assert response.status_code == 403
+
+
 class TestGitHubWebhook:
     async def test_an_unsigned_request_is_refused(self, tenant: Tenant) -> None:
         response = await tenant.client.post(
@@ -378,6 +437,7 @@ class TestGitHubWebhook:
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
     ) -> None:
         """An older run's verdict describes code that is no longer under review."""
+        await bind_repository(tenant)
         stale = await create_run(tenant)
         await bind_to_pull_request(
             session_factory,
@@ -414,6 +474,7 @@ class TestGitHubWebhook:
     async def test_a_redelivery_for_the_same_commit_cancels_nothing(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
     ) -> None:
+        await bind_repository(tenant)
         current = await create_run(tenant)
         await bind_to_pull_request(
             session_factory,
@@ -441,6 +502,91 @@ class TestGitHubWebhook:
             run = await session.get(EvaluationRun, str(current["id"]))
         assert run is not None
         assert run.state != EvaluationRunState.CANCELLED
+
+    async def test_a_webhook_cannot_cancel_another_tenants_runs(
+        self,
+        tenant: Tenant,
+        other_tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        """The webhook arrives under one deployment-wide secret and names a
+        repository, not a tenant. Without the binding it would cancel matching
+        runs everywhere, letting any tenant stop another's work by asserting the
+        same coordinates."""
+        await bind_repository(tenant, owner="acme", repository="agent")
+        mine = await create_run(tenant)
+        await bind_to_pull_request(
+            session_factory,
+            str(mine["id"]),
+            owner="acme",
+            repository="agent",
+            pull_number=9,
+            head_sha="a" * 40,
+        )
+        # The other tenant asserts the same coordinates directly in the database,
+        # bypassing the claim check, to prove the cancellation query itself is
+        # scoped rather than merely the write path.
+        theirs = await create_run(other_tenant)
+        await bind_to_pull_request(
+            session_factory,
+            str(theirs["id"]),
+            owner="acme",
+            repository="agent",
+            pull_number=9,
+            head_sha="a" * 40,
+        )
+
+        body = json.dumps(
+            {
+                "action": "synchronize",
+                "pull_request": {"number": 9, "head": {"sha": "b" * 40}},
+                "repository": {"name": "agent", "owner": {"login": "acme"}},
+            }
+        ).encode()
+        await tenant.client.post(
+            "/api/v1/integrations/github/webhook",
+            content=body,
+            headers={"X-GitHub-Event": "pull_request", "X-Hub-Signature-256": sign(body)},
+        )
+
+        async with session_factory() as session:
+            ours = await session.get(EvaluationRun, str(mine["id"]))
+            others = await session.get(EvaluationRun, str(theirs["id"]))
+        assert ours is not None and others is not None
+        assert ours.state == EvaluationRunState.CANCELLED, "the bound project's run is superseded"
+        assert others.state != EvaluationRunState.CANCELLED, "another tenant's run is untouched"
+
+    async def test_a_webhook_for_an_unbound_repository_cancels_nothing(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        """Fail closed: no binding means no tenant to resolve."""
+        run = await create_run(tenant)
+        await bind_to_pull_request(
+            session_factory,
+            str(run["id"]),
+            owner="unclaimed",
+            repository="repo",
+            pull_number=3,
+            head_sha="a" * 40,
+        )
+
+        body = json.dumps(
+            {
+                "action": "synchronize",
+                "pull_request": {"number": 3, "head": {"sha": "b" * 40}},
+                "repository": {"name": "repo", "owner": {"login": "unclaimed"}},
+            }
+        ).encode()
+        await tenant.client.post(
+            "/api/v1/integrations/github/webhook",
+            content=body,
+            headers={"X-GitHub-Event": "pull_request", "X-Hub-Signature-256": sign(body)},
+        )
+
+        async with session_factory() as session:
+            unchanged = await session.get(EvaluationRun, str(run["id"]))
+        assert unchanged is not None
+        assert unchanged.state != EvaluationRunState.CANCELLED
 
     async def test_an_unrelated_event_is_acknowledged_and_ignored(self, tenant: Tenant) -> None:
         """Returning an error would make GitHub retry it forever."""

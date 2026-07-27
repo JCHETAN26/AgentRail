@@ -102,6 +102,32 @@ def upgrade() -> None:
     op.create_index("ix_gate_evaluations_project_id", "gate_evaluations", ["project_id"])
     op.create_index("ix_gate_evaluations_head_sha", "gate_evaluations", ["head_sha"])
 
+    op.create_table(
+        "github_repository_bindings",
+        sa.Column("id", sa.String(length=26), nullable=False),
+        sa.Column("project_id", sa.String(length=26), nullable=False),
+        sa.Column("owner", sa.String(length=200), nullable=False),
+        sa.Column("repository", sa.String(length=200), nullable=False),
+        sa.Column("created_by", sa.String(length=26), nullable=True),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.PrimaryKeyConstraint("id", name="pk_github_repository_bindings"),
+        # Exclusive and first-come. This is what gives an unauthenticated,
+        # deployment-wide webhook a tenant to resolve, so it must not be shared.
+        sa.UniqueConstraint("owner", "repository", name="uq_github_bindings_repository"),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name="fk_github_bindings_project",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["created_by"], ["users.id"], name="fk_github_bindings_created_by", ondelete="SET NULL"
+        ),
+    )
+    op.create_index("ix_github_bindings_project_id", "github_repository_bindings", ["project_id"])
+
     # Pull-request provenance on the run itself. All nullable — a run started
     # from the console has no pull request, and the gate works without one.
     op.add_column(
@@ -126,6 +152,9 @@ def downgrade() -> None:
     op.drop_column("evaluation_runs", "github_pull_number")
     op.drop_column("evaluation_runs", "github_repository")
     op.drop_column("evaluation_runs", "github_owner")
+
+    op.drop_index("ix_github_bindings_project_id", table_name="github_repository_bindings")
+    op.drop_table("github_repository_bindings")
 
     op.drop_index("ix_gate_evaluations_head_sha", table_name="gate_evaluations")
     op.drop_index("ix_gate_evaluations_project_id", table_name="gate_evaluations")

@@ -41,7 +41,15 @@ All notable changes to AgentRail are recorded here. The format follows
 - The gate reserves its row before publishing. Two concurrent callers could both publish a Check Run
   before either reached the unique insert; the loser then returned the winner's verdict but had
   already spoken on the pull request.
-- Webhook log fields are stripped of control characters. They arrive unauthenticated and some are
+- **Tenant isolation on the webhook.** Superseded-run cancellation matched on repository coordinates
+  with no tenant scoping, and provenance is client-supplied — so any tenant could name another's
+  repository and have that tenant's own webhook cancel its in-flight runs. A project must now claim a
+  repository (`POST /api/v1/projects/{project_id}/github-repositories`, exclusive and first-come), a
+  run may only assert provenance for a repository its project holds, and the webhook resolves the
+  owning project from that binding. No binding means no cancellation.
+- The sample workflow now sends pull-request provenance and documents the one-time repository claim.
+  Without either, anybody copying it would get no Check Run and no superseded-run cancellation.
+- Webhook log fields use an allowlist rather than character stripping. They arrive unauthenticated and some are
   logged before the signature is checked, so a caller could otherwise forge log entries — and these
   logs are meant to be evidence.
 

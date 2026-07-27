@@ -449,3 +449,37 @@ class GateEvaluation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class GitHubRepositoryBinding(Base):
+    """Which project owns a GitHub repository.
+
+    Without this, the webhook has no tenant to resolve. It arrives at one URL
+    authenticated by one deployment-wide secret, names a repository, and would
+    otherwise match runs across every organisation that had claimed the same
+    coordinates — letting one tenant cancel another's in-flight work simply by
+    asserting the same owner and repository on its own runs.
+
+    The binding is unique on the repository, so the claim is exclusive and
+    first-come. A second project asking for it is refused rather than silently
+    sharing.
+    """
+
+    __tablename__ = "github_repository_bindings"
+    __table_args__ = (
+        UniqueConstraint("owner", "repository", name="uq_github_bindings_repository"),
+        Index("ix_github_bindings_project_id", "project_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    owner: Mapped[str] = mapped_column(String(200), nullable=False)
+    repository: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_by: Mapped[str | None] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
