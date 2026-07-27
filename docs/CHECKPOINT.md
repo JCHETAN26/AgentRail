@@ -170,6 +170,10 @@ Phase 8 shipped in PR [#41](https://github.com/JCHETAN26/AgentRail/pull/41).
   side effect through the ledger _before_ any injected fault can kill the attempt, and drives retry
   or terminal transitions accordingly.
 - Added the recovery API and the `chaos-duplicate` / `chaos-strand` / `chaos-report` targets.
+- Review fixes: budgets resume across retries rather than restarting per attempt; unexecutable fault
+  profiles are rejected at suite creation with their index; a legacy unparseable profile fails its
+  item with `fault_profile_invalid` instead of propagating out of the worker's consume loop, which
+  has no exception handling around `process`.
 
 **Design notes worth keeping.** The side-effect key deliberately excludes the attempt number — a key
 that varied per attempt would let every retry insert a fresh row, which is the exact bug the table
@@ -399,7 +403,7 @@ Phase 9 branch checks, run locally on 2026-07-26 against Docker Compose PostgreS
 
 | Command                                           | Result                                             |
 | ------------------------------------------------- | -------------------------------------------------- |
-| `uv run pytest -q`                                | **341 passed, 0 skipped** — full integration suite |
+| `uv run pytest -q`                                | **346 passed, 0 skipped** — full integration suite |
 | `uv run ruff format --check .` / `ruff check .`   | Pass                                               |
 | `uv run mypy` (4 source trees)                    | Pass — 79 source files                             |
 | `uv run python scripts/export_openapi.py --check` | Pass                                               |

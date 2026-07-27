@@ -19,6 +19,7 @@ from agentrail_api.auth.service import Actor, principal_for_organisation
 from agentrail_api.datasets.schemas import CreateDatasetVersionRequest, DatasetInputFormat
 from agentrail_api.identity.service import record_audit, slugify
 from agentrail_core.errors import ConflictError, ForbiddenError, ValidationFailedError
+from agentrail_core.faults import FaultProfileError, parse_fault_profiles
 from agentrail_core.identity import (
     Dataset,
     DatasetVersion,
@@ -390,6 +391,17 @@ async def create_evaluation_suite(
 ) -> EvaluationSuite:
     authorize(principal, Permission.DATASET_MANAGE, organisation_id=principal.organisation_id)
     dataset_version = await get_dataset_version(session, principal, version_id=dataset_version_id)
+
+    # Reject an unexecutable fault profile here, at the boundary, rather than
+    # when the worker parses it. A profile that only fails at run time strands
+    # a leased item and takes the consuming worker down with it.
+    try:
+        parse_fault_profiles(fault_profiles)
+    except FaultProfileError as invalid:
+        raise ValidationFailedError(
+            "A fault profile cannot be executed.",
+            details={"index": invalid.index, "reason": invalid.reason},
+        ) from invalid
 
     row = await session.execute(
         select(Dataset.project_id, DatasetVersion.partition_counts, DatasetVersion.item_count)

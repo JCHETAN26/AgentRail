@@ -133,3 +133,25 @@ def test_advance_leaves_a_breaker_alone_before_its_cooldown() -> None:
     ).record_failure(NOW)
 
     assert breaker.advance(NOW + timedelta(seconds=5)).state == BreakerState.OPEN
+
+
+def test_restore_carries_earlier_attempts_spend_forward() -> None:
+    """A budget is per item, not per attempt.
+
+    Starting each retry from zero would let two attempts of 1,000 tokens pass a
+    1,500-token limit and then report only 1,000 spent.
+    """
+    first = BudgetLedger.create({"tokens": 1_500}).charge(BudgetKind.TOKENS, 1_000)
+
+    second = BudgetLedger.restore({"tokens": 1_500}, first.as_payload())
+
+    assert second.spent[BudgetKind.TOKENS] == 1_000
+    assert second.remaining(BudgetKind.TOKENS) == 500
+    with pytest.raises(BudgetExceededError):
+        second.charge(BudgetKind.TOKENS, 1_000)
+
+
+def test_restore_tolerates_missing_or_malformed_persisted_state() -> None:
+    for persisted in (None, {}, {"spent": "nonsense"}, {"spent": {"warp_core": 3}}):
+        ledger = BudgetLedger.restore({"tokens": 10}, persisted)
+        assert ledger.spent[BudgetKind.TOKENS] == 0

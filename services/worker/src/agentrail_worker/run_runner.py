@@ -28,7 +28,12 @@ from agentrail_core.execution import (
     RunItem,
     RunItemState,
 )
-from agentrail_core.faults import FaultProfile, parse_fault_profiles, plan_fault
+from agentrail_core.faults import (
+    FaultProfile,
+    FaultProfileError,
+    parse_fault_profiles,
+    plan_fault,
+)
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.logging import get_logger
 from agentrail_core.reliability import BudgetExceededError, BudgetKind, BudgetLedger
@@ -265,9 +270,37 @@ class EvaluationRunRunner:
             )
 
             attempt = max(item.attempt_count, 1)
-            profiles = await self._fault_profiles(session, run=run)
+            try:
+                profiles = await self._fault_profiles(session, run=run)
+            except FaultProfileError as invalid:
+                # Suite creation rejects these, but a row written before that
+                # validation existed can still reach here. Fail the item, not
+                # the worker: an uncaught raise would leave this item leased and
+                # take the consumer down with every other run behind it.
+                logger.warning(
+                    "fault_profile_unexecutable",
+                    extra={"run_id": run.id, "item_id": item.id, "reason": invalid.reason},
+                )
+                await self._fail_item(
+                    session,
+                    item=item,
+                    trajectory=trajectory,
+                    attempt=attempt,
+                    retryable=False,
+                    error_code="fault_profile_invalid",
+                    error_message=str(invalid),
+                    fault_payload=None,
+                    budget_state={},
+                    title="Unexecutable fault profile",
+                )
+                await session.commit()
+                return
             fault = plan_fault(profiles, item_index=item.item_index, attempt=attempt)
-            ledger = BudgetLedger.create(await self._budget_limits(session, run=run))
+            # Budgets are per item, so a retry resumes the previous attempt's
+            # spend rather than starting over with a fresh allowance.
+            ledger = BudgetLedger.restore(
+                await self._budget_limits(session, run=run), item.budget_state
+            )
 
             arguments = {
                 "service": f"service-{item.item_index}",

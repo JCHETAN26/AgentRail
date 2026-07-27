@@ -287,3 +287,51 @@ class TestZeroDuplicateSideEffects:
             RunItemState.COMPLETED,
         ]
         assert await side_effect_count(session_factory, run_id) == 4
+
+    async def test_budget_spend_survives_a_retry(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        """A per-item budget must not reset when the item is retried.
+
+        The executor charges 1,000 tokens per attempt. With a 1,500-token limit
+        and a fault on the first attempt only, the second attempt has to trip
+        the budget — if the ledger restarted at zero it would pass instead.
+        """
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            fault_profiles=[{"kind": "tool.timeout", "attempts": [1]}],
+            thresholds={"budgets": {"tokens": 1_500}},
+            max_attempts=3,
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="fault-worker", lease_seconds=5)
+
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.FAILED
+        items = await load_items(session_factory, run_id)
+        assert items[0].state == RunItemState.FAILED_TERMINAL
+        assert items[0].error_code == "budget_exhausted"
+        assert items[0].budget_state["spent"]["tokens"] == 2_000
+
+    async def test_an_unexecutable_legacy_profile_fails_the_item_not_the_worker(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        """Suite creation rejects these now, but rows predating that validation
+        still exist. An uncaught raise would strand the item and kill the
+        consumer along with every run queued behind it."""
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            fault_profiles=[{"kind": "not.a.real.fault"}],
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="fault-worker", lease_seconds=5)
+
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.FAILED
+        items = await load_items(session_factory, run_id)
+        assert items[0].state == RunItemState.FAILED_TERMINAL
+        assert items[0].error_code == "fault_profile_invalid"

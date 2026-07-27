@@ -71,6 +71,32 @@ class BudgetLedger:
                 limits[kind] = raw_limit
         return cls(limits=limits, spent=dict.fromkeys(BudgetKind, 0))
 
+    @classmethod
+    def restore(
+        cls, overrides: dict[str, Any] | None, persisted: dict[str, Any] | None
+    ) -> BudgetLedger:
+        """Rebuild a ledger carrying forward what earlier attempts already spent.
+
+        A budget is per *item*, not per attempt. Starting each retry from zero
+        would let an item with two attempts spend twice its limit and still
+        report the smaller number — so a limit of 1,500 tokens would never trip
+        against two attempts of 1,000. The limits come from the suite either
+        way; only the spend is restored.
+        """
+        ledger = cls.create(overrides)
+        raw_spent = (persisted or {}).get("spent")
+        if not isinstance(raw_spent, dict):
+            return ledger
+        spent = dict(ledger.spent)
+        for raw_kind, raw_amount in raw_spent.items():
+            try:
+                kind = BudgetKind(raw_kind)
+            except ValueError:
+                continue
+            if isinstance(raw_amount, int) and not isinstance(raw_amount, bool) and raw_amount >= 0:
+                spent[kind] = raw_amount
+        return replace(ledger, spent=spent)
+
     def charge(self, kind: BudgetKind, amount: int) -> BudgetLedger:
         """Spend against a budget, raising once the limit is passed.
 

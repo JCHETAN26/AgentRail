@@ -29,6 +29,17 @@ All notable changes to AgentRail are recorded here. The format follows
 - Zero-duplicate-side-effect coverage under retry, duplicate delivery, two racing workers, lease
   expiry after a partial attempt, and direct constraint violation.
 
+### Fixed — Phase 9 review
+
+- Budgets are per item, not per attempt. A retry now resumes the previous attempt's spend instead of
+  restarting at zero, which had let an item with two attempts spend twice its limit and still report
+  the smaller number.
+- Unexecutable fault profiles are rejected when the suite is created, with the offending index.
+  Previously the failure surfaced only when the worker parsed the profile, after the item had been
+  leased and with nothing catching it — which stranded the item and stopped the consumer.
+- A profile written before that validation existed now fails its item with `fault_profile_invalid`
+  rather than propagating out of the worker's consume loop.
+
 ### Added — Phase 8: replay and time travel
 
 - PostgreSQL-backed trajectory replay records, plus Alembic revision `0008_trajectory_replays`.
