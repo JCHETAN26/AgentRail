@@ -3,11 +3,23 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, WithJsonSchema, model_validator
 
 from agentrail_core.approvals import ApprovalState
+
+#: A free-form JSON object that the *client* sends.
+#:
+#: Bare ``dict[str, Any]`` emits ``{"type": "object"}`` with no
+#: ``additionalProperties``, which openapi-typescript renders as
+#: ``Record<string, never>`` — an object permitting no properties at all. That
+#: is unusable from the console and, worse, is a lie about what the API accepts.
+#: Response-only dictionaries get away with it because reading an object never
+#: checks the index signature; a request body does not.
+JsonObject = Annotated[
+    dict[str, Any], WithJsonSchema({"type": "object", "additionalProperties": True})
+]
 
 
 class ApprovalResponse(BaseModel):
@@ -42,7 +54,7 @@ class DecideApprovalRequest(BaseModel):
     """
 
     approve: bool
-    edited_arguments: dict[str, Any] | None = None
+    edited_arguments: JsonObject | None = None
     reason: str | None = None
 
     @model_validator(mode="after")

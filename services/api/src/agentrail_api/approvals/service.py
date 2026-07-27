@@ -65,6 +65,39 @@ async def list_run_approvals(
     return list(rows.all())
 
 
+async def list_project_approvals(
+    session: AsyncSession,
+    principal: Principal,
+    *,
+    project_id: str,
+    state: ApprovalState | None = None,
+    limit: int = 50,
+) -> list[ApprovalRequest]:
+    """The reviewer's queue: everything waiting across one project.
+
+    Listing per run is fine for a trace view, but a reviewer does not arrive
+    knowing which run stopped — they arrive knowing something needs an answer.
+    Ordered oldest first, because the thing that has been blocked longest is the
+    thing most worth looking at.
+    """
+    authorize(principal, Permission.APPROVAL_READ, organisation_id=principal.organisation_id)
+    clauses = [
+        ApprovalRequest.project_id == project_id,
+        Project.id == ApprovalRequest.project_id,
+        Project.organisation_id == principal.organisation_id,
+    ]
+    if state is not None:
+        clauses.append(ApprovalRequest.state == state)
+    rows = await session.scalars(
+        select(ApprovalRequest)
+        .join(Project, Project.id == ApprovalRequest.project_id)
+        .where(*clauses)
+        .order_by(ApprovalRequest.created_at, ApprovalRequest.id)
+        .limit(limit)
+    )
+    return list(rows.all())
+
+
 async def get_approval(
     session: AsyncSession, principal: Principal, *, approval_id: str
 ) -> ApprovalRequest:

@@ -12,9 +12,13 @@
 
 import type {
   ApiKey,
+  Approval,
+  ApprovalListResponse,
+  ApprovalState,
   AuthProviderInfo,
   CreateJobRequest,
   CreatedApiKey,
+  DecideApprovalRequest,
   Job,
   JobListResponse,
   Me,
@@ -194,4 +198,26 @@ export async function listJobs(projectId: string, limit = 10): Promise<JobListRe
   return request<JobListResponse>(
     `/api/v1/projects/${encodeURIComponent(projectId)}/jobs?limit=${limit}`,
   );
+}
+
+// --- Approvals --------------------------------------------------------------
+
+export async function listProjectApprovals(
+  projectId: string,
+  state?: ApprovalState,
+): Promise<ApprovalListResponse> {
+  const query = state === undefined ? '' : `?state=${encodeURIComponent(state)}`;
+  return request<ApprovalListResponse>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/approvals${query}`,
+  );
+}
+
+export async function decideApproval(
+  approvalId: string,
+  body: DecideApprovalRequest,
+): Promise<Approval> {
+  return request<Approval>(`/api/v1/approvals/${encodeURIComponent(approvalId)}/decision`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }

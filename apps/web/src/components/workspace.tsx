@@ -4,6 +4,7 @@ import type { Me, Organisation } from '@agentrail/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 
+import { ApprovalQueue } from '@/components/approval-queue';
 import { JobLauncher } from '@/components/job-launcher';
 import { ApiError, createOrganisation, getMe, listProjects, signOut } from '@/lib/api';
 
@@ -23,6 +24,10 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
 
   const organisations = me.data?.organisations ?? [];
   const selected = organisationId ?? organisations[0]?.organisation.id ?? null;
+  // The role in the selected organisation decides what the console offers. The
+  // API stays the authority on what it permits.
+  const selectedRole =
+    organisations.find((membership) => membership.organisation.id === selected)?.role ?? 'viewer';
 
   const projects = useQuery({
     queryKey: ['projects', selected],
@@ -103,7 +108,10 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
               This organisation has no projects yet.
             </p>
           ) : (
-            <JobLauncher projectId={projectId} />
+            <>
+              <JobLauncher projectId={projectId} />
+              <ApprovalQueue projectId={projectId} role={selectedRole} />
+            </>
           )}
         </>
       )}
