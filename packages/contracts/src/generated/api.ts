@@ -222,6 +222,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/deployments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deploy a passing run to canary */
+        post: operations["create_deployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/deployments/{deployment_id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Promote a canary deployment */
+        post: operations["promote_deployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/deployments/{deployment_id}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rollback a deployment */
+        post: operations["rollback_deployment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evaluation-runs": {
         parameters: {
             query?: never;
@@ -624,6 +675,23 @@ export interface paths {
         put?: never;
         /** Create a dataset */
         post: operations["create_dataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/deployments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List deployment history */
+        get: operations["list_deployments"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1084,6 +1152,39 @@ export interface components {
             /** Storage Uri */
             storage_uri?: string | null;
         };
+        /** CreateDeploymentRequest */
+        CreateDeploymentRequest: {
+            /** Baseline Metrics */
+            baseline_metrics?: {
+                [key: string]: unknown;
+            };
+            /** Canary Metrics */
+            canary_metrics?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Environment
+             * @default canary
+             */
+            environment: string;
+            /** Gate Evaluation Id */
+            gate_evaluation_id?: string | null;
+            /** Run Id */
+            run_id: string;
+            /** Thresholds */
+            thresholds?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Traffic Percent
+             * @default 10
+             */
+            traffic_percent: number;
+            /** Workload */
+            workload?: {
+                [key: string]: unknown;
+            };
+        };
         /** CreateEvaluationRunRequest */
         CreateEvaluationRunRequest: {
             /** Baseline Agent Version Id */
@@ -1289,6 +1390,61 @@ export interface components {
              */
             status: "up" | "down";
         };
+        /** DeploymentListResponse */
+        DeploymentListResponse: {
+            /** Items */
+            items: components["schemas"]["DeploymentResponse"][];
+        };
+        /** DeploymentResponse */
+        DeploymentResponse: {
+            /** Baseline Metrics */
+            baseline_metrics: Record<string, never>;
+            /** Canary Metrics */
+            canary_metrics: Record<string, never>;
+            /** Candidate Agent Version Id */
+            candidate_agent_version_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Decision */
+            decision: Record<string, never>;
+            /** Deltas */
+            deltas: {
+                [key: string]: number;
+            };
+            /** Environment */
+            environment: string;
+            /** Gate Evaluation Id */
+            gate_evaluation_id?: string | null;
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Promoted At */
+            promoted_at?: string | null;
+            /** Rollback Reason */
+            rollback_reason?: string | null;
+            /** Rolled Back At */
+            rolled_back_at?: string | null;
+            /** Run Id */
+            run_id: string;
+            state: components["schemas"]["DeploymentState"];
+            /** Thresholds */
+            thresholds: Record<string, never>;
+            /** Traffic Percent */
+            traffic_percent: number;
+            /** Workload */
+            workload: Record<string, never>;
+        };
+        /**
+         * DeploymentState
+         * @enum {string}
+         */
+        DeploymentState: "canary" | "promoted" | "rolled_back";
         /** DevSignInRequest */
         DevSignInRequest: {
             /**
@@ -1760,6 +1916,11 @@ export interface components {
          * @enum {string}
          */
         Role: "owner" | "admin" | "developer" | "reviewer" | "viewer";
+        /** RollbackDeploymentRequest */
+        RollbackDeploymentRequest: {
+            /** Reason */
+            reason: string;
+        };
         /**
          * RunItemRecoveryResponse
          * @description One item, seen from the reliability angle rather than the result angle.
@@ -2610,6 +2771,192 @@ export interface operations {
                 };
             };
             /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_deployment: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDeploymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Gate missing, blocked, or invalid transition. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    promote_deployment: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deployment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Gate missing, blocked, or invalid transition. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    rollback_deployment: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deployment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RollbackDeploymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Gate missing, blocked, or invalid transition. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4454,6 +4801,66 @@ export interface operations {
                 };
             };
             /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_deployments: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Gate missing, blocked, or invalid transition. */
             409: {
                 headers: {
                     [name: string]: unknown;

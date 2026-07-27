@@ -19,6 +19,7 @@ from agentrail_core.db import Base
 _MODEL_MODULES = (
     "agentrail_core.approvals",
     "agentrail_core.datasets",
+    "agentrail_core.deployments",
     "agentrail_core.evaluators",
     "agentrail_core.execution",
     "agentrail_core.jobs.models",

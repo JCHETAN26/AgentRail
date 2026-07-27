@@ -8,14 +8,15 @@ The question AgentRail exists to answer:
 > How can a team prove that an agent change is safer, more reliable and more useful **before**
 > exposing it to users?
 
-> [!NOTE] > **Status: Phase 11 of 18 is in progress.** The repository has the deterministic request
+> [!NOTE] > **Status: Phase 12 of 18 is in progress.** The repository has the deterministic request
 > path, authentication and tenancy, the CloudOps sandbox, the agent registry, dataset and
 > suite-builder APIs, the first durable evaluation-run executor, and redacted trajectory capture for
 > deterministic runs. It now has the first reproducible programmatic evaluator and comparison
 > substrate, durable recorded/forked replay records for persisted trajectories, and deterministic
 > fault injection with a side-effect ledger that makes a duplicate effect impossible at the database
 > level, a policy engine that stops high-risk tool calls for human approval, and release gates that
-> block a regressed change. Canary deployment is not built yet. Nothing in this README describes a capability that does not
+> block a regressed change. It also has simulated canary deployment records that promote healthy
+> candidates and roll back degraded ones. Nothing in this README describes a capability that does not
 > exist — see
 > [Known limitations](#known-limitations).
 
@@ -26,7 +27,7 @@ The question AgentRail exists to answer:
 **Sign in, create an organisation, run a deterministic job, register agent versions, build validated
 dataset/suite records, execute a frozen suite as a durable evaluation run, inspect redacted
 per-item trajectories, create safe replay records from checkpoints, and read reproducible comparison
-summaries inside one of its projects.**
+summaries, release-gate verdicts and canary deployment history inside one of its projects.**
 
 Authentication is delegated and pluggable: local development, CI and the demo use a deterministic
 provider that needs no credentials at all, while deployed environments use GitHub OAuth. Sessions are
@@ -186,7 +187,8 @@ Deliberate, and scheduled:
   consumes them is still scheduled for later phases.
 - Agent definitions, immutable agent versions, dataset versions, frozen suite records, durable
   evaluation runs, redacted trajectories, replay records, deterministic fault injection, the
-  policy/approval engine and release gates exist. Canary deployment is not built yet (Phase 12).
+  policy/approval engine, release gates and simulated canary deployment records exist. Real deploy
+  provider integration is still scheduled for later phases.
 - The GitHub integration verifies webhooks and cancels superseded runs, but Check Runs are only
   _recorded_, never delivered: no GitHub App client is implemented, so the publisher behind the
   protocol is the no-network one. The gate itself is fully usable without it.

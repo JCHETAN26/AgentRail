@@ -7,6 +7,7 @@ per endpoint.
 
 from agentrail_core.agents import AgentDefinition, AgentVersion
 from agentrail_core.datasets import Dataset, DatasetVersion, EvaluationSuite
+from agentrail_core.deployments import Deployment
 from agentrail_core.evaluators import ComparisonReport, EvaluationResult, EvaluatorVersion
 from agentrail_core.execution import EvaluationRun, OutboxEvent, RunItem
 from agentrail_core.identity.models import (
@@ -53,6 +54,7 @@ __all__ = [
     "ComparisonReport",
     "Dataset",
     "DatasetVersion",
+    "Deployment",
     "EvaluationResult",
     "EvaluationRun",
     "EvaluationSuite",

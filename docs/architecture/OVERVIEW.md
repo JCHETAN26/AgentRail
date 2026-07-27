@@ -176,7 +176,14 @@ forked replay starts from the same evidence but incorporates explicit override m
 stored replay digest diverges deterministically. Replay records always include a safety summary
 showing that original side effects were not repeated.
 
+## Canary And Rollback
+
+Phase 12 adds durable deployment records for candidates that have passed a release gate. The canary
+slice compares baseline metrics with observed replay or live-workload metrics. Healthy candidates
+promote to full traffic; degraded candidates roll back to zero traffic with the metric deltas and
+rollback reasons preserved in release history.
+
 ## Not built yet
 
-The broader failure-injection product workflow (Phase 9), policy and approvals (Phase 10), release
-gates and GitHub Checks (Phase 11), canary and rollback (Phase 12).
+OpenTelemetry export, dashboards and SLO operations (Phase 13), security hardening (Phase 14), real
+deploy provider integration and production packaging.

@@ -6,6 +6,18 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 12: canary and rollback
+
+- PostgreSQL-backed deployment history with Alembic revision `0012_canary_deployments`.
+- A pure canary decision over baseline metrics, observed canary metrics and rollout thresholds.
+- Deployment APIs:
+  `POST /api/v1/deployments`, `POST /api/v1/deployments/{deployment_id}/promote`,
+  `POST /api/v1/deployments/{deployment_id}/rollback` and
+  `GET /api/v1/projects/{project_id}/deployments`.
+- Passing gates are required before deployment; blocked or missing gates refuse deployment.
+- Healthy canaries promote to 100% traffic; degraded canaries roll back to 0% traffic and preserve
+  the rollback reason and metric deltas.
+
 ### Added — Phase 11: release gates and GitHub integration
 
 - Release policies: pass-rate floors, regression caps, and per-evaluator and per-category floors,

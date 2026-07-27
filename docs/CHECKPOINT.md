@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 11 — Release gates and GitHub integration                                           |
-| **Status**     | In progress on branch `feat/p11-release-gates`                                      |
-| **Base**       | `main` @ `e0d81c5` (Phase 10 and its console merged)                                |
-| **Next phase** | 12 — Canary and rollback, after Phase 11 exits                                      |
+| **Phase**      | 12 — Canary and rollback                                                            |
+| **Status**     | In progress on branch `feat/p12-canary-rollback`                                    |
+| **Base**       | `main` @ `0c6a4d5` (Phase 11 merged)                                                |
+| **Next phase** | 13 — Observability, SLOs and operations, after Phase 12 exits                       |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -27,6 +27,7 @@ Phase 8 shipped in PR [#41](https://github.com/JCHETAN26/AgentRail/pull/41).
 Phase 9 shipped in PR [#42](https://github.com/JCHETAN26/AgentRail/pull/42).
 Phase 10 shipped in PR [#43](https://github.com/JCHETAN26/AgentRail/pull/43), with its console in
 [#44](https://github.com/JCHETAN26/AgentRail/pull/44).
+Phase 11 shipped in PR [#45](https://github.com/JCHETAN26/AgentRail/pull/45).
 
 Merged branches through Phase 9 are deleted, local and remote. The repository does not
 auto-delete on merge, so each phase has to clean up after itself.
@@ -35,15 +36,11 @@ auto-delete on merge, so each phase has to clean up after itself.
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 11 — the exit criterion: a regressed pull request is blocked and a passing
-   one succeeds
-2. `packages/core-py/src/agentrail_core/release.py` — the rules and the pure `evaluate_gate`
-3. `packages/core-py/src/agentrail_core/github.py` — signature verification and the Check Run
-   publisher protocol, whose only implementation records rather than delivers
-4. `services/api/src/agentrail_api/release/service.py` — the gate, its idempotency, and
-   superseded-run cancellation
-5. `docs/examples/release-gate-workflow.yml` — what a consuming team actually copies; note that it
-   needs no GitHub App
+1. `BUILDPLAN.md` Phase 12 — the exit criterion: healthy candidate promotes, degraded rolls back
+2. `packages/core-py/src/agentrail_core/deployments.py` — pure canary decision and deployment model
+3. `services/api/src/agentrail_api/deployments/service.py` — gate requirement, promotion, rollback
+4. `services/api/src/agentrail_api/routers/deployments.py` — deployment history API
+5. `services/api/tests/test_deployments_api.py` and `packages/core-py/tests/test_deployments.py`
 
 ---
 
@@ -257,6 +254,22 @@ optimisation, and the tests still pass with it removed. And the whole integratio
 construction: CI reads the verdict from the response body, so no team needs to install an app or
 grant write access to use the gate.
 
+## Phase 12 progress
+
+- Added `agentrail_core.deployments`: deployment states, pure canary decision logic and
+  PostgreSQL-backed deployment history.
+- Added Alembic revision `0012_canary_deployments`.
+- Added deployment APIs:
+  `POST /api/v1/deployments`, `POST /api/v1/deployments/{deployment_id}/promote`,
+  `POST /api/v1/deployments/{deployment_id}/rollback` and
+  `GET /api/v1/projects/{project_id}/deployments`.
+- Deployment creation requires a passing release-gate verdict for the run. Missing or blocked gates
+  return `409`, so a release cannot skip the gate accidentally.
+- Healthy canary metrics promote the candidate to 100% traffic; degraded canary metrics roll back to
+  0% traffic and persist the rollback reasons and metric deltas.
+- Added pure canary tests and API coverage for promotion, rollback, blocked gates and tenant
+  isolation.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -285,6 +298,7 @@ grant write access to use the gate.
 | `0009_failure_injection`     | Adds the side-effect ledger and its unique idempotency key, plus per-item injected-fault and budget state                                                                        |
 | `0010_policy_and_approval`   | Adds approval requests, the AWAITING_APPROVAL item state, and the ledger's approval columns under a CHECK constraint                                                             |
 | `0011_release_gates`         | Adds immutable release policies, gate evaluations unique on (run, policy), and nullable pull-request provenance on evaluation runs                                               |
+| `0012_canary_deployments`    | Adds durable canary deployment, promotion and rollback history                                                                                                                   |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -450,6 +464,8 @@ vacuous.
 - The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture,
   replay records and the first programmatic evaluator are synthetic/deterministic. Live model
   evaluators and true live replay execution are not built yet.
+- Canary deployment is simulated and metric-driven; there is no real deploy provider integration
+  yet.
 - Failed legacy jobs remain terminal; retry budgets, leases and outbox are implemented for
   evaluation run items.
 - Correlation and trace identifiers propagate, but no spans are exported (Phase 13).
@@ -492,24 +508,29 @@ Phase 9 branch checks, run locally on 2026-07-26 against Docker Compose PostgreS
 The four retry-sensitive tests were confirmed to fail with the ledger's deduplication defeated, so
 none of them is vacuous.
 
+Latest Phase 12 branch checks, run locally on 2026-07-27:
+
+| Command                                                 | Result                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| `uv run ruff check .`                                   | Pass                                                   |
+| `uv run mypy packages/core-py/src services/api/src ...` | Pass — 97 source files                                 |
+| `uv run pytest -q`                                      | 289 passed, 170 skipped locally due sandboxed Postgres |
+| `uv run python scripts/export_openapi.py --check`       | Pass                                                   |
+| `pnpm run format:check`                                 | Pass                                                   |
+| `pnpm run lint`                                         | Pass                                                   |
+| `pnpm run typecheck`                                    | Pass                                                   |
+| `pnpm run test`                                         | Pass — 46 JS tests                                     |
+| `@agentrail/contracts check`                            | Pass                                                   |
+| `@agentrail/contracts test`                             | Pass — 10 tests                                        |
+| `pnpm build`                                            | Pass — web production build                            |
+| `uv build --all-packages`                               | Pass after network approval for `hatchling` build deps |
+
 ---
 
 ## Next tasks (Phase 12 — Canary and rollback)
 
-Phase 11 is built and verified locally. Remaining:
-
-1. Let CI run the PostgreSQL-backed gate suites, then merge the Phase 11 PR.
-2. **No GitHub App client exists.** Webhooks are verified and superseded runs are cancelled, but
-   Check Runs are only _recorded_ — the publisher behind the protocol is the no-network one. A real
-   one needs an App id, a private key and installation-token exchange. The gate is fully usable
-   without it, which is why this was not blocking.
-3. **No console UI for gates.** Policies and verdicts have APIs and no screen, the same gap the
-   approval queue had before #44.
-4. The circuit breaker from Phase 9 still has no caller — three phases now.
-5. CodeQL will raise its four Alembic false positives again on `0011`.
-
-Phase 12 itself: the deployment model, a traffic simulator, replay workload, approval, deltas,
-promotion, rollback and history.
+1. Open the Phase 12 pull request and let CI run the PostgreSQL-backed deployment tests.
+2. Merge once green.
 
 **Exit criteria:** a healthy candidate promotes; a degraded candidate rolls back; green PR.
 
