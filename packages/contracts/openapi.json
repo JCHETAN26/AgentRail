@@ -789,6 +789,68 @@
         "title": "CreateDatasetVersionRequest",
         "type": "object"
       },
+      "CreateDeploymentRequest": {
+        "properties": {
+          "baseline_metrics": {
+            "additionalProperties": true,
+            "title": "Baseline Metrics",
+            "type": "object"
+          },
+          "canary_metrics": {
+            "additionalProperties": true,
+            "title": "Canary Metrics",
+            "type": "object"
+          },
+          "environment": {
+            "default": "canary",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Environment",
+            "type": "string"
+          },
+          "gate_evaluation_id": {
+            "anyOf": [
+              {
+                "maxLength": 26,
+                "minLength": 26,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate Evaluation Id"
+          },
+          "run_id": {
+            "maxLength": 26,
+            "minLength": 26,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "thresholds": {
+            "additionalProperties": true,
+            "title": "Thresholds",
+            "type": "object"
+          },
+          "traffic_percent": {
+            "default": 10,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Traffic Percent",
+            "type": "integer"
+          },
+          "workload": {
+            "additionalProperties": true,
+            "title": "Workload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "CreateDeploymentRequest",
+        "type": "object"
+      },
       "CreateEvaluationRunRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1319,6 +1381,169 @@
         ],
         "title": "DependencyStatus",
         "type": "object"
+      },
+      "DeploymentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeploymentResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DeploymentListResponse",
+        "type": "object"
+      },
+      "DeploymentResponse": {
+        "properties": {
+          "baseline_metrics": {
+            "title": "Baseline Metrics",
+            "type": "object"
+          },
+          "canary_metrics": {
+            "title": "Canary Metrics",
+            "type": "object"
+          },
+          "candidate_agent_version_id": {
+            "title": "Candidate Agent Version Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "decision": {
+            "title": "Decision",
+            "type": "object"
+          },
+          "deltas": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Deltas",
+            "type": "object"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "gate_evaluation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate Evaluation Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "promoted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promoted At"
+          },
+          "rollback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback Reason"
+          },
+          "rolled_back_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rolled Back At"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/DeploymentState"
+          },
+          "thresholds": {
+            "title": "Thresholds",
+            "type": "object"
+          },
+          "traffic_percent": {
+            "title": "Traffic Percent",
+            "type": "integer"
+          },
+          "workload": {
+            "title": "Workload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "run_id",
+          "candidate_agent_version_id",
+          "environment",
+          "state",
+          "traffic_percent",
+          "workload",
+          "baseline_metrics",
+          "canary_metrics",
+          "thresholds",
+          "deltas",
+          "decision",
+          "created_at"
+        ],
+        "title": "DeploymentResponse",
+        "type": "object"
+      },
+      "DeploymentState": {
+        "enum": [
+          "canary",
+          "promoted",
+          "rolled_back"
+        ],
+        "title": "DeploymentState",
+        "type": "string"
       },
       "DevSignInRequest": {
         "additionalProperties": false,
@@ -2503,6 +2728,21 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "RollbackDeploymentRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RollbackDeploymentRequest",
+        "type": "object"
       },
       "RunItemRecoveryResponse": {
         "description": "One item, seen from the reliability angle rather than the result angle.",
@@ -4108,6 +4348,285 @@
         "summary": "Create an immutable dataset version",
         "tags": [
           "datasets"
+        ]
+      }
+    },
+    "/api/v1/deployments": {
+      "post": {
+        "operationId": "create_deployment",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeploymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Gate missing, blocked, or invalid transition."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Deploy a passing run to canary",
+        "tags": [
+          "deployments"
+        ]
+      }
+    },
+    "/api/v1/deployments/{deployment_id}/promote": {
+      "post": {
+        "operationId": "promote_deployment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Gate missing, blocked, or invalid transition."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Promote a canary deployment",
+        "tags": [
+          "deployments"
+        ]
+      }
+    },
+    "/api/v1/deployments/{deployment_id}/rollback": {
+      "post": {
+        "operationId": "rollback_deployment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackDeploymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Gate missing, blocked, or invalid transition."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Rollback a deployment",
+        "tags": [
+          "deployments"
         ]
       }
     },
@@ -6955,6 +7474,96 @@
         "summary": "Create a dataset",
         "tags": [
           "datasets"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/deployments": {
+      "get": {
+        "operationId": "list_deployments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Gate missing, blocked, or invalid transition."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List deployment history",
+        "tags": [
+          "deployments"
         ]
       }
     },

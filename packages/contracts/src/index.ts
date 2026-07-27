@@ -101,6 +101,13 @@ export type RepositoryBinding = Schemas['RepositoryBindingResponse'];
 export type RepositoryBindingListResponse = Schemas['RepositoryBindingListResponse'];
 export type CreateRepositoryBindingRequest = Schemas['CreateRepositoryBindingRequest'];
 
+/** Canary deployment and rollback. */
+export type CreateDeploymentRequest = Schemas['CreateDeploymentRequest'];
+export type Deployment = Schemas['DeploymentResponse'];
+export type DeploymentListResponse = Schemas['DeploymentListResponse'];
+export type DeploymentState = Schemas['DeploymentState'];
+export type RollbackDeploymentRequest = Schemas['RollbackDeploymentRequest'];
+
 /** Failure injection and reliability. */
 export type RunRecovery = Schemas['RunRecoveryResponse'];
 export type RunItemRecovery = Schemas['RunItemRecoveryResponse'];
