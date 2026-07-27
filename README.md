@@ -8,7 +8,7 @@ The question AgentRail exists to answer:
 > How can a team prove that an agent change is safer, more reliable and more useful **before**
 > exposing it to users?
 
-> [!NOTE] > **Status: Phase 13 of 18 is in progress.** The repository has the deterministic request
+> [!NOTE] > **Status: Phase 14 of 18 is in progress.** The repository has the deterministic request
 > path, authentication and tenancy, the CloudOps sandbox, the agent registry, dataset and
 > suite-builder APIs, the first durable evaluation-run executor, and redacted trajectory capture for
 > deterministic runs. It now has the first reproducible programmatic evaluator and comparison
@@ -17,7 +17,8 @@ The question AgentRail exists to answer:
 > level, a policy engine that stops high-risk tool calls for human approval, and release gates that
 > block a regressed change. It also has simulated canary deployment records that promote healthy
 > candidates and roll back degraded ones, plus run-level observability metrics and SLO verdicts for
-> incident response. Nothing in this README describes a capability that does not exist — see
+> incident response. Phase 14 has started with authenticated rate limits, GitHub webhook replay
+> defence, console CSP/security headers and container image security checks. Nothing in this README describes a capability that does not exist — see
 > [Known limitations](#known-limitations).
 
 ---
@@ -159,6 +160,9 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
   indistinguishable from the outside, so the API is not an enumeration oracle.
 - **Credentials are never stored in a replayable form.** Sessions and API keys are persisted only as
   one-way digests, and comparison is constant-time.
+- **Authenticated callers have a request budget.** The API enforces a Redis-backed fixed-window
+  rate limit per user or API key. Redis is only the short-lived counter store; durable state remains
+  in PostgreSQL.
 
 ---
 
@@ -180,8 +184,9 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
 
 Deliberate, and scheduled:
 
-- No rate limiting or quotas: an authenticated caller can still create unbounded work (Phase 14).
 - No PostgreSQL row-level security beneath the application-level tenant scoping (Phase 14).
+- No durable per-organisation quota ledger yet. The API has short-lived authenticated rate limits,
+  but not monthly/workload quotas.
 - Members must have signed in once before they can be added to an organisation — there are no
   invitations yet (Phase 18).
 - The CloudOps sandbox is synthetic and deterministic. Phase 2 has added tool contracts, synthetic

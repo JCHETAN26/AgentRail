@@ -132,6 +132,16 @@ def sign(body: bytes, secret: str = WEBHOOK_SECRET) -> str:
     return f"sha256={digest}"
 
 
+def webhook_headers(
+    body: bytes, *, event: str = "pull_request", delivery: str | None = None
+) -> dict[str, str]:
+    return {
+        "X-GitHub-Event": event,
+        "X-GitHub-Delivery": delivery or new_sortable_id(),
+        "X-Hub-Signature-256": sign(body),
+    }
+
+
 class TestReleasePolicies:
     async def test_creates_an_immutable_versioned_policy(self, tenant: Tenant) -> None:
         first = await create_policy(tenant, "Ship gate", STRICT_POLICY)
@@ -451,7 +461,7 @@ class TestGitHubWebhook:
             "/api/v1/integrations/github/webhook",
             content=body,
             headers={
-                "X-GitHub-Event": "pull_request",
+                **webhook_headers(body),
                 "X-Hub-Signature-256": sign(body, secret="wrong-secret"),
             },
         )
@@ -483,10 +493,7 @@ class TestGitHubWebhook:
         response = await tenant.client.post(
             "/api/v1/integrations/github/webhook",
             content=body,
-            headers={
-                "X-GitHub-Event": "pull_request",
-                "X-Hub-Signature-256": sign(body),
-            },
+            headers=webhook_headers(body),
         )
 
         assert response.status_code == 202
@@ -520,7 +527,7 @@ class TestGitHubWebhook:
         await tenant.client.post(
             "/api/v1/integrations/github/webhook",
             content=body,
-            headers={"X-GitHub-Event": "pull_request", "X-Hub-Signature-256": sign(body)},
+            headers=webhook_headers(body),
         )
 
         async with session_factory() as session:
@@ -571,7 +578,7 @@ class TestGitHubWebhook:
         await tenant.client.post(
             "/api/v1/integrations/github/webhook",
             content=body,
-            headers={"X-GitHub-Event": "pull_request", "X-Hub-Signature-256": sign(body)},
+            headers=webhook_headers(body),
         )
 
         async with session_factory() as session:
@@ -605,7 +612,7 @@ class TestGitHubWebhook:
         await tenant.client.post(
             "/api/v1/integrations/github/webhook",
             content=body,
-            headers={"X-GitHub-Event": "pull_request", "X-Hub-Signature-256": sign(body)},
+            headers=webhook_headers(body),
         )
 
         async with session_factory() as session:
@@ -619,7 +626,84 @@ class TestGitHubWebhook:
         response = await tenant.client.post(
             "/api/v1/integrations/github/webhook",
             content=body,
-            headers={"X-GitHub-Event": "ping", "X-Hub-Signature-256": sign(body)},
+            headers=webhook_headers(body, event="ping"),
         )
 
         assert response.status_code == 202
+
+    async def test_a_replayed_delivery_is_rejected_before_side_effects(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        await bind_repository(tenant)
+        stale = await create_run(tenant)
+        await bind_to_pull_request(
+            session_factory,
+            str(stale["id"]),
+            owner="acme",
+            repository="agent",
+            pull_number=11,
+            head_sha="a" * 40,
+        )
+
+        body = json.dumps(
+            {
+                "action": "synchronize",
+                "pull_request": {"number": 11, "head": {"sha": "b" * 40}},
+                "repository": {"name": "agent", "owner": {"login": "acme"}},
+            }
+        ).encode()
+        headers = webhook_headers(body, delivery=f"delivery-{new_sortable_id()}")
+
+        first = await tenant.client.post(
+            "/api/v1/integrations/github/webhook", content=body, headers=headers
+        )
+        second = await tenant.client.post(
+            "/api/v1/integrations/github/webhook", content=body, headers=headers
+        )
+
+        assert first.status_code == 202
+        assert second.status_code == 409
+        assert second.json()["code"] == "replayed_webhook"
+
+    async def test_a_failed_webhook_release_allows_github_retry(
+        self,
+        tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        await bind_repository(tenant)
+        stale = await create_run(tenant)
+        await bind_to_pull_request(
+            session_factory,
+            str(stale["id"]),
+            owner="acme",
+            repository="agent",
+            pull_number=12,
+            head_sha="a" * 40,
+        )
+
+        async def fail_after_reservation(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("postgres unavailable")
+
+        monkeypatch.setattr(
+            "agentrail_api.routers.integrations.service.cancel_superseded_runs",
+            fail_after_reservation,
+        )
+
+        body = json.dumps(
+            {
+                "action": "synchronize",
+                "pull_request": {"number": 12, "head": {"sha": "b" * 40}},
+                "repository": {"name": "agent", "owner": {"login": "acme"}},
+            }
+        ).encode()
+        headers = webhook_headers(body, delivery=f"transient-failure-{new_sortable_id()}")
+
+        with pytest.raises(RuntimeError, match="postgres unavailable"):
+            await tenant.client.post(
+                "/api/v1/integrations/github/webhook", content=body, headers=headers
+            )
+        with pytest.raises(RuntimeError, match="postgres unavailable"):
+            await tenant.client.post(
+                "/api/v1/integrations/github/webhook", content=body, headers=headers
+            )

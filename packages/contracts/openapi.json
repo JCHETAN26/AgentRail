@@ -1570,6 +1570,8 @@
           "conflict",
           "idempotency_key_reused",
           "payload_too_large",
+          "rate_limited",
+          "replayed_webhook",
           "dependency_unavailable",
           "internal_error"
         ],
@@ -6421,6 +6423,22 @@
               ],
               "title": "X-Github-Event"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-github-delivery",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Github-Delivery"
+            }
           }
         ],
         "responses": {
@@ -6441,6 +6459,16 @@
               }
             },
             "description": "Signature missing or invalid."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Webhook delivery already accepted."
           },
           "422": {
             "content": {

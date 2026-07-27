@@ -24,6 +24,8 @@ class ErrorCode(StrEnum):
     CONFLICT = "conflict"
     IDEMPOTENCY_KEY_REUSED = "idempotency_key_reused"
     PAYLOAD_TOO_LARGE = "payload_too_large"
+    RATE_LIMITED = "rate_limited"
+    REPLAYED_WEBHOOK = "replayed_webhook"
     DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
     INTERNAL_ERROR = "internal_error"
 
@@ -106,6 +108,16 @@ class ValidationFailedError(PlatformError):
 class PayloadTooLargeError(PlatformError):
     code = ErrorCode.PAYLOAD_TOO_LARGE
     status_code = 413
+
+
+class RateLimitedError(PlatformError):
+    code = ErrorCode.RATE_LIMITED
+    status_code = 429
+
+
+class ReplayedWebhookError(PlatformError):
+    code = ErrorCode.REPLAYED_WEBHOOK
+    status_code = 409
 
 
 class DependencyUnavailableError(PlatformError):

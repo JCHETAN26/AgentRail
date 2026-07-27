@@ -6,6 +6,14 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 14: security and supply chain
+
+- Redis-backed fixed-window rate limiting for authenticated users and API keys.
+- GitHub webhook replay defence using `X-GitHub-Delivery` reservations.
+- Console security headers now include CSP and Permissions-Policy.
+- CI container check renamed to `containers / scan` and verifies pinned runtime inputs plus non-root
+  service images.
+
 ### Added — Phase 13: observability, SLOs and operations
 
 - Run-level operational metrics via `GET /api/v1/evaluation-runs/{run_id}/metrics`.
