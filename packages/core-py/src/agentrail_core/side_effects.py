@@ -20,6 +20,8 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -28,6 +30,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
     select,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
@@ -66,8 +69,15 @@ class SideEffectRecord(Base):
 
     __tablename__ = "side_effect_records"
     __table_args__ = (
-        # The whole invariant, in one line.
+        # Phase 9's invariant, in one line: no duplicate effects.
         UniqueConstraint("idempotency_key", name="uq_side_effect_records_idempotency_key"),
+        # Phase 10's, in one more: no unapproved high-risk effect. A row that
+        # needed approval and does not name one cannot be written at all, so
+        # forgetting the check in code is not sufficient to cause the harm.
+        CheckConstraint(
+            "required_approval = false OR approval_id IS NOT NULL",
+            name="ck_side_effect_records_approved",
+        ),
         Index("ix_side_effect_records_run_id", "run_id"),
         Index("ix_side_effect_records_run_item_id", "run_item_id"),
     )
@@ -90,6 +100,14 @@ class SideEffectRecord(Base):
     applied_on_attempt: Mapped[int] = mapped_column(Integer, nullable=False)
     #: Redacted before it gets here, like every other diagnostic payload.
     result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    #: Whether policy demanded a human before this effect. Paired with
+    #: ``approval_id`` by a CHECK constraint.
+    required_approval: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    approval_id: Mapped[str | None] = mapped_column(
+        String(26), ForeignKey("approval_requests.id", ondelete="RESTRICT"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -106,6 +124,8 @@ async def apply_side_effect_once(
     arguments: dict[str, Any],
     attempt: int,
     result: dict[str, Any],
+    required_approval: bool = False,
+    approval_id: str | None = None,
 ) -> tuple[SideEffectRecord, bool]:
     """Record an effect, or discover it already happened.
 
@@ -119,7 +139,14 @@ async def apply_side_effect_once(
     The insert runs inside a SAVEPOINT so losing that race rolls back only the
     insert, leaving the caller's surrounding transaction — trajectory steps,
     state transitions — intact.
+
+    When ``required_approval`` is set, ``approval_id`` must name an approval the
+    caller has already confirmed is APPROVED. The database enforces that the
+    pair is present; confirming the *state* is the caller's job, because only it
+    holds the row lock that makes the check meaningful against a late decision.
     """
+    if required_approval and approval_id is None:
+        raise ValueError("a side effect that required approval must name one")
     key = side_effect_key(
         run_item_id=run_item_id, step_index=step_index, tool=tool, arguments=arguments
     )
@@ -139,6 +166,8 @@ async def apply_side_effect_once(
         arguments_digest=_digest(arguments),
         applied_on_attempt=attempt,
         result=result,
+        required_approval=required_approval,
+        approval_id=approval_id,
     )
     try:
         async with session.begin_nested():

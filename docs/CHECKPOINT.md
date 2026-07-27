@@ -9,7 +9,7 @@ Operational handoff between sessions. This file is the first thing to read when 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
 | **Phase**      | 10 — Policy and human approval                                                      |
-| **Status**     | Not started; branch `feat/p10-policy-approval` open off a clean `main`              |
+| **Status**     | In progress on branch `feat/p10-policy-approval`                                    |
 | **Base**       | `main` @ `41ef948` (Phase 9 merged)                                                 |
 | **Next phase** | 11 — Release gates and GitHub integration, after Phase 10 exits                     |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
@@ -191,6 +191,31 @@ on a second attempt, a refusal will not. And `BudgetExceededError` carries the o
 because the caller's own variable is still the pre-charge one and the recovery view would otherwise
 report a spend of zero for the charge that broke the budget.
 
+## Phase 10 progress
+
+- Added `agentrail_core.policy`: the four risk levels, a validated bundle parsed from the agent
+  version's existing `policy_bundle` column, and one pure `decide()`.
+- Added `agentrail_core.approvals`: `ApprovalRequest`, the approval state machine with no outgoing
+  edges from any decided state, and its transition guards.
+- Added `AWAITING_APPROVAL` to the run-item machine and rewrote its check constraint in
+  `0010_policy_and_approval`.
+- Extended the side-effect ledger with `required_approval` and `approval_id` under a `CHECK`, so an
+  unapproved high-risk effect is unrepresentable.
+- The executor now gates every tool call on policy before anything reaches the world, parks on a
+  human without holding a lease or spending a retry, and resumes from the approval — applying the
+  reviewer's edit when there is one.
+- Added approval APIs, audit events, and the `approval:read` / `approval:decide` permissions.
+
+**Design notes worth keeping.** An unclassified tool defaults to `HIGH_RISK_WRITE`: a policy engine
+that fails open is not one. That is a breaking change for agent versions with an empty
+`policy_bundle`, which now park instead of running — the existing worker fixtures had to be given an
+explicit bundle, which is the right outcome, since a suite that wants unattended execution should
+say so. A reviewer's edit changes the arguments and therefore the ledger key, so an edited action is
+a _different_ effect and cannot inherit the authorisation recorded for the original. And note the
+schema-wide gotcha this phase surfaced: state columns are `String` with a check constraint, so a
+loaded row carries a `str`, not the enum its `Mapped[...]` annotation promises — `is` comparisons
+and `.value` both fail until you coerce.
+
 ## Architecture decisions taken
 
 | ADR  | Decision                                                                             |
@@ -217,6 +242,7 @@ report a spend of zero for the charge that broke the budget.
 | `0007_evaluators_comparison` | Adds evaluator versions, per-item evaluator results and reproducible comparison reports                                                                                          |
 | `0008_trajectory_replays`    | Adds durable recorded, live-labelled and forked replay records for trajectories                                                                                                  |
 | `0009_failure_injection`     | Adds the side-effect ledger and its unique idempotency key, plus per-item injected-fault and budget state                                                                        |
+| `0010_policy_and_approval`   | Adds approval requests, the AWAITING_APPROVAL item state, and the ledger's approval columns under a CHECK constraint                                                             |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -428,34 +454,16 @@ none of them is vacuous.
 
 ## Next tasks (Phase 10 — Policy and human approval)
 
-Phase 9 merged as `41ef948`. Carried over:
+Built and verified locally. Remaining:
 
-- A PR can be `BLOCKED` on `required_conversation_resolution` while every check is green and the
-  required-review count is 0. Check the review threads before assuming CI is at fault.
-- CodeQL flags `revision`, `down_revision`, `branch_labels` and `depends_on` as unused globals in
-  **every** Alembic migration. They are false positives — Alembic reads them as module attributes —
-  and a fresh set will appear on `0010`. A `.github/codeql/codeql-config.yml` with `paths-ignore`
-  for `services/api/alembic/versions/**` fixes it permanently, at the cost of dropping those files
-  from scanning. A security-posture call, deliberately left to the owner.
-- The circuit breaker from Phase 9 is implemented, unit-tested and exported, but nothing calls it.
-  It needs a live dependency to trip against. If this phase introduces real tool calls, wire it and
-  surface its state in the recovery view at the same time.
-- `chaos.py` is exercised by hand. It needs a running stack, so it stays out of the required checks.
-
-The phase itself:
-
-1. Tool risk levels — `READ_ONLY`, `LOW_RISK_WRITE`, `HIGH_RISK_WRITE`, `PROHIBITED` — and policy
-   bundles that bind them to an agent version. The CloudOps sandbox already carries per-tool risk,
-   side-effect class and approval metadata from Phase 2; nothing reads it yet.
-2. An interrupt: a run item that reaches a high-risk tool call parks in a non-failure state with a
-   durable checkpoint, rather than proceeding or erroring.
-3. Approval records — approve, edit, reject — bound to the reviewer role, which has read exactly
-   like a viewer since Phase 1.
-4. Resume from the persisted checkpoint after an approval, with the edit applied if there was one.
-5. Injection scenarios: prove a rejected action cannot execute, and that a _delayed_ event arriving
-   after the rejection cannot bypass it. The Phase 9 side-effect ledger is the natural enforcement
-   point — the same key that stops a duplicate can stop an unapproved one.
-6. Audit every policy and approval change.
+1. Let CI run the PostgreSQL-backed policy and approval suites, then merge the Phase 10 PR.
+2. **No console UI for approvals.** The APIs exist and are tested; nothing in `apps/web` surfaces a
+   pending approval yet, so a reviewer has to use the API directly. The build plan puts the
+   approve/edit/reject UI in this phase — it is the one part of Phase 10 not delivered.
+3. The circuit breaker from Phase 9 still has no caller. This phase did not introduce live tool
+   calls either, so it stays unwired.
+4. CodeQL will raise its four Alembic false positives again on `0010`. Same fix, still the owner's
+   call.
 
 **Exit criteria:** a high-risk action cannot execute without approval; delayed events cannot bypass
 a rejection; green PR.

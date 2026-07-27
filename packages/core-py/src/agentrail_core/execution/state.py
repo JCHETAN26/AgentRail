@@ -22,6 +22,10 @@ class RunItemState(StrEnum):
     LEASED = "LEASED"
     EXECUTING = "EXECUTING"
     EVALUATING = "EVALUATING"
+    #: Parked at a high-risk tool call, waiting on a human. Deliberately not a
+    #: failure: the item has done nothing wrong and may still complete. It also
+    #: holds no lease, because a reviewer's response is not on a worker's clock.
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED_RETRYABLE = "FAILED_RETRYABLE"
     FAILED_TERMINAL = "FAILED_TERMINAL"
@@ -74,7 +78,22 @@ ITEM_TRANSITIONS: dict[RunItemState, frozenset[RunItemState]] = {
         {RunItemState.EXECUTING, RunItemState.FAILED_RETRYABLE, RunItemState.CANCELLED}
     ),
     RunItemState.EXECUTING: frozenset(
-        {RunItemState.EVALUATING, RunItemState.FAILED_RETRYABLE, RunItemState.CANCELLED}
+        {
+            RunItemState.EVALUATING,
+            RunItemState.AWAITING_APPROVAL,
+            RunItemState.FAILED_RETRYABLE,
+            RunItemState.CANCELLED,
+        }
+    ),
+    # An approval resumes into EVALUATING, a rejection goes terminal, and a
+    # cancelled run takes it with everything else. There is no edge back to
+    # EXECUTING: the resume replays from the persisted checkpoint instead.
+    RunItemState.AWAITING_APPROVAL: frozenset(
+        {
+            RunItemState.EVALUATING,
+            RunItemState.FAILED_TERMINAL,
+            RunItemState.CANCELLED,
+        }
     ),
     RunItemState.EVALUATING: frozenset(
         {

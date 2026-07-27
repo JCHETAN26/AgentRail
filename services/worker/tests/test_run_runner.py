@@ -26,6 +26,7 @@ async def make_run(
     fault_profiles: list[dict[str, object]] | None = None,
     thresholds: dict[str, object] | None = None,
     max_attempts: int = 2,
+    policy_bundle: dict[str, object] | None = None,
 ) -> str:
     agent = AgentDefinition(
         id=new_sortable_id(), project_id=project_id, name="Worker Agent", slug=new_sortable_id()
@@ -39,7 +40,9 @@ async def make_run(
         prompt_bundle={},
         model_config={},
         tool_contracts=[],
-        policy_bundle={},
+        policy_bundle=policy_bundle
+        if policy_bundle is not None
+        else {"tool_risks": {"restart_service": "LOW_RISK_WRITE"}},
     )
     dataset = Dataset(
         id=new_sortable_id(), project_id=project_id, name="Data", slug=new_sortable_id()

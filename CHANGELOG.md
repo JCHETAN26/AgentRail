@@ -6,6 +6,29 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 10: policy and human approval
+
+- The four tool risk levels from the build plan — `READ_ONLY`, `LOW_RISK_WRITE`, `HIGH_RISK_WRITE`,
+  `PROHIBITED` — with one pure `decide()` that every caller goes through.
+- Policy bundles are parsed from the agent version's existing `policy_bundle` column, validated at
+  agent-version creation, and now actually consulted before any tool call.
+- `AWAITING_APPROVAL` run-item state: parked on a human, holding no lease and consuming no retry,
+  and explicitly not a failure.
+- `ApprovalRequest` records with approve / approve-with-edits / reject, keyed by the same
+  idempotency key the side-effect ledger uses, so a retried or redelivered item asks once.
+- An approval's decision is final: the state machine has no outgoing edges from `APPROVED`,
+  `REJECTED` or `WITHDRAWN`, and re-deciding returns `409` rather than silently overwriting.
+- The side-effect ledger gained `required_approval` and `approval_id` under a `CHECK` constraint, so
+  an unapproved high-risk effect cannot be written at all. Alembic revision `0010_policy_and_approval`.
+- Approval APIs: list per run, fetch, and decide. Audit events on every decision.
+- `approval:read` and `approval:decide` permissions. **The reviewer role is now distinct from a
+  viewer** — the distinction promised when the role was created in Phase 1.
+
+**Breaking:** an unclassified tool now defaults to `HIGH_RISK_WRITE` and stops for approval. Agent
+versions with an empty `policy_bundle` will park instead of running unattended. This is deliberate —
+a policy engine that fails open is not a policy engine — but existing versions need a bundle that
+classifies their tools before they run without a human.
+
 ### Added — Phase 9: failure injection and reliability
 
 - Deterministic fault profiles covering all 23 model, tool and platform fault families from the

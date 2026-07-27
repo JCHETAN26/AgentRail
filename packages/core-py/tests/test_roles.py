@@ -69,6 +69,16 @@ class TestRoleMatrix:
     def test_viewer_cannot_read_the_audit_log(self) -> None:
         assert not user(Role.VIEWER).can(Permission.AUDIT_READ)
 
+    def test_a_viewer_can_see_an_approval_but_not_decide_it(self) -> None:
+        """The distinction the reviewer role was created for in Phase 1 and only
+        became load-bearing here: watching a run is not authorising it."""
+        assert user(Role.VIEWER).can(Permission.APPROVAL_READ)
+        assert not user(Role.VIEWER).can(Permission.APPROVAL_DECIDE)
+
+    @pytest.mark.parametrize("role", [Role.REVIEWER, Role.DEVELOPER, Role.ADMIN, Role.OWNER])
+    def test_reviewers_and_above_decide_approvals(self, role: Role) -> None:
+        assert user(role).can(Permission.APPROVAL_DECIDE)
+
     def test_roles_are_cumulative(self) -> None:
         """Each role is a superset of the one below, so a promotion never removes access."""
         ladder = [Role.VIEWER, Role.REVIEWER, Role.DEVELOPER, Role.ADMIN, Role.OWNER]
