@@ -55,6 +55,9 @@ All notable changes to AgentRail are recorded here. The format follows
   service images.
 - CI now uploads per-service container SBOM, Docker image inspect and provenance JSON artifacts for
   every Python service image built by the `containers / scan` matrix.
+- PostgreSQL row-level security migration `0016_postgres_rls` adds tenant-context policies across
+  organisation-owned, project-owned and project-child tables as defence in depth beneath the
+  application tenancy checks.
 
 ### Added — Phase 14: observability, SLOs and operations
 

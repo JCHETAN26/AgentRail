@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import pytest
 from api_test_support import Tenant
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 pytestmark = pytest.mark.integration
 
@@ -138,6 +140,32 @@ class TestJobIsolation:
 
         messages = [item["payload"]["message"] for item in mine.json()["items"]]
         assert messages == ["mine"]
+
+    async def test_postgres_rls_filters_project_scoped_rows_when_context_is_set(
+        self,
+        tenant: Tenant,
+        other_tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await tenant.client.post(
+            f"/api/v1/projects/{tenant.project_id}/jobs", json={"message": "mine"}
+        )
+        await other_tenant.client.post(
+            f"/api/v1/projects/{other_tenant.project_id}/jobs", json={"message": "theirs"}
+        )
+
+        async with session_factory() as session:
+            await session.execute(
+                text("SELECT set_config('agentrail.organisation_id', :org, true)"),
+                {"org": tenant.organisation_id},
+            )
+            visible_projects = (
+                await session.execute(text("SELECT id FROM projects ORDER BY id"))
+            ).scalars()
+            visible_jobs = (await session.execute(text("SELECT payload FROM jobs"))).scalars()
+
+            assert list(visible_projects) == [tenant.project_id]
+            assert [job["message"] for job in visible_jobs] == ["mine"]
 
 
 class TestIdempotencyKeyScoping:
