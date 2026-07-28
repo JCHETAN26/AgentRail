@@ -4,12 +4,19 @@ import type {
   TribunalAgentRole,
   TribunalArgument,
   TribunalFinding,
+  TribunalReplay,
   TribunalSession,
 } from '@agentrail/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState, type FormEvent } from 'react';
 
-import { ApiError, createTribunalSession, getTribunalSession } from '@/lib/api';
+import {
+  ApiError,
+  createTribunalReplay,
+  createTribunalSession,
+  getTribunalSession,
+  listTribunalReplays,
+} from '@/lib/api';
 
 const RUN_ID_LENGTH = 26;
 const ROLES: readonly TribunalAgentRole[] = [
@@ -167,6 +174,8 @@ function TribunalResult({ tribunal }: { tribunal: TribunalSession }) {
 
       <Arguments arguments={tribunal.arguments} />
 
+      <TribunalReplays tribunal={tribunal} />
+
       <ol className="tribunal__timeline" aria-label="Tribunal blackboard timeline">
         {tribunal.blackboard.map((entry) => (
           <li key={entry.id}>
@@ -183,6 +192,136 @@ function TribunalResult({ tribunal }: { tribunal: TribunalSession }) {
       </ol>
     </div>
   );
+}
+
+function TribunalReplays({ tribunal }: { tribunal: TribunalSession }) {
+  const queryClient = useQueryClient();
+  const [defenderPrompt, setDefenderPrompt] = useState(
+    'Argue only from independently reproduced evidence.',
+  );
+  const replays = useQuery({
+    queryKey: ['tribunal-replays', tribunal.id],
+    queryFn: () => listTribunalReplays(tribunal.id),
+  });
+  const createReplay = useMutation({
+    mutationFn: (mode: 'recorded' | 'forked') =>
+      createTribunalReplay(
+        tribunal.id,
+        mode === 'recorded'
+          ? { mode }
+          : {
+              mode,
+              prompt_overrides: { defender: defenderPrompt },
+            },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['tribunal-replays', tribunal.id] });
+    },
+  });
+  const replayItems = Array.isArray(replays.data?.items) ? replays.data.items : [];
+  const latest = createReplay.data ?? replayItems.at(-1) ?? null;
+  const error = createReplay.error ?? replays.error;
+
+  return (
+    <section className="tribunal__replays" aria-label="Tribunal replays">
+      <div className="tribunal__replay-header">
+        <div>
+          <h3>Replays</h3>
+          <p className="form__hint">
+            Recorded replay and Defender prompt forks are stored separately from the source verdict.
+          </p>
+        </div>
+        <button
+          className="button button--quiet"
+          type="button"
+          onClick={() => createReplay.mutate('recorded')}
+          disabled={createReplay.isPending}
+        >
+          {createReplay.isPending ? 'Replaying...' : 'Replay'}
+        </button>
+      </div>
+
+      <label className="form__label" htmlFor={`defender-prompt-${tribunal.id}`}>
+        Defender fork prompt
+      </label>
+      <div className="tribunal__fork-row">
+        <textarea
+          id={`defender-prompt-${tribunal.id}`}
+          className="form__input"
+          rows={3}
+          value={defenderPrompt}
+          onChange={(event) => setDefenderPrompt(event.target.value)}
+        />
+        <button
+          className="button"
+          type="button"
+          onClick={() => createReplay.mutate('forked')}
+          disabled={createReplay.isPending || defenderPrompt.trim().length === 0}
+        >
+          Fork Defender
+        </button>
+      </div>
+
+      {error ? <TribunalError error={error} /> : null}
+
+      {latest ? <ReplaySummary replay={latest} /> : null}
+
+      {replayItems.length ? (
+        <ul className="tribunal__replay-list" aria-label="Tribunal replay history">
+          {replayItems.map((replay) => (
+            <li key={replay.id}>
+              <span className={`badge badge--tribunal-${replay.outcome}`}>{replay.outcome}</span>
+              <span className="tribunal__meta">
+                {replay.mode} / {digestPrefix(replay.replay_digest)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function ReplaySummary({ replay }: { replay: TribunalReplay }) {
+  const result = objectFromJson(replay.result);
+  const divergence = objectFromJson(replay.divergence);
+  const reproduced = result.reproduced === true;
+  const outcomeChanged = divergence.outcome_changed === true;
+
+  return (
+    <div className="tribunal__replay-summary" data-testid="tribunal-replay-result">
+      <span className={`badge badge--tribunal-${replay.outcome}`}>{replay.outcome}</span>
+      <dl className="result__grid">
+        <div>
+          <dt>Mode</dt>
+          <dd>{replay.mode}</dd>
+        </div>
+        <div>
+          <dt>Digest</dt>
+          <dd>{reproduced ? 'matched' : 'changed'}</dd>
+        </div>
+        <div>
+          <dt>Verdict</dt>
+          <dd>{outcomeChanged ? 'changed' : 'same'}</dd>
+        </div>
+        <div>
+          <dt>Replay</dt>
+          <dd>
+            <code>{digestPrefix(replay.replay_digest)}</code>
+          </dd>
+        </div>
+      </dl>
+      <p>{replay.primary_reason}</p>
+    </div>
+  );
+}
+
+function objectFromJson(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+function digestPrefix(value: string | null | undefined): string {
+  return typeof value === 'string' && value.length > 0 ? value.slice(0, 10) : 'pending';
 }
 
 function messageFromPayload(payload: Record<string, unknown>): string | null {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -85,9 +85,37 @@ const TRIBUNAL = {
   ],
 };
 
+const REPLAY = {
+  id: '01ARZ3NDEKTSV4RRFFQ69G5R1',
+  project_id: '01ARZ3NDEKTSV4RRFFQ69G5FAX',
+  session_id: TRIBUNAL.id,
+  source_run_id: RUN_ID,
+  mode: 'recorded',
+  state: 'COMPLETED',
+  outcome: 'blocked',
+  primary_reason: 'Comparison evidence is missing.',
+  source_digest: 'a'.repeat(64),
+  replay_digest: 'b'.repeat(64),
+  request: {},
+  result: { reproduced: false, source_outcome: 'blocked', replay_outcome: 'blocked' },
+  divergence: { outcome_changed: false },
+  safety_summary: { live_model_calls: 0 },
+  created_by: null,
+  created_at: '2026-07-28T00:00:00Z',
+  completed_at: '2026-07-28T00:00:00Z',
+};
+
+function replayPostBodies() {
+  return vi
+    .mocked(fetch)
+    .mock.calls.filter(([url, init]) => String(url).includes('/replays') && init?.method === 'POST')
+    .map(([, init]) => JSON.parse(String(init?.body)));
+}
+
 describe('TribunalPanel', () => {
   it('renders a created Tribunal blackboard', async () => {
-    vi.mocked(fetch).mockResolvedValue(json(TRIBUNAL, 201));
+    vi.mocked(fetch).mockResolvedValueOnce(json(TRIBUNAL, 201));
+    vi.mocked(fetch).mockResolvedValue(json({ items: [] }));
 
     renderWithQueryClient(<TribunalPanel />);
     await userEvent.type(screen.getByLabelText(/evaluation run id/i), RUN_ID);
@@ -98,6 +126,38 @@ describe('TribunalPanel', () => {
       'Comparison evidence is missing.',
     );
     expect(vi.mocked(fetch).mock.calls[0]![1]?.method).toBe('POST');
+  });
+
+  it('creates recorded and forked Tribunal replays', async () => {
+    const forkedReplay = { ...REPLAY, id: '01ARZ3NDEKTSV4RRFFQ69G5R2', mode: 'forked' };
+    vi.mocked(fetch).mockResolvedValueOnce(json(TRIBUNAL, 201));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [] }));
+    vi.mocked(fetch).mockResolvedValueOnce(json(REPLAY));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [REPLAY] }));
+    vi.mocked(fetch).mockResolvedValueOnce(json(forkedReplay));
+    vi.mocked(fetch).mockResolvedValue(json({ items: [REPLAY, forkedReplay] }));
+
+    renderWithQueryClient(<TribunalPanel />);
+    await userEvent.type(screen.getByLabelText(/evaluation run id/i), RUN_ID);
+    await userEvent.click(screen.getByRole('button', { name: /run tribunal/i }));
+    await screen.findByTestId('tribunal-result');
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(([url, init]) => String(url).includes('/replays') && !init?.method),
+      ).toBe(true),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /^replay$/i }));
+    expect(await screen.findByTestId('tribunal-replay-result')).toHaveTextContent('changed');
+    expect(replayPostBodies()).toContainEqual({ mode: 'recorded' });
+
+    await userEvent.click(screen.getByRole('button', { name: /fork defender/i }));
+    expect(replayPostBodies()).toContainEqual({
+      mode: 'forked',
+      prompt_overrides: { defender: 'Argue only from independently reproduced evidence.' },
+    });
   });
 
   it('shows an empty Tribunal state when a run has no persisted session', async () => {

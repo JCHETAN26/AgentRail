@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiError, createJob, createTribunalSession, getJob, getTribunalSession } from '@/lib/api';
+import {
+  ApiError,
+  createJob,
+  createTribunalReplay,
+  createTribunalSession,
+  getJob,
+  getTribunalSession,
+  listTribunalReplays,
+} from '@/lib/api';
 
 const PROJECT_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAP';
 const RUN_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAR';
+const TRIBUNAL_SESSION_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAT';
 
 function jsonResponse(body: unknown, init: { status?: number; headers?: HeadersInit } = {}) {
   return new Response(JSON.stringify(body), {
@@ -59,13 +68,43 @@ describe('tribunal API', () => {
   });
 
   it('creates the deterministic Tribunal session for a run', async () => {
-    const tribunal = { id: '01ARZ3NDEKTSV4RRFFQ69G5FAT', run_id: RUN_ID, outcome: 'blocked' };
+    const tribunal = { id: TRIBUNAL_SESSION_ID, run_id: RUN_ID, outcome: 'blocked' };
     vi.mocked(fetch).mockResolvedValue(jsonResponse(tribunal, { status: 201 }));
 
     const result = await createTribunalSession(RUN_ID);
 
     expect(result).toEqual(tribunal);
     expect(vi.mocked(fetch).mock.calls[0]![1]?.method).toBe('POST');
+  });
+
+  it('lists Tribunal replays for a session', async () => {
+    const replays = { items: [{ id: '01ARZ3NDEKTSV4RRFFQ69G5R1', mode: 'recorded' }] };
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(replays));
+
+    const result = await listTribunalReplays(TRIBUNAL_SESSION_ID);
+
+    expect(result).toEqual(replays);
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
+      `http://localhost:8000/api/v1/tribunal-sessions/${TRIBUNAL_SESSION_ID}/replays`,
+    );
+  });
+
+  it('creates a forked Tribunal replay', async () => {
+    const replay = { id: '01ARZ3NDEKTSV4RRFFQ69G5R2', mode: 'forked', outcome: 'approved' };
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(replay));
+
+    const result = await createTribunalReplay(TRIBUNAL_SESSION_ID, {
+      mode: 'forked',
+      prompt_overrides: { defender: 'Argue from reproduced evidence.' },
+    });
+
+    expect(result).toEqual(replay);
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(String(init?.body))).toEqual({
+      mode: 'forked',
+      prompt_overrides: { defender: 'Argue from reproduced evidence.' },
+    });
   });
 });
 
