@@ -157,7 +157,7 @@ Every request is assigned a `CorrelationContext` (`correlation_id`, `trace_id`, 
 headers, forwarded on outbound calls, and stored on the job row so the whole path can be recovered
 after the fact. Logs are single-line JSON with automatic redaction of sensitive keys.
 
-Phase 13 adds `GET /api/v1/evaluation-runs/{run_id}/metrics`, which joins the run, queue, retry,
+Phase 14 adds `GET /api/v1/evaluation-runs/{run_id}/metrics`, which joins the run, queue, retry,
 budget, evaluator, policy, release-gate and canary records into one incident snapshot. The response
 includes the run's `correlation_id`, `trace_id`, trace links and SLO verdict, so an operator can
 trace a failed release without joining tables by hand.
@@ -175,7 +175,8 @@ denominator, so a comparison cannot look better by dropping execution errors.
 
 ## Replay And Time Travel
 
-Phase 8 adds durable replay records for persisted trajectories. A recorded replay hashes the
+The replay/time-travel slice adds durable replay records for persisted trajectories. A recorded
+replay hashes the
 redacted trajectory, ordered steps and optional checkpoint and must reproduce the same digest. A
 forked replay starts from the same evidence but incorporates explicit override metadata, so the
 stored replay digest diverges deterministically. Replay records always include a safety summary
@@ -183,12 +184,12 @@ showing that original side effects were not repeated.
 
 ## Canary And Rollback
 
-Phase 12 adds durable deployment records for candidates that have passed a release gate. The canary
+Phase 13 adds durable deployment records for candidates that have passed a release gate. The canary
 slice compares baseline metrics with observed replay or live-workload metrics. Healthy candidates
 promote to full traffic; degraded candidates roll back to zero traffic with the metric deltas and
 rollback reasons preserved in release history.
 
 ## Not built yet
 
-External OpenTelemetry export, security hardening (Phase 14), real deploy provider integration and
-production packaging.
+The updated Phase 8 Multi-Agent Safety Tribunal, external OpenTelemetry export, remaining security
+hardening (Phase 15), real deploy provider integration and production packaging.

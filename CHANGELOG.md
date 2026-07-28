@@ -6,7 +6,7 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
-### Added — Phase 14: security and supply chain
+### Added — Phase 15: security and supply chain
 
 - Redis-backed fixed-window rate limiting for authenticated users and API keys.
 - Durable monthly evaluation-item quota ledger per organisation.
@@ -18,7 +18,7 @@ All notable changes to AgentRail are recorded here. The format follows
 - CI container check renamed to `containers / scan` and verifies pinned runtime inputs plus non-root
   service images.
 
-### Added — Phase 13: observability, SLOs and operations
+### Added — Phase 14: observability, SLOs and operations
 
 - Run-level operational metrics via `GET /api/v1/evaluation-runs/{run_id}/metrics`.
 - A pure SLO evaluator for task success, failed items, stranded leases, canary rollbacks and cost.
@@ -26,7 +26,7 @@ All notable changes to AgentRail are recorded here. The format follows
   budget spend, evaluator quality, approval counts, release-gate status and canary rollback data.
 - Operations docs for SLOs and evaluation-run incident response.
 
-### Added — Phase 12: canary and rollback
+### Added — Phase 13: canary and rollback
 
 - PostgreSQL-backed deployment history with Alembic revision `0012_canary_deployments`.
 - A pure canary decision over baseline metrics, observed canary metrics and rollout thresholds.
@@ -38,7 +38,7 @@ All notable changes to AgentRail are recorded here. The format follows
 - Healthy canaries promote to 100% traffic; degraded canaries roll back to 0% traffic and preserve
   the rollback reason and metric deltas.
 
-### Added — Phase 11: release gates and GitHub integration
+### Added — Phase 12: release gates and GitHub integration
 
 - Release policies: pass-rate floors, regression caps, and per-evaluator and per-category floors,
   evaluated by one pure `evaluate_gate` over the comparison report. Every rule is checked, so a
@@ -60,7 +60,7 @@ All notable changes to AgentRail are recorded here. The format follows
   CI reads the verdict from the response body and fails on it.
 - Alembic revision `0011_release_gates`.
 
-### Fixed — Phase 11 review
+### Fixed — Phase 12 review
 
 - An empty policy definition (`{}`) bypassed the "must contain at least one threshold" check and was
   persisted, reporting `passed` for every run — defeating the guarantee the check exists to make.
@@ -85,7 +85,7 @@ All notable changes to AgentRail are recorded here. The format follows
   logged before the signature is checked, so a caller could otherwise forge log entries — and these
   logs are meant to be evidence.
 
-### Added — Phase 10: approval console
+### Added — Phase 11: approval console
 
 - Reviewer queue in the web console: pending high-risk calls for a project, with approve,
   approve-with-edits and reject. Edited arguments are parsed in the browser, so a typo is a message
@@ -95,7 +95,7 @@ All notable changes to AgentRail are recorded here. The format follows
 - The console shows controls by role and still surfaces a server `403` or `409` plainly, because the
   API remains the authority on what is permitted.
 
-### Fixed — Phase 10 follow-up
+### Fixed — Phase 11 follow-up
 
 - The approval queue now polls, so an approval that parks while a reviewer is watching actually
   appears. Focus refetching is disabled app-wide and an empty queue is invalidated by nothing, so
@@ -111,7 +111,7 @@ All notable changes to AgentRail are recorded here. The format follows
   dictionaries get away with this because reading an object never checks the index signature; a
   request body does not.
 
-### Added — Phase 10: policy and human approval
+### Added — Phase 11: policy and human approval
 
 - The four tool risk levels from the build plan — `READ_ONLY`, `LOW_RISK_WRITE`, `HIGH_RISK_WRITE`,
   `PROHIBITED` — with one pure `decide()` that every caller goes through.
@@ -134,7 +134,7 @@ versions with an empty `policy_bundle` will park instead of running unattended. 
 a policy engine that fails open is not a policy engine — but existing versions need a bundle that
 classifies their tools before they run without a human.
 
-### Added — Phase 9: failure injection and reliability
+### Added — Phase 10: failure injection and reliability
 
 - Deterministic fault profiles covering all 23 model, tool and platform fault families from the
   build plan, selected by item index and attempt number rather than by RNG, so a faulted run
@@ -157,7 +157,7 @@ classifies their tools before they run without a human.
 - Zero-duplicate-side-effect coverage under retry, duplicate delivery, two racing workers, lease
   expiry after a partial attempt, and direct constraint violation.
 
-### Fixed — Phase 9 review
+### Fixed — Phase 10 review
 
 - Budgets are per item, not per attempt. A retry now resumes the previous attempt's spend instead of
   restarting at zero, which had let an item with two attempts spend twice its limit and still report
@@ -168,7 +168,7 @@ classifies their tools before they run without a human.
 - A profile written before that validation existed now fails its item with `fault_profile_invalid`
   rather than propagating out of the worker's consume loop.
 
-### Added — Phase 8: replay and time travel
+### Added — Phase 9: replay and time travel
 
 - PostgreSQL-backed trajectory replay records, plus Alembic revision `0008_trajectory_replays`.
 - Recorded, live-labelled and forked replay creation from persisted trajectories and checkpoints.
@@ -178,7 +178,7 @@ classifies their tools before they run without a human.
   `/api/v1/trajectories/{trajectory_id}/replays` for create and list.
 - Audit events and tenant-isolation coverage for replay creation.
 
-### Fixed — Phase 8 review
+### Fixed — Phase 9 review
 
 - Replay creation now requires `run:create`. It persists a row and an audit event, so authorising it
   as a read let a viewer or a read-scoped API key write.

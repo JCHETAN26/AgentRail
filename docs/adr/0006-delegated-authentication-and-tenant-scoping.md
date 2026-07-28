@@ -103,7 +103,7 @@ owner membership if, and only if, the Legacy organisation exists and still has n
 - **Per-route permission checks.** Rejected: the build plan calls for central policy, and scattered
   checks are exactly how one endpoint ends up missing one.
 - **Returning 404 for another tenant's resources.** Rejected as an enumeration oracle.
-- **PostgreSQL row-level security now.** Deferred to Phase 14, as the build plan schedules it.
+- **PostgreSQL row-level security now.** Deferred to Phase 15, as the build plan schedules it.
   Application-level scoping comes first and is tested first; RLS is defence in depth, not a
   substitute for the tests.
 - **Mandatory API-key scopes.** Rejected for now: an empty scope list meaning "the role's full
@@ -122,5 +122,5 @@ owner membership if, and only if, the Legacy organisation exists and still has n
   origin list load-bearing — a wildcard origin would be both rejected by the browser and a real
   vulnerability. T21–T27 are added for the new attack surface. **T15 (denial of service) does not
   close:** identifying callers is a precondition for limiting them, not a limit.
-- Organisation-level rate limiting and quotas are still absent (Phase 14), so an authenticated user
+- Organisation-level rate limiting and quotas are still absent (Phase 15), so an authenticated user
   can still create unbounded work.
