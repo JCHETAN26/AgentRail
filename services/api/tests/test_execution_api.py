@@ -47,7 +47,11 @@ async def create_agent_version(tenant: Tenant, name: str = "Runner Agent") -> di
 
 
 async def create_frozen_suite(
-    tenant: Tenant, *, count: int = 3, frozen: bool = True
+    tenant: Tenant,
+    *,
+    count: int = 3,
+    frozen: bool = True,
+    thresholds: dict[str, object] | None = None,
 ) -> dict[str, object]:
     dataset = await tenant.client.post(
         f"/api/v1/projects/{tenant.project_id}/datasets",
@@ -65,7 +69,7 @@ async def create_frozen_suite(
             "name": f"Run Suite {count} {frozen}",
             "dataset_version_id": version.json()["id"],
             "evaluators": [{"name": "recorded_success"}],
-            "thresholds": {"task_success": 1.0},
+            "thresholds": thresholds or {"task_success": 1.0},
         },
     )
     assert suite.status_code == 201, suite.text

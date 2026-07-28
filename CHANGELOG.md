@@ -23,6 +23,9 @@ All notable changes to AgentRail are recorded here. The format follows
 - Release policies can require Tribunal approval with `require_tribunal_approval = true`; missing
   Tribunal verdicts return a retryable gate conflict, `conditional` or `blocked` verdicts block, and
   only `approved` passes.
+- Prompt-version scaffolding for model-backed Tribunal debate: suites can set
+  `thresholds.tribunal.mode = "model_backed"`, prompt/model provenance is recorded, model output is
+  schema-validated, and a recorded model client keeps CI and demos deterministic.
 - Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
   evidence blocks approval.
 - OpenAPI and generated TypeScript contracts for Tribunal responses.

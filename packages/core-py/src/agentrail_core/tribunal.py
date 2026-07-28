@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy import (
     CheckConstraint,
@@ -30,6 +30,10 @@ from agentrail_core.ids import new_sortable_id
 
 class TribunalConfigError(ValueError):
     """Raised when suite Tribunal configuration is malformed."""
+
+
+class TribunalModelOutputError(ValueError):
+    """Raised when an untrusted Tribunal model response does not match schema."""
 
 
 class TribunalAgentRole(StrEnum):
@@ -69,12 +73,18 @@ class TribunalSessionState(StrEnum):
     COMPLETED = "completed"
 
 
+class TribunalMode(StrEnum):
+    DETERMINISTIC = "deterministic"
+    MODEL_BACKED = "model_backed"
+
+
 _AGENT_ROLES = ", ".join(f"'{role.value}'" for role in TribunalAgentRole)
 _ROUNDS = ", ".join(f"'{round_.value}'" for round_ in TribunalRound)
 _FINDING_SEVERITIES = ", ".join(f"'{severity.value}'" for severity in TribunalFindingSeverity)
 _ARGUMENT_STANCES = ", ".join(f"'{stance.value}'" for stance in TribunalArgumentStance)
 _VERDICT_OUTCOMES = ", ".join(f"'{outcome.value}'" for outcome in TribunalVerdictOutcome)
 _SESSION_STATES = ", ".join(f"'{state.value}'" for state in TribunalSessionState)
+DEFAULT_TRIBUNAL_PROMPT_VERSION = "tribunal-roles-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,21 +125,136 @@ class TribunalPersistenceBundle:
     blackboard: list[TribunalBlackboardEntry]
 
 
+@dataclass(frozen=True, slots=True)
+class TribunalPromptVersion:
+    role: TribunalAgentRole
+    version: str
+    system_prompt: str
+    response_schema: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class TribunalModelRequest:
+    role: TribunalAgentRole
+    round: TribunalRound
+    prompt: TribunalPromptVersion
+    evidence: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class TribunalModelResponse:
+    content: dict[str, Any]
+    provider: str
+    model: str
+    response_id: str
+    usage: dict[str, Any]
+
+
+class TribunalModelClient(Protocol):
+    async def complete(self, request: TribunalModelRequest) -> TribunalModelResponse:
+        """Return one schema-shaped role response for the Tribunal."""
+
+
 def validate_tribunal_config(thresholds: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize ``thresholds.tribunal`` suite configuration."""
     raw = thresholds.get("tribunal")
     if raw is None:
-        return {"enabled": False}
+        return {
+            "enabled": False,
+            "mode": TribunalMode.DETERMINISTIC.value,
+            "prompt_version": DEFAULT_TRIBUNAL_PROMPT_VERSION,
+            "model_provider": "recorded",
+            "model": "tribunal-recorded-v1",
+        }
     if not isinstance(raw, dict):
         raise TribunalConfigError("thresholds.tribunal must be an object.")
     enabled = raw.get("enabled", False)
     if not isinstance(enabled, bool):
         raise TribunalConfigError("thresholds.tribunal.enabled must be a boolean.")
-    return {"enabled": enabled}
+    mode = raw.get("mode", TribunalMode.DETERMINISTIC.value)
+    if not isinstance(mode, str):
+        raise TribunalConfigError("thresholds.tribunal.mode must be a string.")
+    if mode not in {mode_.value for mode_ in TribunalMode}:
+        raise TribunalConfigError("thresholds.tribunal.mode must be deterministic or model_backed.")
+    prompt_version = raw.get("prompt_version", DEFAULT_TRIBUNAL_PROMPT_VERSION)
+    if not isinstance(prompt_version, str) or not prompt_version.strip():
+        raise TribunalConfigError("thresholds.tribunal.prompt_version must be a non-empty string.")
+    model_provider = raw.get("model_provider", "recorded")
+    if not isinstance(model_provider, str) or not model_provider.strip():
+        raise TribunalConfigError("thresholds.tribunal.model_provider must be a non-empty string.")
+    model = raw.get("model", "tribunal-recorded-v1")
+    if not isinstance(model, str) or not model.strip():
+        raise TribunalConfigError("thresholds.tribunal.model must be a non-empty string.")
+    return {
+        "enabled": enabled,
+        "mode": mode,
+        "prompt_version": prompt_version.strip(),
+        "model_provider": model_provider.strip(),
+        "model": model.strip(),
+    }
 
 
 def tribunal_enabled(thresholds: dict[str, Any]) -> bool:
     return bool(validate_tribunal_config(thresholds)["enabled"])
+
+
+def default_tribunal_prompt_versions(
+    version: str = DEFAULT_TRIBUNAL_PROMPT_VERSION,
+) -> dict[TribunalAgentRole, TribunalPromptVersion]:
+    """Return immutable prompt metadata for the built-in Tribunal role set."""
+    shared_schema = {
+        "type": "object",
+        "required": ["severity", "subject", "message", "stance", "argument"],
+        "properties": {
+            "severity": {"enum": [severity.value for severity in TribunalFindingSeverity]},
+            "subject": {"type": "string"},
+            "message": {"type": "string"},
+            "stance": {"enum": [stance.value for stance in TribunalArgumentStance]},
+            "argument": {"type": "string"},
+        },
+    }
+    judge_schema = {
+        "type": "object",
+        "required": ["outcome", "primary_reason", "dissent"],
+        "properties": {
+            "outcome": {"enum": [outcome.value for outcome in TribunalVerdictOutcome]},
+            "primary_reason": {"type": "string"},
+            "dissent": {"type": "object"},
+        },
+    }
+    prompts = {
+        TribunalAgentRole.PROSECUTOR: (
+            "Find evidence that the candidate should not ship. Name concrete regressions, "
+            "quality risks and missing proof."
+        ),
+        TribunalAgentRole.DEFENDER: (
+            "Find the strongest evidence that the candidate is acceptable to ship. Be candid "
+            "about remaining review needs."
+        ),
+        TribunalAgentRole.AUDITOR: (
+            "Validate evidence quality, reproducibility and policy compliance. Block when "
+            "release evidence is missing or untrustworthy."
+        ),
+        TribunalAgentRole.ECONOMIST: (
+            "Review cost, latency and operational tradeoffs using only provided evidence."
+        ),
+        TribunalAgentRole.HISTORIAN: (
+            "Summarize the run history and comparison context without inventing facts."
+        ),
+        TribunalAgentRole.JUDGE: (
+            "Render the final Tribunal verdict from the role evidence. Auditor blockers are "
+            "binding and model output is untrusted."
+        ),
+    }
+    return {
+        role: TribunalPromptVersion(
+            role=role,
+            version=version,
+            system_prompt=prompt,
+            response_schema=judge_schema if role is TribunalAgentRole.JUDGE else shared_schema,
+        )
+        for role, prompt in prompts.items()
+    }
 
 
 def decide_tribunal(*, run: dict[str, Any], comparison: dict[str, Any] | None) -> TribunalDraft:
@@ -334,18 +459,222 @@ def decide_tribunal(*, run: dict[str, Any], comparison: dict[str, Any] | None) -
     )
 
 
+class RecordedTribunalModelClient:
+    """Deterministic model-client stand-in for CI, demos and recorded replay.
+
+    It speaks through the same protocol as a live provider would, so the
+    Tribunal orchestration can prove prompt provenance, schema validation and
+    blackboard persistence without paid credentials or network access.
+    """
+
+    def __init__(self, *, provider: str = "recorded", model: str = "tribunal-recorded-v1") -> None:
+        self.provider = provider
+        self.model = model
+
+    async def complete(self, request: TribunalModelRequest) -> TribunalModelResponse:
+        draft = _recorded_role_response(request.role, request.evidence)
+        return TribunalModelResponse(
+            content=draft,
+            provider=self.provider,
+            model=self.model,
+            response_id=f"{request.prompt.version}:{request.role.value}",
+            usage={"input_tokens": 0, "output_tokens": 0, "recorded": True},
+        )
+
+
+async def decide_model_backed_tribunal(
+    *,
+    run: dict[str, Any],
+    comparison: dict[str, Any] | None,
+    model_client: TribunalModelClient,
+    prompt_version: str = DEFAULT_TRIBUNAL_PROMPT_VERSION,
+) -> TribunalDraft:
+    """Run the prompt-versioned Tribunal orchestration through a model client.
+
+    Model output never gets trusted directly. Each role response is shape-checked
+    and converted into the same persisted findings/arguments as the deterministic
+    path. The deterministic Tribunal remains a safety floor: missing or
+    non-reproducible comparison evidence still blocks even if the Judge model
+    attempts to approve.
+    """
+    prompts = default_tribunal_prompt_versions(prompt_version)
+    deterministic_floor = decide_tribunal(run=run, comparison=comparison)
+    evidence = {
+        "run": run,
+        "comparison": comparison,
+        "deterministic_floor": {
+            "outcome": deterministic_floor.outcome.value,
+            "primary_reason": deterministic_floor.primary_reason,
+            "summary": deterministic_floor.summary,
+        },
+    }
+    findings: list[TribunalFindingDraft] = []
+    arguments: list[TribunalArgumentDraft] = []
+    model_calls: list[dict[str, Any]] = []
+    try:
+        for role in (
+            TribunalAgentRole.HISTORIAN,
+            TribunalAgentRole.PROSECUTOR,
+            TribunalAgentRole.DEFENDER,
+            TribunalAgentRole.AUDITOR,
+            TribunalAgentRole.ECONOMIST,
+        ):
+            response = await model_client.complete(
+                TribunalModelRequest(
+                    role=role,
+                    round=TribunalRound.EVIDENCE,
+                    prompt=prompts[role],
+                    evidence=evidence,
+                )
+            )
+            model_calls.append(
+                _model_call_summary(role=role, response=response, prompt=prompts[role])
+            )
+            findings.append(_finding_from_model(role, response))
+            arguments.append(_argument_from_model(role, TribunalRound.DEBATE, response))
+
+        judge_response = await model_client.complete(
+            TribunalModelRequest(
+                role=TribunalAgentRole.JUDGE,
+                round=TribunalRound.VERDICT,
+                prompt=prompts[TribunalAgentRole.JUDGE],
+                evidence={
+                    **evidence,
+                    "findings": [
+                        finding.evidence | {"message": finding.message} for finding in findings
+                    ],
+                    "arguments": [
+                        argument.evidence | {"message": argument.message} for argument in arguments
+                    ],
+                },
+            )
+        )
+        model_calls.append(
+            _model_call_summary(
+                role=TribunalAgentRole.JUDGE,
+                response=judge_response,
+                prompt=prompts[TribunalAgentRole.JUDGE],
+            )
+        )
+        outcome = TribunalVerdictOutcome(_required_str(judge_response.content, "outcome"))
+        primary_reason = _bounded_text(judge_response.content.get("primary_reason"))
+        dissent = _optional_dict(judge_response.content.get("dissent"))
+    except (ValueError, TribunalModelOutputError) as invalid:
+        return _blocked_for_model_output(run, comparison, prompt_version, str(invalid))
+
+    floor_blockers = [
+        finding
+        for finding in deterministic_floor.findings
+        if finding.severity is TribunalFindingSeverity.BLOCKER
+    ]
+    if floor_blockers:
+        outcome = TribunalVerdictOutcome.BLOCKED
+        primary_reason = floor_blockers[0].message
+        dissent = {
+            **dissent,
+            "deterministic_floor_override": True,
+            "model_judge_outcome": _required_str(judge_response.content, "outcome"),
+        }
+
+    auditor_blockers = [
+        finding
+        for finding in findings
+        if finding.agent_role is TribunalAgentRole.AUDITOR
+        and finding.severity is TribunalFindingSeverity.BLOCKER
+    ]
+    if auditor_blockers:
+        outcome = TribunalVerdictOutcome.BLOCKED
+        primary_reason = auditor_blockers[0].message
+        dissent = {
+            **dissent,
+            "auditor_model_override": True,
+            "model_judge_outcome": _required_str(judge_response.content, "outcome"),
+        }
+
+    blockers = [
+        finding for finding in findings if finding.severity is TribunalFindingSeverity.BLOCKER
+    ]
+    warnings = [
+        finding for finding in findings if finding.severity is TribunalFindingSeverity.WARNING
+    ]
+    arguments.append(
+        TribunalArgumentDraft(
+            round=TribunalRound.VERDICT,
+            agent_role=TribunalAgentRole.JUDGE,
+            stance=_stance_for_outcome(outcome),
+            message=primary_reason,
+            evidence={
+                "outcome": outcome.value,
+                "mode": TribunalMode.MODEL_BACKED.value,
+                "prompt_version": prompt_version,
+                "model_response": _model_call_summary(
+                    role=TribunalAgentRole.JUDGE,
+                    response=judge_response,
+                    prompt=prompts[TribunalAgentRole.JUDGE],
+                ),
+            },
+        )
+    )
+    return TribunalDraft(
+        outcome=outcome,
+        primary_reason=primary_reason,
+        findings=tuple(findings),
+        arguments=tuple(arguments),
+        dissent=dissent,
+        evidence={
+            "run": run,
+            "comparison": comparison,
+            "mode": TribunalMode.MODEL_BACKED.value,
+            "prompt_version": prompt_version,
+            "model_calls": model_calls,
+        },
+        summary={
+            "mode": TribunalMode.MODEL_BACKED.value,
+            "prompt_version": prompt_version,
+            "agent_count": len(TribunalAgentRole),
+            "finding_count": len(findings),
+            "argument_count": len(arguments),
+            "blocker_count": len(blockers),
+            "warning_count": len(warnings),
+            "outcome": outcome.value,
+            "model_call_count": len(model_calls),
+        },
+    )
+
+
 async def create_or_get_tribunal_session(
     db: AsyncSession,
     *,
     run: EvaluationRun,
     comparison: ComparisonReport | None,
     created_by: str | None = None,
+    tribunal_config: dict[str, Any] | None = None,
+    model_client: TribunalModelClient | None = None,
 ) -> tuple[TribunalPersistenceBundle, bool]:
     existing = await get_persisted_tribunal_session(db, run_id=run.id, project_id=run.project_id)
     if existing is not None:
         return existing, False
 
-    draft = decide_tribunal(run=_run_evidence(run), comparison=_comparison_evidence(comparison))
+    config = (
+        validate_tribunal_config({"tribunal": tribunal_config})
+        if tribunal_config is not None
+        else validate_tribunal_config({})
+    )
+    run_evidence = _run_evidence(run)
+    comparison_evidence = _comparison_evidence(comparison)
+    if config.get("mode") == TribunalMode.MODEL_BACKED.value:
+        client = model_client or RecordedTribunalModelClient(
+            provider=str(config.get("model_provider", "recorded")),
+            model=str(config.get("model", "tribunal-recorded-v1")),
+        )
+        draft = await decide_model_backed_tribunal(
+            run=run_evidence,
+            comparison=comparison_evidence,
+            model_client=client,
+            prompt_version=str(config.get("prompt_version", DEFAULT_TRIBUNAL_PROMPT_VERSION)),
+        )
+    else:
+        draft = decide_tribunal(run=run_evidence, comparison=comparison_evidence)
     now = datetime.now(UTC)
     tribunal = TribunalSession(
         id=new_sortable_id(),
@@ -529,6 +858,223 @@ def _number(value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return 0.0
     return float(value)
+
+
+def _recorded_role_response(role: TribunalAgentRole, evidence: dict[str, Any]) -> dict[str, Any]:
+    comparison = evidence.get("comparison")
+    summary = comparison.get("summary", {}) if isinstance(comparison, dict) else {}
+    run = evidence.get("run", {})
+    pass_rate = _number(summary.get("pass_rate"))
+    regression_count = int(summary.get("regression_count") or 0)
+    reproducible = bool(summary.get("reproducible", False))
+    failed_count = int(run.get("failed_count") or 0) if isinstance(run, dict) else 0
+    if role is TribunalAgentRole.JUDGE:
+        floor = evidence.get("deterministic_floor", {})
+        floor_outcome = floor.get("outcome") if isinstance(floor, dict) else None
+        if floor_outcome == TribunalVerdictOutcome.BLOCKED.value:
+            return {
+                "outcome": TribunalVerdictOutcome.BLOCKED.value,
+                "primary_reason": str(floor.get("primary_reason") or "Evidence failed audit."),
+                "dissent": {"deterministic_floor_override": True},
+            }
+        if failed_count > 0 or pass_rate < 1.0 or regression_count > 0:
+            return {
+                "outcome": TribunalVerdictOutcome.CONDITIONAL.value,
+                "primary_reason": "Recorded Judge requires review of quality warnings.",
+                "dissent": {"quality_review_required": True},
+            }
+        return {
+            "outcome": TribunalVerdictOutcome.APPROVED.value,
+            "primary_reason": "Recorded Judge approves the clean, reproducible run.",
+            "dissent": {},
+        }
+    if role is TribunalAgentRole.AUDITOR and comparison is None:
+        return {
+            "severity": TribunalFindingSeverity.BLOCKER.value,
+            "subject": "evidence",
+            "message": "Comparison evidence is missing, so the Tribunal cannot approve the run.",
+            "stance": TribunalArgumentStance.SUPPORTS_BLOCK.value,
+            "argument": "Approval requires a comparison report.",
+        }
+    if role is TribunalAgentRole.AUDITOR and not reproducible:
+        return {
+            "severity": TribunalFindingSeverity.BLOCKER.value,
+            "subject": "reproducibility",
+            "message": "The comparison report does not claim reproducibility.",
+            "stance": TribunalArgumentStance.SUPPORTS_BLOCK.value,
+            "argument": "Non-reproducible evidence cannot support release approval.",
+        }
+    if role is TribunalAgentRole.PROSECUTOR and (
+        failed_count > 0 or pass_rate < 1.0 or regression_count > 0
+    ):
+        return {
+            "severity": TribunalFindingSeverity.WARNING.value,
+            "subject": "quality",
+            "message": "The candidate has failures, regressions or an incomplete pass rate.",
+            "stance": TribunalArgumentStance.SUPPORTS_CONDITIONAL.value,
+            "argument": "Quality evidence requires human review before approval.",
+        }
+    if role is TribunalAgentRole.DEFENDER:
+        clean = pass_rate >= 1.0 and failed_count == 0 and regression_count == 0
+        return {
+            "severity": TribunalFindingSeverity.INFO.value,
+            "subject": "defense",
+            "message": (
+                "The defense found no recorded evidence against approval."
+                if clean
+                else "The defense recommends targeted review instead of automatic rejection."
+            ),
+            "stance": (
+                TribunalArgumentStance.SUPPORTS_APPROVAL.value
+                if clean
+                else TribunalArgumentStance.SUPPORTS_CONDITIONAL.value
+            ),
+            "argument": (
+                "The run is clean on recorded quality evidence."
+                if clean
+                else "The candidate may still be acceptable after review of flagged evidence."
+            ),
+        }
+    if role is TribunalAgentRole.ECONOMIST:
+        return {
+            "severity": TribunalFindingSeverity.INFO.value,
+            "subject": "cost",
+            "message": "No cost anomaly was detected by the recorded Tribunal client.",
+            "stance": TribunalArgumentStance.SUPPORTS_APPROVAL.value,
+            "argument": "No provided cost evidence argues against release.",
+        }
+    return {
+        "severity": TribunalFindingSeverity.INFO.value,
+        "subject": "run",
+        "message": "The recorded Tribunal client summarized the available run context.",
+        "stance": TribunalArgumentStance.SUPPORTS_APPROVAL.value,
+        "argument": "The run has enough recorded context for debate.",
+    }
+
+
+def _finding_from_model(
+    role: TribunalAgentRole, response: TribunalModelResponse
+) -> TribunalFindingDraft:
+    return TribunalFindingDraft(
+        agent_role=role,
+        severity=TribunalFindingSeverity(_required_str(response.content, "severity")),
+        subject=_bounded_text(response.content.get("subject"), limit=64),
+        message=_bounded_text(response.content.get("message")),
+        evidence={
+            "mode": TribunalMode.MODEL_BACKED.value,
+            "model_response": {
+                "provider": response.provider,
+                "model": response.model,
+                "response_id": response.response_id,
+                "usage": response.usage,
+            },
+        },
+    )
+
+
+def _argument_from_model(
+    role: TribunalAgentRole, round_: TribunalRound, response: TribunalModelResponse
+) -> TribunalArgumentDraft:
+    return TribunalArgumentDraft(
+        round=round_,
+        agent_role=role,
+        stance=TribunalArgumentStance(_required_str(response.content, "stance")),
+        message=_bounded_text(response.content.get("argument")),
+        evidence={
+            "mode": TribunalMode.MODEL_BACKED.value,
+            "finding_message": _bounded_text(response.content.get("message")),
+            "model_response": {
+                "provider": response.provider,
+                "model": response.model,
+                "response_id": response.response_id,
+                "usage": response.usage,
+            },
+        },
+    )
+
+
+def _blocked_for_model_output(
+    run: dict[str, Any],
+    comparison: dict[str, Any] | None,
+    prompt_version: str,
+    reason: str,
+) -> TribunalDraft:
+    finding = TribunalFindingDraft(
+        agent_role=TribunalAgentRole.AUDITOR,
+        severity=TribunalFindingSeverity.BLOCKER,
+        subject="model_output",
+        message="A Tribunal model response failed schema validation.",
+        evidence={"reason": reason},
+    )
+    argument = TribunalArgumentDraft(
+        round=TribunalRound.VERDICT,
+        agent_role=TribunalAgentRole.JUDGE,
+        stance=TribunalArgumentStance.SUPPORTS_BLOCK,
+        message="The Tribunal failed closed because model output was invalid.",
+        evidence={"outcome": TribunalVerdictOutcome.BLOCKED.value},
+    )
+    return TribunalDraft(
+        outcome=TribunalVerdictOutcome.BLOCKED,
+        primary_reason=finding.message,
+        findings=(finding,),
+        arguments=(argument,),
+        dissent={"model_output_invalid": True},
+        evidence={
+            "run": run,
+            "comparison": comparison,
+            "mode": TribunalMode.MODEL_BACKED.value,
+            "prompt_version": prompt_version,
+            "model_output_error": reason,
+        },
+        summary={
+            "mode": TribunalMode.MODEL_BACKED.value,
+            "prompt_version": prompt_version,
+            "agent_count": len(TribunalAgentRole),
+            "finding_count": 1,
+            "argument_count": 1,
+            "blocker_count": 1,
+            "warning_count": 0,
+            "outcome": TribunalVerdictOutcome.BLOCKED.value,
+            "model_call_count": 0,
+        },
+    )
+
+
+def _model_call_summary(
+    *,
+    role: TribunalAgentRole,
+    response: TribunalModelResponse,
+    prompt: TribunalPromptVersion,
+) -> dict[str, Any]:
+    return {
+        "role": role.value,
+        "provider": response.provider,
+        "model": response.model,
+        "response_id": response.response_id,
+        "prompt_version": prompt.version,
+        "usage": response.usage,
+    }
+
+
+def _required_str(content: dict[str, Any], key: str) -> str:
+    value = content.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise TribunalModelOutputError(f"{key} must be a non-empty string")
+    return value.strip()
+
+
+def _bounded_text(value: Any, *, limit: int = 1024) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise TribunalModelOutputError("text fields must be non-empty strings")
+    return value.strip()[:limit]
+
+
+def _optional_dict(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise TribunalModelOutputError("dissent must be an object")
+    return value
 
 
 class TribunalSession(Base):

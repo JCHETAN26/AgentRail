@@ -15,8 +15,10 @@ from services.api.tests.test_execution_api import create_agent_version, create_f
 pytestmark = pytest.mark.integration
 
 
-async def create_run(tenant: Tenant, *, count: int = 16) -> dict[str, object]:
-    suite = await create_frozen_suite(tenant, count=count)
+async def create_run(
+    tenant: Tenant, *, count: int = 16, thresholds: dict[str, object] | None = None
+) -> dict[str, object]:
+    suite = await create_frozen_suite(tenant, count=count, thresholds=thresholds)
     candidate = await create_agent_version(tenant, "Tribunal Candidate")
     response = await tenant.client.post(
         "/api/v1/evaluation-runs",
@@ -105,6 +107,29 @@ class TestTribunalApi:
         assert created.status_code == 201, created.text
         assert created.json()["outcome"] == "blocked"
         assert created.json()["summary"]["blocker_count"] == 1
+
+    async def test_manual_creation_preserves_model_backed_suite_mode(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(
+            tenant,
+            thresholds={
+                "task_success": 1.0,
+                "tribunal": {
+                    "enabled": True,
+                    "mode": "model_backed",
+                    "prompt_version": "tribunal-roles-v2",
+                },
+            },
+        )
+        await attach_comparison(session_factory, run)
+
+        created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+
+        assert created.status_code == 201, created.text
+        assert created.json()["summary"]["mode"] == "model_backed"
+        assert created.json()["summary"]["prompt_version"] == "tribunal-roles-v2"
+        assert created.json()["summary"]["model_call_count"] == 6
 
     async def test_cannot_read_or_create_another_tenants_tribunal(
         self,

@@ -962,7 +962,10 @@ class EvaluationRunRunner:
             tribunal_summary: dict[str, Any] = {}
             if suite is not None and tribunal_enabled(suite.thresholds):
                 tribunal, _created = await create_or_get_tribunal_session(
-                    session, run=run, comparison=comparison
+                    session,
+                    run=run,
+                    comparison=comparison,
+                    tribunal_config=suite.thresholds.get("tribunal"),
                 )
                 tribunal_summary = {
                     "tribunal_session_id": tribunal.session.id,
