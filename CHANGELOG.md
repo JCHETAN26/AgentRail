@@ -60,6 +60,8 @@ All notable changes to AgentRail are recorded here. The format follows
   application tenancy checks.
 - Authorised API principals and tenant-specific worker execution/aggregation paths now bind the
   transaction-local Postgres tenant context used by RLS policies.
+- Model-backed Tribunal calls now receive a sandboxed evidence envelope that removes raw untrusted
+  strings from run/comparison evidence and prompt overrides before model prompts are assembled.
 
 ### Added — Phase 14: observability, SLOs and operations
 
