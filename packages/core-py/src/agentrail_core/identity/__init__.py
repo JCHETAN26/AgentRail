@@ -47,6 +47,7 @@ from agentrail_core.tribunal import (
     TribunalArgument,
     TribunalBlackboardEntry,
     TribunalFinding,
+    TribunalReplay,
     TribunalSession,
     TribunalVerdict,
 )
@@ -84,6 +85,7 @@ __all__ = [
     "TribunalArgument",
     "TribunalBlackboardEntry",
     "TribunalFinding",
+    "TribunalReplay",
     "TribunalSession",
     "TribunalVerdict",
     "User",

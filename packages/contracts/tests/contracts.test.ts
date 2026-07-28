@@ -88,6 +88,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/trajectories/{trajectory_id}/checkpoints',
       '/api/v1/trajectories/{trajectory_id}/replays',
       '/api/v1/trajectories/{trajectory_id}/steps',
+      '/api/v1/tribunal-sessions/{tribunal_session_id}/replays',
       '/healthz',
       '/readyz',
     ]);
@@ -128,6 +129,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/trajectories/{trajectory_id}/checkpoints',
       '/api/v1/trajectories/{trajectory_id}/replays',
       '/api/v1/trajectories/{trajectory_id}/steps',
+      '/api/v1/tribunal-sessions/{tribunal_session_id}/replays',
     ]);
     // The GitHub webhook is deliberately not tenant-scoped: it carries no
     // session and names no tenant. Its authenticity comes from the HMAC

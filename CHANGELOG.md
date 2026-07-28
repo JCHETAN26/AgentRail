@@ -29,6 +29,10 @@ All notable changes to AgentRail are recorded here. The format follows
 - OpenAI-compatible Responses API adapter for live Tribunal role calls, configured with
   `AGENTRAIL_OPENAI_API_KEY`, `AGENTRAIL_OPENAI_BASE_URL` and
   `AGENTRAIL_TRIBUNAL_MODEL_TIMEOUT_SECONDS`; missing credentials fail with a validation error.
+- Forkable Tribunal replay persistence with `POST`/`GET`
+  `/api/v1/tribunal-sessions/{tribunal_session_id}/replays`, recorded-only replay execution,
+  prompt/model override metadata, source/replay digests, divergence summaries, redacted requests and
+  safety summaries proving the source Tribunal was not mutated.
 - Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
   evidence blocks approval.
 - OpenAPI and generated TypeScript contracts for Tribunal responses.

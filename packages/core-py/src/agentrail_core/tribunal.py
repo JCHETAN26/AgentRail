@@ -80,12 +80,25 @@ class TribunalMode(StrEnum):
     MODEL_BACKED = "model_backed"
 
 
+class TribunalReplayMode(StrEnum):
+    RECORDED = "recorded"
+    FORKED = "forked"
+
+
+class TribunalReplayState(StrEnum):
+    CREATED = "CREATED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 _AGENT_ROLES = ", ".join(f"'{role.value}'" for role in TribunalAgentRole)
 _ROUNDS = ", ".join(f"'{round_.value}'" for round_ in TribunalRound)
 _FINDING_SEVERITIES = ", ".join(f"'{severity.value}'" for severity in TribunalFindingSeverity)
 _ARGUMENT_STANCES = ", ".join(f"'{stance.value}'" for stance in TribunalArgumentStance)
 _VERDICT_OUTCOMES = ", ".join(f"'{outcome.value}'" for outcome in TribunalVerdictOutcome)
 _SESSION_STATES = ", ".join(f"'{state.value}'" for state in TribunalSessionState)
+_REPLAY_MODES = ", ".join(f"'{mode.value}'" for mode in TribunalReplayMode)
+_REPLAY_STATES = ", ".join(f"'{state.value}'" for state in TribunalReplayState)
 DEFAULT_TRIBUNAL_PROMPT_VERSION = "tribunal-roles-v1"
 
 
@@ -202,6 +215,7 @@ def tribunal_enabled(thresholds: dict[str, Any]) -> bool:
 
 def default_tribunal_prompt_versions(
     version: str = DEFAULT_TRIBUNAL_PROMPT_VERSION,
+    prompt_overrides: dict[TribunalAgentRole, str] | None = None,
 ) -> dict[TribunalAgentRole, TribunalPromptVersion]:
     """Return immutable prompt metadata for the built-in Tribunal role set."""
     shared_schema = {
@@ -248,6 +262,8 @@ def default_tribunal_prompt_versions(
             "binding and model output is untrusted."
         ),
     }
+    if prompt_overrides:
+        prompts = {**prompts, **prompt_overrides}
     return {
         role: TribunalPromptVersion(
             role=role,
@@ -590,6 +606,7 @@ async def decide_model_backed_tribunal(
     comparison: dict[str, Any] | None,
     model_client: TribunalModelClient,
     prompt_version: str = DEFAULT_TRIBUNAL_PROMPT_VERSION,
+    prompt_overrides: dict[TribunalAgentRole, str] | None = None,
 ) -> TribunalDraft:
     """Run the prompt-versioned Tribunal orchestration through a model client.
 
@@ -599,7 +616,7 @@ async def decide_model_backed_tribunal(
     non-reproducible comparison evidence still blocks even if the Judge model
     attempts to approve.
     """
-    prompts = default_tribunal_prompt_versions(prompt_version)
+    prompts = default_tribunal_prompt_versions(prompt_version, prompt_overrides=prompt_overrides)
     deterministic_floor = decide_tribunal(run=run, comparison=comparison)
     evidence = {
         "run": run,
@@ -608,6 +625,9 @@ async def decide_model_backed_tribunal(
             "outcome": deterministic_floor.outcome.value,
             "primary_reason": deterministic_floor.primary_reason,
             "summary": deterministic_floor.summary,
+        },
+        "prompt_overrides": {
+            role.value: prompt for role, prompt in (prompt_overrides or {}).items()
         },
     }
     findings: list[TribunalFindingDraft] = []
@@ -728,11 +748,15 @@ async def decide_model_backed_tribunal(
             "comparison": comparison,
             "mode": TribunalMode.MODEL_BACKED.value,
             "prompt_version": prompt_version,
+            "prompt_overrides": {
+                role.value: prompt for role, prompt in (prompt_overrides or {}).items()
+            },
             "model_calls": model_calls,
         },
         summary={
             "mode": TribunalMode.MODEL_BACKED.value,
             "prompt_version": prompt_version,
+            "prompt_override_roles": sorted(role.value for role in (prompt_overrides or {})),
             "agent_count": len(TribunalAgentRole),
             "finding_count": len(findings),
             "argument_count": len(arguments),
@@ -1246,6 +1270,56 @@ class TribunalSession(Base):
     completed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class TribunalReplay(Base):
+    __tablename__ = "tribunal_replays"
+    __table_args__ = (
+        CheckConstraint(f"mode IN ({_REPLAY_MODES})", name="ck_tribunal_replays_mode"),
+        CheckConstraint(f"state IN ({_REPLAY_STATES})", name="ck_tribunal_replays_state"),
+        CheckConstraint(f"outcome IN ({_VERDICT_OUTCOMES})", name="ck_tribunal_replays_outcome"),
+        Index("ix_tribunal_replays_session_id", "session_id"),
+        Index("ix_tribunal_replays_project_id", "project_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    session_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("tribunal_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    source_run_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("evaluation_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    mode: Mapped[TribunalReplayMode] = mapped_column(String(16), nullable=False)
+    state: Mapped[TribunalReplayState] = mapped_column(
+        String(16),
+        nullable=False,
+        default=TribunalReplayState.CREATED,
+        server_default=TribunalReplayState.CREATED.value,
+    )
+    outcome: Mapped[TribunalVerdictOutcome] = mapped_column(String(32), nullable=False)
+    primary_reason: Mapped[str] = mapped_column(String(1024), nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    replay_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    result: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    divergence: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    safety_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    created_by: Mapped[str | None] = mapped_column(String(26), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class TribunalBlackboardEntry(Base):
