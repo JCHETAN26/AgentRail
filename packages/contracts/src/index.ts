@@ -80,6 +80,11 @@ export type TribunalFindingSeverity = Schemas['TribunalFindingSeverity'];
 export type TribunalArgumentStance = Schemas['TribunalArgumentStance'];
 export type TribunalRound = Schemas['TribunalRound'];
 export type TribunalSessionState = Schemas['TribunalSessionState'];
+export type CreateTribunalReplayRequest = Schemas['CreateTribunalReplayRequest'];
+export type TribunalReplay = Schemas['TribunalReplayResponse'];
+export type TribunalReplayListResponse = Schemas['TribunalReplayListResponse'];
+export type TribunalReplayMode = Schemas['TribunalReplayMode'];
+export type TribunalReplayState = Schemas['TribunalReplayState'];
 
 /** Trajectory trace explorer. */
 export type RunItemTrace = Schemas['RunItemTraceResponse'];

@@ -212,7 +212,9 @@ Tribunal sessions can also be replayed without mutating the source verdict. Reco
 replays reproduce the source digest through the recorded model client. Forked Tribunal replays accept
 explicit prompt-version, role-prompt and recorded-model override metadata, then persist the replayed
 outcome, source/replay digests, divergence summary, redacted request and a safety summary that proves
-no live provider was called and the original session was not changed.
+no live provider was called and the original session was not changed. The console Tribunal inspector
+lists replay history and can create recorded replays or Defender-prompt forks, then surfaces digest
+and verdict divergence for the latest replay.
 
 ## Replay And Time Travel
 
@@ -232,6 +234,5 @@ rollback reasons preserved in release history.
 
 ## Not built yet
 
-Tribunal replay UI round-fork visualization, live-provider Tribunal replay, external OpenTelemetry
-export, remaining security hardening (Phase 15), real deploy provider integration and production
-packaging.
+Live-provider Tribunal replay, external OpenTelemetry export, remaining security hardening
+(Phase 15), real deploy provider integration and production packaging.

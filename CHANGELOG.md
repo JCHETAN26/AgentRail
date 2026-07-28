@@ -33,6 +33,8 @@ All notable changes to AgentRail are recorded here. The format follows
   `/api/v1/tribunal-sessions/{tribunal_session_id}/replays`, recorded-only replay execution,
   prompt/model override metadata, source/replay digests, divergence summaries, redacted requests and
   safety summaries proving the source Tribunal was not mutated.
+- Console Tribunal replay controls for listing replay history, running recorded replays and forking
+  the Defender prompt while surfacing digest/verdict divergence.
 - Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
   evidence blocks approval.
 - OpenAPI and generated TypeScript contracts for Tribunal responses.

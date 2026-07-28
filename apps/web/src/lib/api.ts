@@ -17,6 +17,7 @@ import type {
   ApprovalState,
   AuthProviderInfo,
   CreateJobRequest,
+  CreateTribunalReplayRequest,
   CreatedApiKey,
   DecideApprovalRequest,
   Job,
@@ -26,6 +27,8 @@ import type {
   ProblemDetail,
   Project,
   Role,
+  TribunalReplay,
+  TribunalReplayListResponse,
   TribunalSession,
 } from '@agentrail/contracts';
 import { CORRELATION_HEADER, IDEMPOTENCY_HEADER } from '@agentrail/contracts';
@@ -211,6 +214,27 @@ export async function createTribunalSession(runId: string): Promise<TribunalSess
   return request<TribunalSession>(`/api/v1/evaluation-runs/${encodeURIComponent(runId)}/tribunal`, {
     method: 'POST',
   });
+}
+
+export async function listTribunalReplays(
+  tribunalSessionId: string,
+): Promise<TribunalReplayListResponse> {
+  return request<TribunalReplayListResponse>(
+    `/api/v1/tribunal-sessions/${encodeURIComponent(tribunalSessionId)}/replays`,
+  );
+}
+
+export async function createTribunalReplay(
+  tribunalSessionId: string,
+  body: CreateTribunalReplayRequest,
+): Promise<TribunalReplay> {
+  return request<TribunalReplay>(
+    `/api/v1/tribunal-sessions/${encodeURIComponent(tribunalSessionId)}/replays`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 // --- Approvals --------------------------------------------------------------
