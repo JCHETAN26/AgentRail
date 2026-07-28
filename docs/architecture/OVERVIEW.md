@@ -173,6 +173,19 @@ versioned by digest, terminal run items are scored during aggregation, and compa
 overall, evaluator-level and category-level metrics. Failed or errored items remain in the
 denominator, so a comparison cannot look better by dropping execution errors.
 
+## Multi-Agent Safety Tribunal
+
+Phase 8 adds the deterministic backend foundation for the Safety Tribunal. A Tribunal session is
+linked one-to-one with an evaluation run and persists a six-role blackboard: Prosecutor, Defender,
+Auditor, Economist, Historian and Judge. The first slice is deliberately model-free: it reads
+evaluation-run and comparison-report evidence, records findings and arguments, then writes a Judge
+verdict of `approved`, `conditional` or `blocked`.
+
+The Auditor has override power in the deterministic rules. Missing comparison evidence or a
+non-reproducible comparison report creates a blocker even when the Defender supports approval. This
+gives the platform the Tribunal persistence and API contract without introducing nondeterministic
+model calls into CI.
+
 ## Replay And Time Travel
 
 The replay/time-travel slice adds durable replay records for persisted trajectories. A recorded
@@ -191,5 +204,6 @@ rollback reasons preserved in release history.
 
 ## Not built yet
 
-The updated Phase 8 Multi-Agent Safety Tribunal, external OpenTelemetry export, remaining security
-hardening (Phase 15), real deploy provider integration and production packaging.
+Tribunal dashboard display, suite-config invocation, live model-backed Tribunal debate, release-gate
+binding for required Tribunal verdicts, external OpenTelemetry export, remaining security hardening
+(Phase 15), real deploy provider integration and production packaging.

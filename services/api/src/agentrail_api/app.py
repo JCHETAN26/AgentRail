@@ -34,6 +34,7 @@ from agentrail_api.routers import (
     organisations,
     release,
     trajectories,
+    tribunal,
 )
 from agentrail_api.settings import ApiSettings, api_settings
 from agentrail_core.correlation import CorrelationContext, new_correlation_id
@@ -160,6 +161,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     app.include_router(trajectories.router)
     app.include_router(approvals.router)
     app.include_router(release.router)
+    app.include_router(tribunal.router)
     app.include_router(integrations.router)
     app.include_router(jobs.router)
     _use_route_names_as_operation_ids(app)

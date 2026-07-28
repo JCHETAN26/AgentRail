@@ -11,8 +11,8 @@ organisation.
 What is still missing is stated plainly below: the durable quota ledger currently covers monthly
 evaluation item usage only, SBOM/provenance generation is still pending, and PostgreSQL row-level
 security (defence in depth beneath the application-level scoping) remains Phase 15 work. The updated
-Phase 8 Multi-Agent Safety Tribunal is not built yet, so tribunal-specific prompt-injection and
-evidence-sandboxing threats remain future work.
+Phase 8 Multi-Agent Safety Tribunal currently has a deterministic, model-free backend foundation.
+Live model-backed debate, prompt-versioning and evidence sandboxing remain future Tribunal work.
 
 ## Assets
 
@@ -71,6 +71,7 @@ evidence-sandboxing threats remain future work.
 | T25 | Passwordless dev sign-in reaches production       | **Mitigated**           | Three independent guards: `dev_auth_enabled` is false when deployed, the route rejects rather than advertising itself, and `ApiSettings` refuses to construct in a deployed environment without GitHub OAuth credentials. Tested.                                                                                                                                                                                                                                                                                           |
 | T26 | OAuth callback replayed or forged                 | **Mitigated**           | A random `state` is issued and only its digest is stored in an `HttpOnly` cookie for callback comparison; a mismatch is rejected. GitHub emails must be both `primary` and `verified`, and accounts match on `(provider, subject)` rather than email, so a reassigned address cannot inherit an account.                                                                                                                                                                                                                    |
 | T27 | Audit log tampered with or leaking secrets        | **Partially mitigated** | Audit events are append-only in application code and pass through the same redaction as the logger, so a token cannot be persisted. Organisation admins can prune events older than the configured retention window, scoped by organisation. Not yet mitigated: nothing at the database level prevents an operator with write access from editing rows.                                                                                                                                                                     |
+| T28 | Tribunal evidence causes prompt injection         | **Not applicable yet**  | The Tribunal foundation is deterministic and invokes no model. Run/comparison evidence is persisted as JSONB and exposed through authenticated, tenant-scoped APIs. This becomes live when model-backed specialist agents are added, at which point evidence sandboxing and prompt-versioning become required controls.                                                                                                                                                                                                     |
 
 ## Standing rules
 

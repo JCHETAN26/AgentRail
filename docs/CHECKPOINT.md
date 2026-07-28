@@ -6,13 +6,13 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 ## Current state
 
-|                |                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------ |
-| **Phase**      | Build-plan reconciliation after the Phase 8 Tribunal insertion                       |
-| **Status**     | In progress on branch `codex/align-updated-buildplan`                                |
-| **Base**       | `main` @ `f54b1a7` (GitHub Actions SHA-pinning slice merged)                         |
-| **Next phase** | Implement the updated Phase 8 Tribunal, or continue Phase 15 security after priority |
-| **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks  |
+|                |                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------- |
+| **Phase**      | Phase 8 Multi-Agent Safety Tribunal backend foundation                              |
+| **Status**     | In progress on branch `codex/p8-tribunal-foundation`                                |
+| **Base**       | `main` @ `ff72f53` (build-plan reconciliation slice merged)                         |
+| **Next phase** | Tribunal dashboard, suite-config invocation and release-gate binding                |
+| **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
 applied branch protection, Dependabot triage) in [#19](https://github.com/JCHETAN26/AgentRail/pull/19).
@@ -37,12 +37,13 @@ Phase 14's audit-retention slice shipped in PR
 [#50](https://github.com/JCHETAN26/AgentRail/pull/50).
 Phase 14's action-pinning slice shipped in PR
 [#51](https://github.com/JCHETAN26/AgentRail/pull/51).
+Build-plan reconciliation shipped in PR [#52](https://github.com/JCHETAN26/AgentRail/pull/52).
 
 `BUILDPLAN.md` was revised after PR #51. The new plan inserts **Phase 8 — Multi-Agent Safety
 Tribunal**, shifts replay/reliability/policy/release/canary/observability/security forward, and now
 names security and supply chain as **Phase 15**. PR labels before this checkpoint are historical
-labels from the old plan; the implementation has several later slices, but the new Tribunal phase is
-not built yet.
+labels from the old plan; the implementation has several later slices, and this branch backfills the
+new Tribunal phase's backend foundation.
 
 Merged branches through Phase 9 are deleted, local and remote. The repository does not
 auto-delete on merge, so each phase has to clean up after itself.
@@ -51,15 +52,14 @@ auto-delete on merge, so each phase has to clean up after itself.
 
 ## Read these first
 
-1. `BUILDPLAN.md` — current phase map; especially the new Phase 8 Tribunal and Phase 15 security
-2. `services/api/src/agentrail_api/security.py` — Redis-backed rate and replay guards
-3. `services/api/src/agentrail_api/dependencies.py` — authenticated caller rate-limit wiring
-4. `services/api/src/agentrail_api/routers/integrations.py` — GitHub webhook replay defence
-5. `.github/workflows/ci.yml` — `containers / scan`
-6. `docs/security/THREAT_MODEL.md`
-7. `services/api/src/agentrail_api/identity/service.py` — audit retention pruning
-8. `packages/core-py/src/agentrail_core/quotas.py` — durable quota period ledger
-9. `scripts/check_github_actions_pinned.py` — immutable workflow-action pinning guard
+1. `BUILDPLAN.md` — current phase map; especially Phase 8 Tribunal and Phase 15 security.
+2. `packages/core-py/src/agentrail_core/tribunal.py` — deterministic Tribunal decision logic and
+   persistence models.
+3. `services/api/src/agentrail_api/tribunal/service.py` — Tribunal create/fetch use cases.
+4. `services/api/src/agentrail_api/routers/tribunal.py` — Tribunal API surface.
+5. `docs/security/THREAT_MODEL.md`
+6. `services/api/src/agentrail_api/security.py` — Redis-backed rate and replay guards.
+7. `.github/workflows/ci.yml` — `containers / scan`.
 
 ---
 
@@ -161,7 +161,22 @@ auto-delete on merge, so each phase has to clean up after itself.
   filtering.
 - Added aggregation and tenant-isolation tests for comparison reads.
 
-## Phase 8 progress
+## Phase 8 Tribunal progress
+
+- Added deterministic Tribunal decision logic with six specialist roles: Prosecutor, Defender,
+  Auditor, Economist, Historian and Judge.
+- Added `TribunalSession`, `TribunalBlackboardEntry`, `TribunalFinding`, `TribunalArgument` and
+  `TribunalVerdict` persistence models with Alembic revision `0014_tribunal`.
+- Added idempotent `POST /api/v1/evaluation-runs/{run_id}/tribunal` and
+  `GET /api/v1/evaluation-runs/{run_id}/tribunal`.
+- The first foundation slice is deliberately model-free and deterministic. It reads evaluation-run
+  and comparison-report evidence, records a full blackboard, and makes missing/non-reproducible
+  comparison evidence block approval.
+- Auditor blocker findings override Defender approval, with dissent recorded on the verdict.
+- Added OpenAPI and generated TypeScript contracts plus core/API tests for clean approval,
+  conditional quality warnings, missing evidence and Auditor-overrides-Defender behavior.
+
+## Historical Phase 8 replay progress
 
 - Added `TrajectoryReplay` persistence model.
 - Added Alembic revision `0008_trajectory_replays`.
@@ -504,8 +519,9 @@ vacuous.
 
 - **No PostgreSQL row-level security.** Tenant scoping is enforced in the application and tested
   there; RLS as defence in depth is Phase 15.
-- **No Multi-Agent Safety Tribunal.** The updated build plan inserts this as Phase 8, but no
-  tribunal service, blackboard schema, specialist agent nodes, verdicts or dashboard exist yet.
+- **Tribunal is backend-only so far.** The deterministic Tribunal service, blackboard schema and
+  verdict APIs exist. Dashboard display, suite-config invocation, live model-backed debate,
+  prompt-versioning and release-gate binding remain.
 - **No SBOM/provenance artefacts yet.** Workflow actions are now SHA-pinned, but CI still does not
   emit SBOM or provenance evidence for built images.
 - **Quota coverage is partial.** Authenticated callers have short-lived Redis-backed rate limits,
@@ -614,11 +630,13 @@ Latest security/supply-chain branch checks, run locally on 2026-07-27:
 
 ## Next tasks
 
-1. Decide whether to backfill the updated Phase 8 Multi-Agent Safety Tribunal next.
-2. If continuing security first, proceed with Phase 15 PostgreSQL RLS defence in depth.
-3. Continue Phase 15 supply-chain hardening with SBOM/provenance generation.
+1. Wire Tribunal invocation from suite configuration after evaluator aggregation.
+2. Add the Tribunal tab/dashboard blackboard explorer.
+3. Bind required `blocked` Tribunal verdicts into release-gate decisions.
+4. Continue Phase 15 PostgreSQL RLS or SBOM/provenance after the Tribunal vertical slice.
 
-**Exit criteria:** cross-tenant tests pass across all surfaces; security workflows green; green PR.
+**Exit criteria:** Tribunal blackboard is visible in the dashboard, required Tribunal blockers bind
+release gates, cross-tenant tests pass across the Tribunal surface, and the PR is green.
 
 ---
 
