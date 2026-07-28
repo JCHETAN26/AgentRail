@@ -10,6 +10,7 @@ All notable changes to AgentRail are recorded here. The format follows
 
 - Redis-backed fixed-window rate limiting for authenticated users and API keys.
 - Durable monthly evaluation-item quota ledger per organisation.
+- Admin-triggered audit retention pruning for expired organisation audit events.
 - GitHub webhook replay defence using `X-GitHub-Delivery` reservations.
 - Console security headers now include CSP and Permissions-Policy.
 - CI container check renamed to `containers / scan` and verifies pinned runtime inputs plus non-root

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import httpx
 import pytest
 from api_test_support import Tenant, sign_in
@@ -11,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentrail_api.app import attach_infrastructure, create_app
 from agentrail_api.settings import ApiSettings
-from agentrail_core.identity import ApiKey, Role
+from agentrail_core.identity import ApiKey, AuditEvent, Role
+from agentrail_core.ids import new_sortable_id
 
 pytestmark = pytest.mark.integration
 
@@ -362,3 +365,86 @@ class TestAuditLog:
         )
 
         assert all(event["correlation_id"] for event in events.json()["items"])
+
+    async def test_admin_can_prune_expired_audit_events(
+        self,
+        integration_app: FastAPI,
+        tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        original_settings = integration_app.state.settings
+        integration_app.state.settings = original_settings.model_copy(
+            update={"audit_event_retention_days": 30}
+        )
+        old_id = new_sortable_id()
+        fresh_id = new_sortable_id()
+        try:
+            async with session_factory() as session:
+                session.add_all(
+                    [
+                        AuditEvent(
+                            id=old_id,
+                            organisation_id=tenant.organisation_id,
+                            actor_type="system",
+                            actor_id=None,
+                            action="retention.old",
+                            created_at=datetime.now(UTC) - timedelta(days=45),
+                        ),
+                        AuditEvent(
+                            id=fresh_id,
+                            organisation_id=tenant.organisation_id,
+                            actor_type="system",
+                            actor_id=None,
+                            action="retention.fresh",
+                            created_at=datetime.now(UTC) - timedelta(days=2),
+                        ),
+                    ]
+                )
+                await session.commit()
+
+            response = await tenant.client.delete(
+                f"/api/v1/organisations/{tenant.organisation_id}/audit-events/expired"
+            )
+        finally:
+            integration_app.state.settings = original_settings
+
+        assert response.status_code == 200, response.text
+        assert response.json()["retention_days"] == 30
+        assert response.json()["deleted_count"] == 1
+
+        async with session_factory() as session:
+            old_event = await session.get(AuditEvent, old_id)
+            fresh_event = await session.get(AuditEvent, fresh_id)
+            pruned_event = await session.scalar(
+                select(AuditEvent).where(
+                    AuditEvent.organisation_id == tenant.organisation_id,
+                    AuditEvent.action == "audit_events.pruned",
+                )
+            )
+        assert old_event is None
+        assert fresh_event is not None
+        assert pruned_event is not None
+        assert pruned_event.actor_type == "user"
+        assert pruned_event.context["retention_days"] == 30
+        assert pruned_event.context["deleted_count"] == 1
+        audit_cutoff = datetime.fromisoformat(pruned_event.context["cutoff"])
+        response_cutoff = datetime.fromisoformat(response.json()["cutoff"].replace("Z", "+00:00"))
+        assert audit_cutoff == response_cutoff
+
+    async def test_developer_cannot_prune_audit_events(
+        self, integration_app: FastAPI, tenant: Tenant
+    ) -> None:
+        developer = await sign_in(integration_app, "audit-dev@example.com")
+        try:
+            granted = await tenant.client.post(
+                f"/api/v1/organisations/{tenant.organisation_id}/members",
+                json={"email": "audit-dev@example.com", "role": Role.DEVELOPER.value},
+            )
+            response = await developer.delete(
+                f"/api/v1/organisations/{tenant.organisation_id}/audit-events/expired"
+            )
+        finally:
+            await developer.aclose()
+
+        assert granted.status_code == 201, granted.text
+        assert response.status_code == 403

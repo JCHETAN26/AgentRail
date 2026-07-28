@@ -127,3 +127,9 @@ class AuditEventResponse(BaseModel):
     target_id: str | None
     correlation_id: str | None
     created_at: datetime
+
+
+class AuditRetentionResponse(BaseModel):
+    retention_days: int
+    cutoff: datetime
+    deleted_count: int

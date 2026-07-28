@@ -7,18 +7,20 @@ permission check.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, status
 from pydantic import BaseModel
 
 from agentrail_api.auth.service import principal_for_organisation
-from agentrail_api.dependencies import ActorDep, SessionDep
+from agentrail_api.dependencies import ActorDep, SessionDep, SettingsDep
 from agentrail_api.identity import service
 from agentrail_api.identity.schemas import (
     AddMemberRequest,
     ApiKeyResponse,
     AuditEventResponse,
+    AuditRetentionResponse,
     CreateApiKeyRequest,
     CreatedApiKeyResponse,
     CreateOrganisationRequest,
@@ -268,4 +270,28 @@ async def list_audit_events(
     events = await service.list_audit_events(session, principal, limit=limit)
     return AuditEventListResponse(
         items=[AuditEventResponse.model_validate(event) for event in events]
+    )
+
+
+@router.delete(
+    "/{organisation_id}/audit-events/expired",
+    response_model=AuditRetentionResponse,
+    summary="Prune expired audit events",
+    responses=_ERRORS,
+)
+async def prune_expired_audit_events(
+    organisation_id: OrganisationId,
+    actor: ActorDep,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> AuditRetentionResponse:
+    principal = await principal_for_organisation(session, actor, organisation_id)
+    cutoff, deleted_count = await service.prune_expired_audit_events(
+        session, actor, principal, settings, now=datetime.now(UTC)
+    )
+    await session.commit()
+    return AuditRetentionResponse(
+        retention_days=settings.audit_event_retention_days,
+        cutoff=cutoff,
+        deleted_count=deleted_count,
     )

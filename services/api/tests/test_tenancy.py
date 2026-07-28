@@ -69,6 +69,15 @@ class TestOrganisationIsolation:
 
         assert response.status_code == 403
 
+    async def test_cannot_prune_another_organisations_audit_log(
+        self, tenant: Tenant, other_tenant: Tenant
+    ) -> None:
+        response = await tenant.client.delete(
+            f"/api/v1/organisations/{other_tenant.organisation_id}/audit-events/expired"
+        )
+
+        assert response.status_code == 403
+
     async def test_a_nonexistent_organisation_is_indistinguishable_from_someone_elses(
         self, tenant: Tenant, other_tenant: Tenant
     ) -> None:
