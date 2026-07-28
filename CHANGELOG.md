@@ -58,6 +58,8 @@ All notable changes to AgentRail are recorded here. The format follows
 - PostgreSQL row-level security migration `0016_postgres_rls` adds tenant-context policies across
   organisation-owned, project-owned and project-child tables as defence in depth beneath the
   application tenancy checks.
+- Authorised API principals and tenant-specific worker execution/aggregation paths now bind the
+  transaction-local Postgres tenant context used by RLS policies.
 
 ### Added — Phase 14: observability, SLOs and operations
 

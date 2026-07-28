@@ -13,10 +13,32 @@ from api_test_support import Tenant
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentrail_api.auth.service import Actor, principal_for_organisation
+from agentrail_core.identity import User
+
 pytestmark = pytest.mark.integration
 
 
 class TestOrganisationIsolation:
+    async def test_principal_resolution_sets_postgres_tenant_context(
+        self,
+        tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        async with session_factory() as session:
+            user = await session.get(User, tenant.user_id)
+            assert user is not None
+
+            principal = await principal_for_organisation(
+                session, Actor(user=user), tenant.organisation_id
+            )
+            current_organisation_id = await session.scalar(
+                text("SELECT current_setting('agentrail.organisation_id', true)")
+            )
+
+            assert principal.organisation_id == tenant.organisation_id
+            assert current_organisation_id == tenant.organisation_id
+
     async def test_listing_shows_only_your_own_organisations(
         self, tenant: Tenant, other_tenant: Tenant
     ) -> None:

@@ -65,6 +65,14 @@ async def session_scope(
             await session.commit()
 
 
+async def set_tenant_context(session: AsyncSession, organisation_id: str) -> None:
+    """Bind the current transaction to one tenant for Postgres RLS policies."""
+    await session.execute(
+        text("SELECT set_config('agentrail.organisation_id', :organisation_id, true)"),
+        {"organisation_id": organisation_id},
+    )
+
+
 async def check_database(engine: AsyncEngine) -> None:
     """Raise :class:`DependencyUnavailableError` if PostgreSQL is not usable."""
     try:
