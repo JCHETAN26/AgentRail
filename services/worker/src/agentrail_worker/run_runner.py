@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.datasets import EvaluationSuite
+from agentrail_core.db import set_tenant_context
 from agentrail_core.evaluators import (
     ComparisonReport,
     EvaluationResult,
@@ -36,7 +37,7 @@ from agentrail_core.faults import (
     parse_fault_profiles,
     plan_fault,
 )
-from agentrail_core.identity import AgentVersion
+from agentrail_core.identity import AgentVersion, Project
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.logging import get_logger
 from agentrail_core.policy import (
@@ -65,6 +66,14 @@ from agentrail_core.tribunal import (
 )
 
 logger = get_logger(__name__)
+
+
+async def _set_run_tenant_context(session: AsyncSession, run: EvaluationRun) -> None:
+    organisation_id = await session.scalar(
+        select(Project.organisation_id).where(Project.id == run.project_id)
+    )
+    if organisation_id is not None:
+        await set_tenant_context(session, organisation_id)
 
 
 class RunOutcome(StrEnum):
@@ -255,6 +264,7 @@ class EvaluationRunRunner:
             run = await session.get(EvaluationRun, item.run_id)
             if run is None:
                 return
+            await _set_run_tenant_context(session, run)
             claim = await session.execute(
                 update(RunItem)
                 .where(RunItem.id == item.id, RunItem.state == RunItemState.LEASED)
@@ -934,6 +944,12 @@ class EvaluationRunRunner:
 
     async def _aggregate(self, run_id: str) -> RunOutcome:
         async with self._session_factory() as session:
+            run = await session.scalar(
+                select(EvaluationRun).where(EvaluationRun.id == run_id).with_for_update()
+            )
+            if run is None:
+                return RunOutcome.MISSING
+            await _set_run_tenant_context(session, run)
             counts = {
                 RunItemState(state): int(count)
                 for state, count in (
@@ -947,11 +963,6 @@ class EvaluationRunRunner:
             failed = counts.get(RunItemState.FAILED_TERMINAL, 0)
             completed = counts.get(RunItemState.COMPLETED, 0)
             terminal = completed + failed + counts.get(RunItemState.CANCELLED, 0)
-            run = await session.scalar(
-                select(EvaluationRun).where(EvaluationRun.id == run_id).with_for_update()
-            )
-            if run is None:
-                return RunOutcome.MISSING
             if run.state == EvaluationRunState.CANCELLED:
                 return RunOutcome.CANCELLED
             if run.state != EvaluationRunState.RUNNING:

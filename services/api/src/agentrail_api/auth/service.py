@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentrail_api.auth.providers import ExternalIdentity
+from agentrail_core.db import set_tenant_context
 from agentrail_core.errors import ForbiddenError, UnauthenticatedError
 from agentrail_core.identity import (
     ApiKey,
@@ -247,6 +248,7 @@ async def principal_for_organisation(
         key = actor.api_key
         if key.organisation_id != organisation_id:
             raise ForbiddenError()
+        await set_tenant_context(session, key.organisation_id)
         return Principal(
             kind=PrincipalKind.API_KEY,
             id=key.id,
@@ -268,6 +270,7 @@ async def principal_for_organisation(
     if membership is None:
         raise ForbiddenError()
 
+    await set_tenant_context(session, organisation_id)
     return Principal(
         kind=PrincipalKind.USER,
         id=actor.user.id,

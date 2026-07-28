@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 15 PostgreSQL RLS hardening                                                   |
-| **Status**     | In progress on branch `codex/p15-postgres-rls`                                      |
-| **Base**       | `main` @ `02a8b55` (container SBOM/provenance merged)                               |
-| **Next phase** | Automatic DB tenant-context setting and remaining security hardening                |
+| **Phase**      | Phase 15 DB tenant-context hardening                                                |
+| **Status**     | In progress on branch `codex/p15-db-tenant-context`                                 |
+| **Base**       | `main` @ `852d42a` (PostgreSQL RLS merged)                                          |
+| **Next phase** | Remaining security hardening                                                        |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -36,6 +36,7 @@ Live Tribunal replay provider selection shipped in PR
 [#61](https://github.com/JCHETAN26/AgentRail/pull/61).
 Container SBOM/provenance artifacts shipped in PR
 [#62](https://github.com/JCHETAN26/AgentRail/pull/62).
+PostgreSQL RLS hardening shipped in PR [#63](https://github.com/JCHETAN26/AgentRail/pull/63).
 Phase 14's security and supply-chain slice shipped in PR
 [#48](https://github.com/JCHETAN26/AgentRail/pull/48).
 Phase 14's durable quota slice shipped in PR [#49](https://github.com/JCHETAN26/AgentRail/pull/49).
@@ -360,8 +361,9 @@ grant write access to use the gate.
   `containers / scan` matrix.
 - Added Alembic revision `0016_postgres_rls` with row-level security policies for
   organisation-owned, project-owned and project-child tables. The policies enforce tenant filtering
-  when `agentrail.organisation_id` is set and preserve existing app/worker flows while automatic DB
-  tenant-context propagation is still being wired.
+  when `agentrail.organisation_id` is set, with integration coverage using a non-bypass probe role.
+- Added automatic transaction-local DB tenant-context propagation for authorised API principals and
+  tenant-specific worker execution/aggregation paths.
 - Added a PostgreSQL-backed monthly evaluation-item quota ledger per organisation, charged
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
 - Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
@@ -668,9 +670,8 @@ Latest security/supply-chain branch checks, run locally on 2026-07-27:
 
 ## Next tasks
 
-1. Add automatic DB tenant-context setting for API principals and worker-scoped maintenance paths.
-2. Continue remaining security hardening.
-3. Stop the Codespace when the full build is complete to avoid additional cost.
+1. Continue remaining security hardening.
+2. Stop the Codespace when the full build is complete to avoid additional cost.
 
 **Exit criteria:** recorded Tribunal replay reproduces the source digest, forked replay persists
 divergence metadata without mutating the source session, cross-tenant tests pass across the Tribunal
