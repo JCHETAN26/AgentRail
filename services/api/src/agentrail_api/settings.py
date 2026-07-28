@@ -48,6 +48,13 @@ class ApiSettings(DatabaseSettings, QueueSettings):
     github_webhook_secret: str | None = None
     github_webhook_replay_ttl_seconds: int = Field(default=60 * 10, ge=60, le=60 * 60 * 24)
 
+    # --- Model providers ---------------------------------------------------
+    #: Optional OpenAI-compatible Responses API credentials for live Tribunal
+    #: debate. Absent by default so local development and CI stay deterministic.
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    tribunal_model_timeout_seconds: float = Field(default=60.0, gt=0, le=300)
+
     @property
     def cookies_are_secure(self) -> bool:
         """`Secure` is set on deployed environments only, so local HTTP works."""

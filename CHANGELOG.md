@@ -26,6 +26,9 @@ All notable changes to AgentRail are recorded here. The format follows
 - Prompt-version scaffolding for model-backed Tribunal debate: suites can set
   `thresholds.tribunal.mode = "model_backed"`, prompt/model provenance is recorded, model output is
   schema-validated, and a recorded model client keeps CI and demos deterministic.
+- OpenAI-compatible Responses API adapter for live Tribunal role calls, configured with
+  `AGENTRAIL_OPENAI_API_KEY`, `AGENTRAIL_OPENAI_BASE_URL` and
+  `AGENTRAIL_TRIBUNAL_MODEL_TIMEOUT_SECONDS`; missing credentials fail with a validation error.
 - Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
   evidence blocks approval.
 - OpenAPI and generated TypeScript contracts for Tribunal responses.

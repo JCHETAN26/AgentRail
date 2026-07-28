@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 8 Multi-Agent Safety Tribunal live-mode scaffold                              |
-| **Status**     | In progress on branch `codex/p8-tribunal-live-mode`                                 |
-| **Base**       | `main` @ `0a55bce` (Tribunal release-gate binding merged)                           |
-| **Next phase** | External live-model provider adapter and forkable Tribunal replay                   |
+| **Phase**      | Phase 8 Multi-Agent Safety Tribunal OpenAI provider adapter                         |
+| **Status**     | In progress on branch `codex/p8-tribunal-openai-adapter`                            |
+| **Base**       | `main` @ `420e1cd` (Tribunal live-mode scaffold merged)                             |
+| **Next phase** | Forkable Tribunal replay                                                            |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -186,6 +186,10 @@ auto-delete on merge, so each phase has to clean up after itself.
   `thresholds.tribunal.mode = "model_backed"`. The first model client is recorded/deterministic, but
   it exercises the live-provider protocol, role prompt metadata, schema validation, model provenance
   and fail-closed handling for malformed model output.
+- Added an OpenAI-compatible Responses API adapter for live Tribunal role calls. API and worker
+  processes use `AGENTRAIL_OPENAI_API_KEY`, optional `AGENTRAIL_OPENAI_BASE_URL` and
+  `AGENTRAIL_TRIBUNAL_MODEL_TIMEOUT_SECONDS`; missing credentials fail closed with a validation
+  error instead of silently falling back to recorded mode.
 - Added OpenAPI and generated TypeScript contracts plus core/API tests for clean approval,
   conditional quality warnings, missing evidence and Auditor-overrides-Defender behavior.
 

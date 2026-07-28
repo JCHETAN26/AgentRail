@@ -64,6 +64,9 @@ class Worker:
             self._session_factory,
             worker_id=settings.worker_id,
             lease_seconds=settings.run_item_lease_seconds,
+            openai_api_key=settings.openai_api_key,
+            openai_base_url=settings.openai_base_url,
+            tribunal_model_timeout_seconds=settings.tribunal_model_timeout_seconds,
         )
 
     def request_stop(self) -> None:
