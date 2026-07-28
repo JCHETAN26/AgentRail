@@ -16,8 +16,10 @@ The question AgentRail exists to answer:
 > Several Phase 15 security slices are also implemented: authenticated rate limits, a durable
 > monthly evaluation-item quota ledger, GitHub webhook replay defence, console CSP/security headers,
 > container image checks, audit retention pruning and immutable GitHub Actions pins. The newly added
-> Phase 8 Multi-Agent Safety Tribunal is not built yet. Nothing in this README describes a
-> capability that does not exist — see [Known limitations](#known-limitations).
+> Phase 8 Multi-Agent Safety Tribunal now has its deterministic backend foundation: persisted
+> sessions, a six-role blackboard, findings, arguments, verdicts and typed APIs. Live model-backed
+> debate, suite-config invocation, dashboard display and release-gate binding are still scheduled —
+> see [Known limitations](#known-limitations).
 
 ---
 
@@ -25,8 +27,9 @@ The question AgentRail exists to answer:
 
 **Sign in, create an organisation, run a deterministic job, register agent versions, build validated
 dataset/suite records, execute a frozen suite as a durable evaluation run, inspect redacted
-per-item trajectories, create safe replay records from checkpoints, and read reproducible comparison
-summaries, release-gate verdicts and canary deployment history inside one of its projects.**
+per-item trajectories, create safe replay records from checkpoints, run a deterministic six-role
+Safety Tribunal over run/comparison evidence, and read reproducible comparison summaries,
+release-gate verdicts and canary deployment history inside one of its projects.**
 Operators can fetch a run metrics snapshot with correlation and trace identifiers, queue/retry
 health, budget spend, release and canary status, and the SLO verdict.
 
@@ -182,7 +185,8 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
 
 Deliberate, and scheduled:
 
-- The updated Phase 8 Multi-Agent Safety Tribunal is not built yet.
+- The Phase 8 Multi-Agent Safety Tribunal has a deterministic backend foundation, but is not wired
+  into suite configuration, the dashboard, live model-backed debate or release-gate enforcement yet.
 - No PostgreSQL row-level security beneath the application-level tenant scoping (Phase 15).
 - The durable per-organisation quota ledger covers monthly evaluation item usage, but not every
   workload class yet.

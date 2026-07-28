@@ -27,6 +27,7 @@ _MODEL_MODULES = (
     "agentrail_core.release",
     "agentrail_core.side_effects",
     "agentrail_core.trajectories",
+    "agentrail_core.tribunal",
 )
 
 # Importing the models registers them on ``Base.metadata`` for autogenerate.

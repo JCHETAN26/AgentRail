@@ -3913,6 +3913,311 @@
         "title": "TrajectoryStepType",
         "type": "string"
       },
+      "TribunalAgentRole": {
+        "enum": [
+          "prosecutor",
+          "defender",
+          "auditor",
+          "economist",
+          "historian",
+          "judge"
+        ],
+        "title": "TribunalAgentRole",
+        "type": "string"
+      },
+      "TribunalArgumentResponse": {
+        "properties": {
+          "agent_role": {
+            "$ref": "#/components/schemas/TribunalAgentRole"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "round": {
+            "$ref": "#/components/schemas/TribunalRound"
+          },
+          "stance": {
+            "$ref": "#/components/schemas/TribunalArgumentStance"
+          }
+        },
+        "required": [
+          "id",
+          "round",
+          "agent_role",
+          "stance",
+          "message",
+          "created_at"
+        ],
+        "title": "TribunalArgumentResponse",
+        "type": "object"
+      },
+      "TribunalArgumentStance": {
+        "enum": [
+          "supports_approval",
+          "supports_conditional",
+          "supports_block"
+        ],
+        "title": "TribunalArgumentStance",
+        "type": "string"
+      },
+      "TribunalBlackboardEntryResponse": {
+        "properties": {
+          "agent_role": {
+            "$ref": "#/components/schemas/TribunalAgentRole"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entry_type": {
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "payload": {
+            "title": "Payload",
+            "type": "object"
+          },
+          "round": {
+            "$ref": "#/components/schemas/TribunalRound"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sequence",
+          "round",
+          "agent_role",
+          "entry_type",
+          "title",
+          "created_at"
+        ],
+        "title": "TribunalBlackboardEntryResponse",
+        "type": "object"
+      },
+      "TribunalFindingResponse": {
+        "properties": {
+          "agent_role": {
+            "$ref": "#/components/schemas/TribunalAgentRole"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/TribunalFindingSeverity"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "agent_role",
+          "severity",
+          "subject",
+          "message",
+          "created_at"
+        ],
+        "title": "TribunalFindingResponse",
+        "type": "object"
+      },
+      "TribunalFindingSeverity": {
+        "enum": [
+          "info",
+          "warning",
+          "blocker"
+        ],
+        "title": "TribunalFindingSeverity",
+        "type": "string"
+      },
+      "TribunalRound": {
+        "enum": [
+          "evidence",
+          "debate",
+          "verdict"
+        ],
+        "title": "TribunalRound",
+        "type": "string"
+      },
+      "TribunalSessionResponse": {
+        "properties": {
+          "arguments": {
+            "items": {
+              "$ref": "#/components/schemas/TribunalArgumentResponse"
+            },
+            "title": "Arguments",
+            "type": "array"
+          },
+          "blackboard": {
+            "items": {
+              "$ref": "#/components/schemas/TribunalBlackboardEntryResponse"
+            },
+            "title": "Blackboard",
+            "type": "array"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/TribunalFindingResponse"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/TribunalVerdictOutcome"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TribunalSessionState"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "object"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/TribunalVerdictResponse"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "run_id",
+          "state",
+          "outcome",
+          "created_by",
+          "created_at",
+          "completed_at",
+          "verdict",
+          "findings",
+          "arguments",
+          "blackboard"
+        ],
+        "title": "TribunalSessionResponse",
+        "type": "object"
+      },
+      "TribunalSessionState": {
+        "enum": [
+          "completed"
+        ],
+        "title": "TribunalSessionState",
+        "type": "string"
+      },
+      "TribunalVerdictOutcome": {
+        "enum": [
+          "approved",
+          "conditional",
+          "blocked"
+        ],
+        "title": "TribunalVerdictOutcome",
+        "type": "string"
+      },
+      "TribunalVerdictResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dissent": {
+            "title": "Dissent",
+            "type": "object"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/TribunalVerdictOutcome"
+          },
+          "primary_reason": {
+            "title": "Primary Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "outcome",
+          "primary_reason",
+          "created_at"
+        ],
+        "title": "TribunalVerdictResponse",
+        "type": "object"
+      },
       "UserResponse": {
         "properties": {
           "created_at": {
@@ -6381,6 +6686,174 @@
         "summary": "Inspect run reliability: attempts, leases, faults and side effects",
         "tags": [
           "evaluation-runs"
+        ]
+      }
+    },
+    "/api/v1/evaluation-runs/{run_id}/tribunal": {
+      "get": {
+        "operationId": "get_tribunal_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TribunalSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "No Tribunal session."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Fetch the deterministic multi-agent Safety Tribunal result",
+        "tags": [
+          "tribunal"
+        ]
+      },
+      "post": {
+        "operationId": "create_tribunal_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TribunalSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Run the deterministic multi-agent Safety Tribunal",
+        "tags": [
+          "tribunal"
         ]
       }
     },

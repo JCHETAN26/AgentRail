@@ -43,6 +43,13 @@ from agentrail_core.trajectories import (
     TrajectoryReplay,
     TrajectoryStep,
 )
+from agentrail_core.tribunal import (
+    TribunalArgument,
+    TribunalBlackboardEntry,
+    TribunalFinding,
+    TribunalSession,
+    TribunalVerdict,
+)
 
 __all__ = [
     "ROLE_PERMISSIONS",
@@ -74,6 +81,11 @@ __all__ = [
     "TrajectoryCheckpoint",
     "TrajectoryReplay",
     "TrajectoryStep",
+    "TribunalArgument",
+    "TribunalBlackboardEntry",
+    "TribunalFinding",
+    "TribunalSession",
+    "TribunalVerdict",
     "User",
     "authorize",
     "generate_api_key",

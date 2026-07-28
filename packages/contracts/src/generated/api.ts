@@ -461,6 +461,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluation-runs/{run_id}/tribunal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch the deterministic multi-agent Safety Tribunal result */
+        get: operations["get_tribunal_session"];
+        put?: never;
+        /** Run the deterministic multi-agent Safety Tribunal */
+        post: operations["create_tribunal_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evaluation-suites/{suite_id}/freeze": {
         parameters: {
             query?: never;
@@ -2387,6 +2405,140 @@ export interface components {
          * @enum {string}
          */
         TrajectoryStepType: "input" | "graph_state" | "tool_call" | "evidence" | "checkpoint" | "final_result" | "error";
+        /**
+         * TribunalAgentRole
+         * @enum {string}
+         */
+        TribunalAgentRole: "prosecutor" | "defender" | "auditor" | "economist" | "historian" | "judge";
+        /** TribunalArgumentResponse */
+        TribunalArgumentResponse: {
+            agent_role: components["schemas"]["TribunalAgentRole"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Evidence */
+            evidence?: Record<string, never>;
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            round: components["schemas"]["TribunalRound"];
+            stance: components["schemas"]["TribunalArgumentStance"];
+        };
+        /**
+         * TribunalArgumentStance
+         * @enum {string}
+         */
+        TribunalArgumentStance: "supports_approval" | "supports_conditional" | "supports_block";
+        /** TribunalBlackboardEntryResponse */
+        TribunalBlackboardEntryResponse: {
+            agent_role: components["schemas"]["TribunalAgentRole"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entry Type */
+            entry_type: string;
+            /** Id */
+            id: string;
+            /** Payload */
+            payload?: Record<string, never>;
+            round: components["schemas"]["TribunalRound"];
+            /** Sequence */
+            sequence: number;
+            /** Title */
+            title: string;
+        };
+        /** TribunalFindingResponse */
+        TribunalFindingResponse: {
+            agent_role: components["schemas"]["TribunalAgentRole"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Evidence */
+            evidence?: Record<string, never>;
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            severity: components["schemas"]["TribunalFindingSeverity"];
+            /** Subject */
+            subject: string;
+        };
+        /**
+         * TribunalFindingSeverity
+         * @enum {string}
+         */
+        TribunalFindingSeverity: "info" | "warning" | "blocker";
+        /**
+         * TribunalRound
+         * @enum {string}
+         */
+        TribunalRound: "evidence" | "debate" | "verdict";
+        /** TribunalSessionResponse */
+        TribunalSessionResponse: {
+            /** Arguments */
+            arguments: components["schemas"]["TribunalArgumentResponse"][];
+            /** Blackboard */
+            blackboard: components["schemas"]["TribunalBlackboardEntryResponse"][];
+            /**
+             * Completed At
+             * Format: date-time
+             */
+            completed_at: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Findings */
+            findings: components["schemas"]["TribunalFindingResponse"][];
+            /** Id */
+            id: string;
+            outcome: components["schemas"]["TribunalVerdictOutcome"];
+            /** Project Id */
+            project_id: string;
+            /** Run Id */
+            run_id: string;
+            state: components["schemas"]["TribunalSessionState"];
+            /** Summary */
+            summary?: Record<string, never>;
+            verdict: components["schemas"]["TribunalVerdictResponse"];
+        };
+        /**
+         * TribunalSessionState
+         * @enum {string}
+         */
+        TribunalSessionState: "completed";
+        /**
+         * TribunalVerdictOutcome
+         * @enum {string}
+         */
+        TribunalVerdictOutcome: "approved" | "conditional" | "blocked";
+        /** TribunalVerdictResponse */
+        TribunalVerdictResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Dissent */
+            dissent?: Record<string, never>;
+            /** Evidence */
+            evidence?: Record<string, never>;
+            /** Id */
+            id: string;
+            outcome: components["schemas"]["TribunalVerdictOutcome"];
+            /** Primary Reason */
+            primary_reason: string;
+        };
         /** UserResponse */
         UserResponse: {
             /**
@@ -4014,6 +4166,117 @@ export interface operations {
             };
             /** @description A required dependency is unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_tribunal_session: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TribunalSessionResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description No Tribunal session. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_tribunal_session: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TribunalSessionResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

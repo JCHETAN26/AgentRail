@@ -6,6 +6,19 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 8: multi-agent safety tribunal
+
+- Deterministic six-role Tribunal foundation with Prosecutor, Defender, Auditor, Economist,
+  Historian and Judge roles.
+- PostgreSQL-backed Tribunal sessions, blackboard entries, findings, arguments and verdicts linked
+  one-to-one with evaluation runs.
+- `POST /api/v1/evaluation-runs/{run_id}/tribunal` creates an idempotent Tribunal verdict from
+  run/comparison evidence; `GET /api/v1/evaluation-runs/{run_id}/tribunal` fetches the persisted
+  blackboard.
+- Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
+  evidence blocks approval.
+- OpenAPI and generated TypeScript contracts for Tribunal responses.
+
 ### Added — Phase 15: security and supply chain
 
 - Redis-backed fixed-window rate limiting for authenticated users and API keys.
