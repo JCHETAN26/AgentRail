@@ -35,6 +35,9 @@ All notable changes to AgentRail are recorded here. The format follows
   safety summaries proving the source Tribunal was not mutated.
 - Console Tribunal replay controls for listing replay history, running recorded replays and forking
   the Defender prompt while surfacing digest/verdict divergence.
+- Live-provider Tribunal replay scaffolding: forked replays can select the OpenAI-compatible model
+  provider through `model_overrides`, use server-managed provider credentials and persist live-call
+  safety metadata without mutating the source verdict.
 - Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
   evidence blocks approval.
 - OpenAPI and generated TypeScript contracts for Tribunal responses.

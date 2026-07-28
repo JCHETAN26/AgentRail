@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.identity import Role
 from agentrail_core.ids import new_sortable_id
-from agentrail_core.tribunal import TribunalReplay, TribunalSession
+from agentrail_core.tribunal import (
+    TribunalAgentRole,
+    TribunalModelRequest,
+    TribunalModelResponse,
+    TribunalReplay,
+    TribunalSession,
+)
 from services.api.tests.test_execution_api import create_agent_version, create_frozen_suite
 
 pytestmark = pytest.mark.integration
@@ -63,6 +69,31 @@ async def attach_comparison(
         )
         session.add(report)
         await session.commit()
+
+
+class LiveReplayModelClient:
+    async def complete(self, request: TribunalModelRequest) -> TribunalModelResponse:
+        if request.role is TribunalAgentRole.JUDGE:
+            content = {
+                "outcome": "approved",
+                "primary_reason": "Live Judge approved the replayed debate.",
+                "dissent": {},
+            }
+        else:
+            content = {
+                "severity": "info",
+                "subject": request.role.value,
+                "message": f"Live {request.role.value} finding.",
+                "stance": "supports_approval",
+                "argument": f"Live {request.role.value} argument.",
+            }
+        return TribunalModelResponse(
+            content=content,
+            provider="openai",
+            model="gpt-live-test",
+            response_id=f"resp_{request.role.value}",
+            usage={"input_tokens": 1, "output_tokens": 1},
+        )
 
 
 class TestTribunalApi:
@@ -280,7 +311,7 @@ class TestTribunalApi:
         assert replay.status_code == 422
         assert replay.json()["code"] == "validation_failed"
 
-    async def test_forked_replay_rejects_live_provider_override_alias(
+    async def test_forked_replay_rejects_unknown_provider_override_alias(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
     ) -> None:
         run = await create_run(tenant)
@@ -290,12 +321,91 @@ class TestTribunalApi:
 
         replay = await tenant.client.post(
             f"/api/v1/tribunal-sessions/{created.json()['id']}/replays",
-            json={"mode": "forked", "model_overrides": {"model_provider": "openai"}},
+            json={"mode": "forked", "model_overrides": {"model_provider": "anthropic"}},
+        )
+
+        assert replay.status_code == 422
+        assert replay.json()["code"] == "validation_failed"
+        assert replay.json()["details"]["model_provider"] == "anthropic"
+
+    async def test_openai_forked_replay_requires_server_credentials(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_comparison(session_factory, run)
+        created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+        assert created.status_code == 201, created.text
+
+        replay = await tenant.client.post(
+            f"/api/v1/tribunal-sessions/{created.json()['id']}/replays",
+            json={
+                "mode": "forked",
+                "model_overrides": {"model_provider": "openai", "model": "gpt-test"},
+            },
         )
 
         assert replay.status_code == 422
         assert replay.json()["code"] == "validation_failed"
         assert replay.json()["details"]["model_provider"] == "openai"
+        assert "OPENAI_API_KEY" in replay.json()["details"]["reason"]
+
+    async def test_openai_forked_replay_records_live_provider_safety_metadata(
+        self,
+        integration_app: FastAPI,
+        monkeypatch: pytest.MonkeyPatch,
+        tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_build_tribunal_model_client(
+            config: dict[str, object], **kwargs: object
+        ) -> LiveReplayModelClient:
+            captured["config"] = config
+            captured["kwargs"] = kwargs
+            return LiveReplayModelClient()
+
+        monkeypatch.setattr(
+            "agentrail_api.tribunal.service.build_tribunal_model_client",
+            fake_build_tribunal_model_client,
+        )
+        original_settings = integration_app.state.settings
+        integration_app.state.settings = original_settings.model_copy(
+            update={"openai_api_key": "sk-test"}
+        )
+        try:
+            run = await create_run(tenant)
+            await attach_comparison(session_factory, run)
+            created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+            assert created.status_code == 201, created.text
+
+            replay = await tenant.client.post(
+                f"/api/v1/tribunal-sessions/{created.json()['id']}/replays",
+                json={
+                    "mode": "forked",
+                    "model_overrides": {"model_provider": "openai", "model": "gpt-live-test"},
+                },
+            )
+        finally:
+            integration_app.state.settings = original_settings
+
+        assert replay.status_code == 200, replay.text
+        body = replay.json()
+        assert body["result"]["evidence"]["model_provider"] == "openai"
+        assert body["result"]["evidence"]["model"] == "gpt-live-test"
+        assert body["safety_summary"]["executed_live"] is True
+        assert body["safety_summary"]["live_model_calls"] == 6
+        assert body["safety_summary"]["recorded_model_calls"] == 0
+        assert captured["config"] == {
+            "enabled": True,
+            "mode": "model_backed",
+            "prompt_version": "tribunal-roles-v1",
+            "model_provider": "openai",
+            "model": "gpt-live-test",
+        }
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["openai_api_key"] == "sk-test"
 
     async def test_cannot_replay_another_tenants_tribunal(
         self,

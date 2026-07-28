@@ -29,7 +29,6 @@ from agentrail_core.identity import Permission, Principal, Project, authorize
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.trajectories import redact_payload
 from agentrail_core.tribunal import (
-    RecordedTribunalModelClient,
     TribunalConfigError,
     TribunalMode,
     TribunalPersistenceBundle,
@@ -148,6 +147,9 @@ async def create_replay(
     *,
     tribunal_session_id: str,
     request: CreateTribunalReplayRequest,
+    openai_api_key: str | None = None,
+    openai_base_url: str = "https://api.openai.com/v1",
+    model_timeout_seconds: float = 60.0,
 ) -> TribunalReplay:
     bundle = await _tribunal_bundle_for_session(
         session, principal, tribunal_session_id=tribunal_session_id
@@ -159,25 +161,33 @@ async def create_replay(
         bundle.session.summary.get("prompt_version") or "tribunal-roles-v1"
     )
     model_overrides = request.model_overrides or {}
-    requested_providers = [
-        str(provider)
-        for provider in (model_overrides.get("provider"), model_overrides.get("model_provider"))
-        if provider is not None
-    ]
-    invalid_provider = next(
-        (provider for provider in requested_providers if provider != "recorded"), None
+    model_provider = str(
+        model_overrides.get("model_provider") or model_overrides.get("provider") or "recorded"
     )
-    if invalid_provider is not None:
-        raise ValidationFailedError(
-            "Tribunal replays are recorded-only in this release.",
-            details={"model_provider": invalid_provider},
-        )
     model = str(model_overrides.get("model") or "tribunal-recorded-v1")
     prompt_overrides = request.prompt_overrides or {}
+    try:
+        model_client = build_tribunal_model_client(
+            {
+                "enabled": True,
+                "mode": TribunalMode.MODEL_BACKED.value,
+                "prompt_version": prompt_version,
+                "model_provider": model_provider,
+                "model": model,
+            },
+            openai_api_key=openai_api_key,
+            openai_base_url=openai_base_url,
+            timeout_seconds=model_timeout_seconds,
+        )
+    except TribunalConfigError as invalid:
+        raise ValidationFailedError(
+            "Tribunal replay model provider configuration is invalid.",
+            details={"reason": str(invalid), "model_provider": model_provider},
+        ) from invalid
     draft = await decide_model_backed_tribunal(
         run=run,
         comparison=comparison,
-        model_client=RecordedTribunalModelClient(model=model),
+        model_client=model_client,
         prompt_version=prompt_version,
         prompt_overrides=prompt_overrides,
     )
@@ -211,6 +221,8 @@ async def create_replay(
         replay_digest=replay_digest,
         raw_overrides=raw_overrides,
     )
+    model_call_count = int(draft.summary.get("model_call_count", 0) or 0)
+    executed_live = model_provider != "recorded"
     source_outcome_value = _enum_value(bundle.session.outcome)
     replay_outcome_value = _enum_value(draft.outcome)
     now = datetime.now(UTC)
@@ -239,7 +251,7 @@ async def create_replay(
             "evidence": {
                 "prompt_version": prompt_version,
                 "prompt_override_roles": sorted(role.value for role in prompt_overrides),
-                "model_provider": "recorded",
+                "model_provider": model_provider,
                 "model": model,
             },
         },
@@ -247,9 +259,9 @@ async def create_replay(
         safety_summary={
             "side_effect_policy": "never_mutate_source_session",
             "source_session_mutated": False,
-            "live_model_calls": 0,
-            "executed_live": False,
-            "recorded_model_calls": draft.summary.get("model_call_count", 0),
+            "live_model_calls": model_call_count if executed_live else 0,
+            "executed_live": executed_live,
+            "recorded_model_calls": 0 if executed_live else model_call_count,
         },
         created_by=actor.user.id if actor.user else None,
         completed_at=now,

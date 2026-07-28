@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 8 Multi-Agent Safety Tribunal replay console                                  |
-| **Status**     | In progress on branch `codex/p9-tribunal-replay-console`                            |
-| **Base**       | `main` @ `2ca810a` (Tribunal replay persistence merged)                             |
-| **Next phase** | Live-provider Tribunal replay or remaining Phase 15 security hardening              |
+| **Phase**      | Phase 8 Multi-Agent Safety Tribunal live replay                                     |
+| **Status**     | In progress on branch `codex/p9-live-tribunal-replay`                               |
+| **Base**       | `main` @ `4dc6581` (Tribunal replay console merged)                                 |
+| **Next phase** | Remaining Phase 15 security hardening                                               |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -31,6 +31,7 @@ Phase 11 shipped in PR [#45](https://github.com/JCHETAN26/AgentRail/pull/45).
 Phase 12 shipped in PR [#46](https://github.com/JCHETAN26/AgentRail/pull/46).
 Phase 13 shipped in PR [#47](https://github.com/JCHETAN26/AgentRail/pull/47).
 Tribunal replay persistence shipped in PR [#59](https://github.com/JCHETAN26/AgentRail/pull/59).
+Tribunal replay console shipped in PR [#60](https://github.com/JCHETAN26/AgentRail/pull/60).
 Phase 14's security and supply-chain slice shipped in PR
 [#48](https://github.com/JCHETAN26/AgentRail/pull/48).
 Phase 14's durable quota slice shipped in PR [#49](https://github.com/JCHETAN26/AgentRail/pull/49).
@@ -198,6 +199,9 @@ auto-delete on merge, so each phase has to clean up after itself.
   redacted requests and safety summaries proving the source Tribunal session was not mutated.
 - Added console Tribunal replay controls that list replay history, create recorded replays and fork
   the Defender prompt while showing digest/verdict divergence for the latest replay.
+- Added live-provider Tribunal replay scaffolding: forked replays can request the OpenAI-compatible
+  provider through `model_overrides`, use server-managed provider credentials, fail closed when
+  credentials are missing and record live-call safety metadata without mutating the source session.
 - Added OpenAPI and generated TypeScript contracts plus core/API tests for clean approval,
   conditional quality warnings, missing evidence and Auditor-overrides-Defender behavior.
 
@@ -655,9 +659,8 @@ Latest security/supply-chain branch checks, run locally on 2026-07-27:
 
 ## Next tasks
 
-1. Add live-provider Tribunal replay after the recorded replay contract has shipped.
-2. Continue Phase 15 PostgreSQL RLS or SBOM/provenance after the Tribunal vertical slice.
-3. Stop the Codespace when the full build is complete to avoid additional cost.
+1. Continue Phase 15 PostgreSQL RLS or SBOM/provenance after the Tribunal vertical slice.
+2. Stop the Codespace when the full build is complete to avoid additional cost.
 
 **Exit criteria:** recorded Tribunal replay reproduces the source digest, forked replay persists
 divergence metadata without mutating the source session, cross-tenant tests pass across the Tribunal
