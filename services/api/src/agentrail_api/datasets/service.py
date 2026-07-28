@@ -438,6 +438,10 @@ async def create_evaluation_suite(
         "thresholds": thresholds,
         "fault_profile_count": len(fault_profiles),
         "tribunal_enabled": tribunal_config["enabled"],
+        "tribunal_mode": tribunal_config["mode"],
+        "tribunal_prompt_version": tribunal_config["prompt_version"],
+        "tribunal_model_provider": tribunal_config["model_provider"],
+        "tribunal_model": tribunal_config["model"],
     }
     suite = EvaluationSuite(
         id=new_sortable_id(),

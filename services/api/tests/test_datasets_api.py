@@ -206,6 +206,23 @@ class TestEvaluationSuites:
         assert response.json()["code"] == "validation_failed"
         assert "tribunal.enabled" in response.json()["details"]["reason"]
 
+    async def test_rejects_unknown_tribunal_mode(self, tenant: Tenant) -> None:
+        dataset = await create_dataset(tenant)
+        version = await create_dataset_version(tenant, str(dataset["id"]))
+
+        response = await tenant.client.post(
+            f"/api/v1/projects/{tenant.project_id}/evaluation-suites",
+            json={
+                "name": "Bad Tribunal Mode",
+                "dataset_version_id": version["id"],
+                "thresholds": {"tribunal": {"enabled": True, "mode": "freestyle"}},
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["code"] == "validation_failed"
+        assert "tribunal.mode" in response.json()["details"]["reason"]
+
     async def test_previews_enabled_tribunal_configuration(self, tenant: Tenant) -> None:
         dataset = await create_dataset(tenant)
         version = await create_dataset_version(tenant, str(dataset["id"]))
@@ -222,6 +239,35 @@ class TestEvaluationSuites:
         assert response.status_code == 201, response.text
         assert response.json()["thresholds"]["tribunal"]["enabled"] is True
         assert response.json()["preview"]["tribunal_enabled"] is True
+        assert response.json()["preview"]["tribunal_mode"] == "deterministic"
+
+    async def test_previews_model_backed_tribunal_configuration(self, tenant: Tenant) -> None:
+        dataset = await create_dataset(tenant)
+        version = await create_dataset_version(tenant, str(dataset["id"]))
+
+        response = await tenant.client.post(
+            f"/api/v1/projects/{tenant.project_id}/evaluation-suites",
+            json={
+                "name": "Model Tribunal Gate",
+                "dataset_version_id": version["id"],
+                "thresholds": {
+                    "tribunal": {
+                        "enabled": True,
+                        "mode": "model_backed",
+                        "prompt_version": "tribunal-roles-v2",
+                        "model_provider": "recorded",
+                        "model": "recorded-v2",
+                    }
+                },
+            },
+        )
+
+        assert response.status_code == 201, response.text
+        assert response.json()["preview"]["tribunal_enabled"] is True
+        assert response.json()["preview"]["tribunal_mode"] == "model_backed"
+        assert response.json()["preview"]["tribunal_prompt_version"] == "tribunal-roles-v2"
+        assert response.json()["preview"]["tribunal_model_provider"] == "recorded"
+        assert response.json()["preview"]["tribunal_model"] == "recorded-v2"
 
     async def test_cannot_build_suite_from_another_tenants_dataset_version(
         self, tenant: Tenant, other_tenant: Tenant

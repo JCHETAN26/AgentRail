@@ -192,6 +192,14 @@ run summary after building the comparison report. Release policies can make the 
 with `require_tribunal_approval = true`; a missing Tribunal verdict returns a retryable gate
 conflict, `conditional` or `blocked` blocks the gate, and `approved` satisfies the rule.
 
+The live-mode scaffold uses the same persisted blackboard but routes each role through a
+`TribunalModelClient` protocol with immutable role prompt metadata. In CI and demos, the
+`RecordedTribunalModelClient` returns deterministic schema-shaped responses while still recording
+provider, model, response id, prompt version and usage provenance. Every model response is validated
+before it can become a finding, argument or Judge verdict; malformed output fails closed with an
+Auditor blocker. The deterministic Tribunal remains a safety floor, so missing or non-reproducible
+comparison evidence cannot be overruled by model output.
+
 ## Replay And Time Travel
 
 The replay/time-travel slice adds durable replay records for persisted trajectories. A recorded
@@ -210,5 +218,6 @@ rollback reasons preserved in release history.
 
 ## Not built yet
 
-Live model-backed Tribunal debate, forkable Tribunal replay, external OpenTelemetry export,
-remaining security hardening (Phase 15), real deploy provider integration and production packaging.
+External live-model provider adapter for Tribunal debate, forkable Tribunal replay, external
+OpenTelemetry export, remaining security hardening (Phase 15), real deploy provider integration and
+production packaging.

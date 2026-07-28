@@ -14,6 +14,7 @@ from agentrail_api.tribunal.schemas import (
     TribunalSessionResponse,
     TribunalVerdictResponse,
 )
+from agentrail_core.datasets import EvaluationSuite
 from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import EvaluationRun
 from agentrail_core.identity import Permission, Principal, authorize
@@ -35,11 +36,13 @@ async def create_tribunal_session(
     comparison = await session.scalar(
         select(ComparisonReport).where(ComparisonReport.run_id == run.id)
     )
+    suite = await session.get(EvaluationSuite, run.evaluation_suite_id)
     bundle, created = await create_or_get_tribunal_session(
         session,
         run=run,
         comparison=comparison,
         created_by=actor.user.id if actor.user else None,
+        tribunal_config=suite.thresholds.get("tribunal") if suite is not None else None,
     )
     if created:
         await record_audit(

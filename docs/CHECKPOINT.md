@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 8 Multi-Agent Safety Tribunal release-gate binding                            |
-| **Status**     | In progress on branch `codex/p8-tribunal-gate-binding`                              |
-| **Base**       | `main` @ `9321341` (Tribunal auto-invocation merged)                                |
-| **Next phase** | Live model-backed Tribunal debate and forkable Tribunal replay                      |
+| **Phase**      | Phase 8 Multi-Agent Safety Tribunal live-mode scaffold                              |
+| **Status**     | In progress on branch `codex/p8-tribunal-live-mode`                                 |
+| **Base**       | `main` @ `0a55bce` (Tribunal release-gate binding merged)                           |
+| **Next phase** | External live-model provider adapter and forkable Tribunal replay                   |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -182,6 +182,10 @@ auto-delete on merge, so each phase has to clean up after itself.
 - Added `require_tribunal_approval` release-policy support. When true, the release gate reads the
   persisted Tribunal verdict for the run; missing verdicts return a retryable conflict,
   `conditional` or `blocked` verdicts block, and only `approved` passes.
+- Added prompt-version scaffolding and a model-backed Tribunal orchestration path behind
+  `thresholds.tribunal.mode = "model_backed"`. The first model client is recorded/deterministic, but
+  it exercises the live-provider protocol, role prompt metadata, schema validation, model provenance
+  and fail-closed handling for malformed model output.
 - Added OpenAPI and generated TypeScript contracts plus core/API tests for clean approval,
   conditional quality warnings, missing evidence and Auditor-overrides-Defender behavior.
 
