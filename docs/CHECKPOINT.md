@@ -180,8 +180,8 @@ auto-delete on merge, so each phase has to clean up after itself.
   deterministic Tribunal after the comparison report and records `tribunal_session_id` and
   `tribunal_outcome` in the run summary.
 - Added `require_tribunal_approval` release-policy support. When true, the release gate reads the
-  persisted Tribunal verdict for the run; missing, `conditional` or `blocked` verdicts block, and
-  only `approved` passes.
+  persisted Tribunal verdict for the run; missing verdicts return a retryable conflict,
+  `conditional` or `blocked` verdicts block, and only `approved` passes.
 - Added OpenAPI and generated TypeScript contracts plus core/API tests for clean approval,
   conditional quality warnings, missing evidence and Auditor-overrides-Defender behavior.
 

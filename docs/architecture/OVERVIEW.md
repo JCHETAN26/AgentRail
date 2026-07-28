@@ -189,8 +189,8 @@ deterministic verdict and displays role findings, arguments and the blackboard t
 suites can also opt into automatic deterministic Tribunal creation with
 `thresholds.tribunal.enabled = true`; worker aggregation writes the Tribunal id and outcome into the
 run summary after building the comparison report. Release policies can make the Tribunal binding
-with `require_tribunal_approval = true`; a missing, `conditional` or `blocked` Tribunal verdict
-blocks the gate, while `approved` satisfies the rule.
+with `require_tribunal_approval = true`; a missing Tribunal verdict returns a retryable gate
+conflict, `conditional` or `blocked` blocks the gate, and `approved` satisfies the rule.
 
 ## Replay And Time Travel
 

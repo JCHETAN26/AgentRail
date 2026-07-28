@@ -218,6 +218,18 @@ async def evaluate_run_gate(
         run_id=run.id,
         project_id=run.project_id,
     )
+    if policy.require_tribunal_approval and tribunal is None:
+        # Missing Tribunal evidence is retryable: once a verdict is created, the
+        # same gate request may pass. Persisting a blocked GateEvaluation here
+        # would make that later approval unreachable because gate evaluations
+        # are intentionally idempotent on (run, policy).
+        raise ConflictError(
+            (
+                "This release policy requires Tribunal approval, but the run has no "
+                "Tribunal verdict yet."
+            ),
+            details={"run_id": run.id, "release_policy_id": policy_record.id},
+        )
     decision = evaluate_gate(
         policy,
         summary=report.summary,

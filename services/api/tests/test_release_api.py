@@ -263,7 +263,7 @@ class TestTheGate:
             if "rate" in violation["kind"]
         )
 
-    async def test_required_tribunal_approval_blocks_when_verdict_is_missing(
+    async def test_required_tribunal_approval_waits_when_verdict_is_missing(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
     ) -> None:
         run = await create_run(tenant)
@@ -279,11 +279,10 @@ class TestTheGate:
             json={"release_policy_id": policy["id"]},
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 409
         body = response.json()
-        assert body["outcome"] == "blocked"
-        assert body["violations"][0]["kind"] == "require_tribunal_approval"
-        assert "absent" in body["violations"][0]["message"]
+        assert body["code"] == "conflict"
+        assert "no Tribunal verdict yet" in body["message"]
 
     async def test_required_tribunal_approval_blocks_non_approved_verdict(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
