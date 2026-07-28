@@ -185,7 +185,10 @@ The Auditor has override power in the deterministic rules. Missing comparison ev
 non-reproducible comparison report creates a blocker even when the Defender supports approval. This
 gives the platform the Tribunal persistence and API contract without introducing nondeterministic
 model calls into CI. The console includes a Tribunal inspector that fetches or creates a run's
-deterministic verdict and displays role findings, arguments and the blackboard timeline.
+deterministic verdict and displays role findings, arguments and the blackboard timeline. Evaluation
+suites can also opt into automatic deterministic Tribunal creation with
+`thresholds.tribunal.enabled = true`; worker aggregation writes the Tribunal id and outcome into the
+run summary after building the comparison report.
 
 ## Replay And Time Travel
 
@@ -205,6 +208,6 @@ rollback reasons preserved in release history.
 
 ## Not built yet
 
-Tribunal suite-config invocation, live model-backed Tribunal debate, release-gate binding for
-required Tribunal verdicts, external OpenTelemetry export, remaining security hardening (Phase 15),
-real deploy provider integration and production packaging.
+Live model-backed Tribunal debate, release-gate binding for required Tribunal verdicts, external
+OpenTelemetry export, remaining security hardening (Phase 15), real deploy provider integration and
+production packaging.

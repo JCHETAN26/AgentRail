@@ -56,6 +56,7 @@ from agentrail_core.trajectories import (
     TrajectoryStepType,
     redact_payload,
 )
+from agentrail_core.tribunal import create_or_get_tribunal_session, tribunal_enabled
 
 logger = get_logger(__name__)
 
@@ -957,8 +958,18 @@ class EvaluationRunRunner:
             run.version += 1
             await session.flush()
             comparison = await self._build_comparison_report(session, run=run)
+            suite = await session.get(EvaluationSuite, run.evaluation_suite_id)
+            tribunal_summary: dict[str, Any] = {}
+            if suite is not None and tribunal_enabled(suite.thresholds):
+                tribunal, _created = await create_or_get_tribunal_session(
+                    session, run=run, comparison=comparison
+                )
+                tribunal_summary = {
+                    "tribunal_session_id": tribunal.session.id,
+                    "tribunal_outcome": tribunal.session.outcome.value,
+                }
             run.state = EvaluationRunState.PASSED if failed == 0 else EvaluationRunState.FAILED
-            run.summary = {**run.summary, "comparison_report_id": comparison.id}
+            run.summary = {**run.summary, "comparison_report_id": comparison.id, **tribunal_summary}
             run.completed_at = datetime.now(UTC)
             run.updated_at = run.completed_at
             run.version += 1

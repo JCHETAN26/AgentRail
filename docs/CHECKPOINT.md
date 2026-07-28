@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 8 Multi-Agent Safety Tribunal console inspector                               |
-| **Status**     | In progress on branch `codex/p8-tribunal-dashboard`                                 |
-| **Base**       | `main` @ `32fa803` (deterministic Tribunal foundation merged)                       |
-| **Next phase** | Tribunal suite-config invocation and release-gate binding                           |
+| **Phase**      | Phase 8 Multi-Agent Safety Tribunal automatic invocation                            |
+| **Status**     | In progress on branch `codex/p8-tribunal-auto-invoke`                               |
+| **Base**       | `main` @ `1763876` (Tribunal console inspector merged)                              |
+| **Next phase** | Tribunal release-gate binding                                                       |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -176,6 +176,9 @@ auto-delete on merge, so each phase has to clean up after itself.
 - Added a console Safety Tribunal inspector that can fetch an existing Tribunal session or create
   the deterministic verdict, then render verdict status, role findings, arguments and blackboard
   timeline.
+- Added `thresholds.tribunal.enabled` suite configuration. When true, worker aggregation creates the
+  deterministic Tribunal after the comparison report and records `tribunal_session_id` and
+  `tribunal_outcome` in the run summary.
 - Added OpenAPI and generated TypeScript contracts plus core/API tests for clean approval,
   conditional quality warnings, missing evidence and Auditor-overrides-Defender behavior.
 
@@ -522,9 +525,9 @@ vacuous.
 
 - **No PostgreSQL row-level security.** Tenant scoping is enforced in the application and tested
   there; RLS as defence in depth is Phase 15.
-- **Tribunal is manually invoked so far.** The deterministic Tribunal service, blackboard schema,
-  verdict APIs and console inspector exist. Suite-config invocation, live model-backed debate,
-  prompt-versioning and release-gate binding remain.
+- **Tribunal is deterministic so far.** The Tribunal service, blackboard schema, verdict APIs,
+  suite-config invocation and console inspector exist. Live model-backed debate, prompt-versioning
+  and release-gate binding remain.
 - **No SBOM/provenance artefacts yet.** Workflow actions are now SHA-pinned, but CI still does not
   emit SBOM or provenance evidence for built images.
 - **Quota coverage is partial.** Authenticated callers have short-lived Redis-backed rate limits,
@@ -633,11 +636,10 @@ Latest security/supply-chain branch checks, run locally on 2026-07-27:
 
 ## Next tasks
 
-1. Wire Tribunal invocation from suite configuration after evaluator aggregation.
-2. Bind required `blocked` Tribunal verdicts into release-gate decisions.
-3. Add live model-backed specialist debate and prompt-versioning after the deterministic path is
+1. Bind required `blocked` Tribunal verdicts into release-gate decisions.
+2. Add live model-backed specialist debate and prompt-versioning after the deterministic path is
    release-gate aware.
-4. Continue Phase 15 PostgreSQL RLS or SBOM/provenance after the Tribunal vertical slice.
+3. Continue Phase 15 PostgreSQL RLS or SBOM/provenance after the Tribunal vertical slice.
 
 **Exit criteria:** required Tribunal blockers bind release gates, cross-tenant tests pass across the
 Tribunal surface, and the PR is green.

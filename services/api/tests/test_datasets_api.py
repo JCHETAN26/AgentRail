@@ -151,6 +151,7 @@ class TestEvaluationSuites:
         assert created.json()["frozen_at"] is None
         assert created.json()["preview"]["item_count"] == 2
         assert created.json()["preview"]["evaluator_count"] == 1
+        assert created.json()["preview"]["tribunal_enabled"] is False
 
         frozen = await tenant.client.post(
             f"/api/v1/evaluation-suites/{created.json()['id']}/freeze"
@@ -187,6 +188,40 @@ class TestEvaluationSuites:
         assert response.status_code == 422
         assert response.json()["code"] == "validation_failed"
         assert response.json()["details"]["index"] == 1
+
+    async def test_rejects_malformed_tribunal_configuration(self, tenant: Tenant) -> None:
+        dataset = await create_dataset(tenant)
+        version = await create_dataset_version(tenant, str(dataset["id"]))
+
+        response = await tenant.client.post(
+            f"/api/v1/projects/{tenant.project_id}/evaluation-suites",
+            json={
+                "name": "Bad Tribunal Gate",
+                "dataset_version_id": version["id"],
+                "thresholds": {"tribunal": {"enabled": "yes"}},
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["code"] == "validation_failed"
+        assert "tribunal.enabled" in response.json()["details"]["reason"]
+
+    async def test_previews_enabled_tribunal_configuration(self, tenant: Tenant) -> None:
+        dataset = await create_dataset(tenant)
+        version = await create_dataset_version(tenant, str(dataset["id"]))
+
+        response = await tenant.client.post(
+            f"/api/v1/projects/{tenant.project_id}/evaluation-suites",
+            json={
+                "name": "Tribunal Gate",
+                "dataset_version_id": version["id"],
+                "thresholds": {"tribunal": {"enabled": True}},
+            },
+        )
+
+        assert response.status_code == 201, response.text
+        assert response.json()["thresholds"]["tribunal"]["enabled"] is True
+        assert response.json()["preview"]["tribunal_enabled"] is True
 
     async def test_cannot_build_suite_from_another_tenants_dataset_version(
         self, tenant: Tenant, other_tenant: Tenant

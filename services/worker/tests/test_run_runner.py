@@ -13,6 +13,7 @@ from agentrail_core.execution import EvaluationRun, EvaluationRunState, RunItem,
 from agentrail_core.identity import AgentDefinition, AgentVersion
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.trajectories import Trajectory, TrajectoryStep, TrajectoryStepType
+from agentrail_core.tribunal import TribunalSession
 from agentrail_worker.run_runner import EvaluationRunRunner, RunOutcome
 
 pytestmark = pytest.mark.integration
@@ -140,6 +141,48 @@ class TestEvaluationRunRunner:
         assert trajectory_count == 100
         assert tool_step is not None
         assert tool_step.redacted_input["arguments"]["api_key"] == "[REDACTED]"
+
+    async def test_auto_creates_tribunal_when_suite_enables_it(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=2,
+            thresholds={"tribunal": {"enabled": True}},
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="run-worker", lease_seconds=5)
+
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.PASSED
+        async with session_factory() as session:
+            run = await session.get(EvaluationRun, run_id)
+            tribunal = await session.scalar(
+                select(TribunalSession).where(TribunalSession.run_id == run_id)
+            )
+        assert run is not None
+        assert tribunal is not None
+        assert tribunal.outcome == "approved"
+        assert run.summary["tribunal_session_id"] == tribunal.id
+        assert run.summary["tribunal_outcome"] == "approved"
+
+    async def test_does_not_create_tribunal_by_default(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        run_id = await make_run(session_factory, project_id, item_count=2)
+        runner = EvaluationRunRunner(session_factory, worker_id="run-worker", lease_seconds=5)
+
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.PASSED
+        async with session_factory() as session:
+            tribunal_count = await session.scalar(
+                select(func.count())
+                .select_from(TribunalSession)
+                .where(TribunalSession.run_id == run_id)
+            )
+        assert tribunal_count == 0
 
     async def test_duplicate_run_delivery_is_harmless(
         self, session_factory: async_sessionmaker[AsyncSession], project_id: str
