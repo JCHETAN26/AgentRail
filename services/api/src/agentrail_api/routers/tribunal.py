@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Response, status
 
-from agentrail_api.dependencies import ActorDep, SessionDep
+from agentrail_api.dependencies import ActorDep, SessionDep, SettingsDep
 from agentrail_api.execution import service as execution_service
 from agentrail_api.tribunal import service
 from agentrail_api.tribunal.schemas import TribunalSessionResponse
@@ -34,10 +34,19 @@ async def create_tribunal_session(
     response: Response,
     actor: ActorDep,
     session: SessionDep,
+    settings: SettingsDep,
 ) -> TribunalSessionResponse:
     principal = await execution_service.principal_for_run(session, actor, run_id)
     run = await execution_service.get_run(session, principal, run_id=run_id)
-    bundle, created = await service.create_tribunal_session(session, actor, principal, run=run)
+    bundle, created = await service.create_tribunal_session(
+        session,
+        actor,
+        principal,
+        run=run,
+        openai_api_key=settings.openai_api_key,
+        openai_base_url=settings.openai_base_url,
+        model_timeout_seconds=settings.tribunal_model_timeout_seconds,
+    )
     await session.commit()
     if not created:
         response.status_code = status.HTTP_200_OK

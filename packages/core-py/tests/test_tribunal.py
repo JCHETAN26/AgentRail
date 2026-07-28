@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+
+import httpx
 import pytest
 
 from agentrail_core.tribunal import (
     DEFAULT_TRIBUNAL_PROMPT_VERSION,
+    OpenAITribunalModelClient,
     RecordedTribunalModelClient,
     TribunalAgentRole,
     TribunalConfigError,
@@ -13,7 +17,9 @@ from agentrail_core.tribunal import (
     TribunalMode,
     TribunalModelRequest,
     TribunalModelResponse,
+    TribunalRound,
     TribunalVerdictOutcome,
+    build_tribunal_model_client,
     decide_model_backed_tribunal,
     decide_tribunal,
     default_tribunal_prompt_versions,
@@ -203,3 +209,67 @@ def test_tribunal_config_rejects_non_string_mode() -> None:
         validate_tribunal_config({"tribunal": {"enabled": True, "mode": []}})
 
     assert "tribunal.mode" in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_openai_tribunal_client_posts_structured_response_request() -> None:
+    captured: dict[str, object] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["authorization"] = request.headers.get("authorization")
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_123",
+                "model": "gpt-test",
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+                "output_text": json.dumps(
+                    {
+                        "severity": "info",
+                        "subject": "quality",
+                        "message": "No issue.",
+                        "stance": "supports_approval",
+                        "argument": "Evidence is clean.",
+                    }
+                ),
+            },
+        )
+
+    client = OpenAITribunalModelClient(
+        api_key="sk-test",
+        model="gpt-test",
+        transport=httpx.MockTransport(handler),
+    )
+    prompt = default_tribunal_prompt_versions()[TribunalAgentRole.PROSECUTOR]
+
+    response = await client.complete(
+        TribunalModelRequest(
+            role=TribunalAgentRole.PROSECUTOR,
+            round=TribunalRound.EVIDENCE,
+            prompt=prompt,
+            evidence={"run": RUN},
+        )
+    )
+
+    assert captured["authorization"] == "Bearer sk-test"
+    payload = captured["payload"]
+    assert isinstance(payload, dict)
+    assert payload["model"] == "gpt-test"
+    assert payload["text"]["format"]["type"] == "json_schema"
+    assert payload["text"]["format"]["schema"] == prompt.response_schema
+    assert response.provider == "openai"
+    assert response.response_id == "resp_123"
+    assert response.content["stance"] == "supports_approval"
+
+
+def test_openai_tribunal_client_requires_configured_api_key() -> None:
+    with pytest.raises(TribunalConfigError) as caught:
+        build_tribunal_model_client(
+            {
+                "model_provider": "openai",
+                "model": "gpt-test",
+            }
+        )
+
+    assert "AGENTRAIL_OPENAI_API_KEY" in str(caught.value)

@@ -30,6 +30,12 @@ class WorkerSettings(DatabaseSettings, QueueSettings):
     recovery_sweep_batch_size: int = Field(default=100, ge=1, le=1000)
     run_item_lease_seconds: float = Field(default=30.0, gt=0, le=600)
 
+    #: Optional OpenAI-compatible Responses API credentials for live Tribunal
+    #: debate. Recorded Tribunal mode remains the default and needs no key.
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    tribunal_model_timeout_seconds: float = Field(default=60.0, gt=0, le=300)
+
 
 @lru_cache(maxsize=1)
 def worker_settings() -> WorkerSettings:

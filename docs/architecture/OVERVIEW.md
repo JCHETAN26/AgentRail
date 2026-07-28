@@ -200,6 +200,14 @@ before it can become a finding, argument or Judge verdict; malformed output fail
 Auditor blocker. The deterministic Tribunal remains a safety floor, so missing or non-reproducible
 comparison evidence cannot be overruled by model output.
 
+An OpenAI-compatible Responses API adapter is available when a suite sets
+`thresholds.tribunal.model_provider = "openai"`. API and worker processes read
+`AGENTRAIL_OPENAI_API_KEY`, optional `AGENTRAIL_OPENAI_BASE_URL` and
+`AGENTRAIL_TRIBUNAL_MODEL_TIMEOUT_SECONDS`; if credentials are absent, Tribunal creation returns a
+validation error rather than silently falling back to recorded mode. The adapter requests structured
+JSON with the role prompt schema and records provider/model/response id/usage provenance in the
+existing Tribunal evidence.
+
 ## Replay And Time Travel
 
 The replay/time-travel slice adds durable replay records for persisted trajectories. A recorded
@@ -218,6 +226,5 @@ rollback reasons preserved in release history.
 
 ## Not built yet
 
-External live-model provider adapter for Tribunal debate, forkable Tribunal replay, external
-OpenTelemetry export, remaining security hardening (Phase 15), real deploy provider integration and
-production packaging.
+Forkable Tribunal replay, external OpenTelemetry export, remaining security hardening (Phase 15),
+real deploy provider integration and production packaging.

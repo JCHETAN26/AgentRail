@@ -131,6 +131,29 @@ class TestTribunalApi:
         assert created.json()["summary"]["prompt_version"] == "tribunal-roles-v2"
         assert created.json()["summary"]["model_call_count"] == 6
 
+    async def test_openai_model_backed_tribunal_requires_server_credentials(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(
+            tenant,
+            thresholds={
+                "task_success": 1.0,
+                "tribunal": {
+                    "enabled": True,
+                    "mode": "model_backed",
+                    "model_provider": "openai",
+                    "model": "gpt-test",
+                },
+            },
+        )
+        await attach_comparison(session_factory, run)
+
+        created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+
+        assert created.status_code == 422
+        assert created.json()["code"] == "validation_failed"
+        assert "OPENAI_API_KEY" in created.json()["details"]["reason"]
+
     async def test_cannot_read_or_create_another_tenants_tribunal(
         self,
         tenant: Tenant,

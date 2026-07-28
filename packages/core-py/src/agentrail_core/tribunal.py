@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
+import httpx
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -482,6 +484,106 @@ class RecordedTribunalModelClient:
         )
 
 
+class OpenAITribunalModelClient:
+    """OpenAI Responses API adapter for model-backed Tribunal roles."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        base_url: str = "https://api.openai.com/v1",
+        timeout_seconds: float = 60.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        if not api_key.strip():
+            raise TribunalConfigError("OpenAI Tribunal model provider requires an API key.")
+        self._api_key = api_key
+        self._model = model
+        self._base_url = base_url.rstrip("/")
+        self._timeout = timeout_seconds
+        self._transport = transport
+
+    async def complete(self, request: TribunalModelRequest) -> TribunalModelResponse:
+        payload = {
+            "model": self._model,
+            "input": [
+                {"role": "system", "content": request.prompt.system_prompt},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "role": request.role.value,
+                            "round": request.round.value,
+                            "evidence": request.evidence,
+                        },
+                        sort_keys=True,
+                        default=str,
+                    ),
+                },
+            ],
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": f"agentrail_tribunal_{request.role.value}",
+                    "schema": request.prompt.response_schema,
+                    "strict": True,
+                }
+            },
+        }
+        async with httpx.AsyncClient(
+            base_url=self._base_url,
+            timeout=httpx.Timeout(self._timeout),
+            transport=self._transport,
+        ) as client:
+            response = await client.post(
+                "/responses",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json=payload,
+            )
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise TribunalModelOutputError(
+                    f"OpenAI Tribunal request failed with HTTP {exc.response.status_code}."
+                ) from exc
+            body = response.json()
+        content = _openai_structured_content(body)
+        return TribunalModelResponse(
+            content=content,
+            provider="openai",
+            model=str(body.get("model") or self._model),
+            response_id=str(body.get("id") or ""),
+            usage=_optional_dict(body.get("usage")),
+        )
+
+
+def build_tribunal_model_client(
+    config: dict[str, Any],
+    *,
+    openai_api_key: str | None = None,
+    openai_base_url: str = "https://api.openai.com/v1",
+    timeout_seconds: float = 60.0,
+) -> TribunalModelClient:
+    provider = str(config.get("model_provider", "recorded"))
+    model = str(config.get("model", "tribunal-recorded-v1"))
+    if provider == "recorded":
+        return RecordedTribunalModelClient(provider=provider, model=model)
+    if provider == "openai":
+        if not openai_api_key:
+            raise TribunalConfigError(
+                "thresholds.tribunal.model_provider is openai but AGENTRAIL_OPENAI_API_KEY "
+                "is not configured."
+            )
+        return OpenAITribunalModelClient(
+            api_key=openai_api_key,
+            model=model,
+            base_url=openai_base_url,
+            timeout_seconds=timeout_seconds,
+        )
+    raise TribunalConfigError("thresholds.tribunal.model_provider must be recorded or openai.")
+
+
 async def decide_model_backed_tribunal(
     *,
     run: dict[str, Any],
@@ -663,10 +765,7 @@ async def create_or_get_tribunal_session(
     run_evidence = _run_evidence(run)
     comparison_evidence = _comparison_evidence(comparison)
     if config.get("mode") == TribunalMode.MODEL_BACKED.value:
-        client = model_client or RecordedTribunalModelClient(
-            provider=str(config.get("model_provider", "recorded")),
-            model=str(config.get("model", "tribunal-recorded-v1")),
-        )
+        client = model_client or build_tribunal_model_client(config)
         draft = await decide_model_backed_tribunal(
             run=run_evidence,
             comparison=comparison_evidence,
@@ -1075,6 +1174,43 @@ def _optional_dict(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TribunalModelOutputError("dissent must be an object")
     return value
+
+
+def _openai_structured_content(body: dict[str, Any]) -> dict[str, Any]:
+    candidates: list[Any] = []
+    if isinstance(body.get("output_text"), str):
+        candidates.append(body["output_text"])
+    output = body.get("output")
+    if isinstance(output, list):
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            if not isinstance(content, list):
+                continue
+            for part in content:
+                if isinstance(part, dict):
+                    parsed_part = part.get("parsed")
+                    if isinstance(parsed_part, dict):
+                        return parsed_part
+                    if isinstance(part.get("text"), str):
+                        candidates.append(part["text"])
+    choices = body.get("choices")
+    if isinstance(choices, list):
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            message = choice.get("message")
+            if isinstance(message, dict) and isinstance(message.get("content"), str):
+                candidates.append(message["content"])
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    raise TribunalModelOutputError("OpenAI response did not contain structured JSON content.")
 
 
 class TribunalSession(Base):

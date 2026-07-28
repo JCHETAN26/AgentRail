@@ -56,7 +56,13 @@ from agentrail_core.trajectories import (
     TrajectoryStepType,
     redact_payload,
 )
-from agentrail_core.tribunal import create_or_get_tribunal_session, tribunal_enabled
+from agentrail_core.tribunal import (
+    TribunalMode,
+    build_tribunal_model_client,
+    create_or_get_tribunal_session,
+    tribunal_enabled,
+    validate_tribunal_config,
+)
 
 logger = get_logger(__name__)
 
@@ -108,10 +114,16 @@ class EvaluationRunRunner:
         *,
         worker_id: str,
         lease_seconds: float = 30.0,
+        openai_api_key: str | None = None,
+        openai_base_url: str = "https://api.openai.com/v1",
+        tribunal_model_timeout_seconds: float = 60.0,
     ) -> None:
         self._session_factory = session_factory
         self._worker_id = worker_id
         self._lease_seconds = lease_seconds
+        self._openai_api_key = openai_api_key
+        self._openai_base_url = openai_base_url
+        self._tribunal_model_timeout_seconds = tribunal_model_timeout_seconds
 
     async def process(self, run_id: str) -> RunOutcome:
         claimed = await self._claim_run(run_id)
@@ -961,11 +973,23 @@ class EvaluationRunRunner:
             suite = await session.get(EvaluationSuite, run.evaluation_suite_id)
             tribunal_summary: dict[str, Any] = {}
             if suite is not None and tribunal_enabled(suite.thresholds):
+                tribunal_config = suite.thresholds.get("tribunal")
+                model_client = None
+                if tribunal_config is not None:
+                    parsed_tribunal_config = validate_tribunal_config({"tribunal": tribunal_config})
+                    if parsed_tribunal_config["mode"] == TribunalMode.MODEL_BACKED.value:
+                        model_client = build_tribunal_model_client(
+                            parsed_tribunal_config,
+                            openai_api_key=self._openai_api_key,
+                            openai_base_url=self._openai_base_url,
+                            timeout_seconds=self._tribunal_model_timeout_seconds,
+                        )
                 tribunal, _created = await create_or_get_tribunal_session(
                     session,
                     run=run,
                     comparison=comparison,
-                    tribunal_config=suite.thresholds.get("tribunal"),
+                    tribunal_config=tribunal_config,
+                    model_client=model_client,
                 )
                 tribunal_summary = {
                     "tribunal_session_id": tribunal.session.id,
