@@ -254,6 +254,27 @@ async def revoke_api_key(
     return ApiKeyResponse.model_validate(record)
 
 
+@router.post(
+    "/{organisation_id}/api-keys/{key_id}/rotate",
+    response_model=CreatedApiKeyResponse,
+    summary="Rotate an API key secret",
+    responses=_ERRORS,
+)
+async def rotate_api_key(
+    organisation_id: OrganisationId,
+    key_id: Annotated[str, Path(min_length=26, max_length=26)],
+    actor: ActorDep,
+    session: SessionDep,
+) -> CreatedApiKeyResponse:
+    """Return the only copy of the replacement token."""
+    principal = await principal_for_organisation(session, actor, organisation_id)
+    issued = await service.rotate_api_key(session, actor, principal, key_id=key_id)
+    await session.commit()
+    return CreatedApiKeyResponse(
+        key=ApiKeyResponse.model_validate(issued.record), token=issued.token
+    )
+
+
 @router.get(
     "/{organisation_id}/audit-events",
     response_model=AuditEventListResponse,

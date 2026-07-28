@@ -72,6 +72,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/organisations/{organisation_id}',
       '/api/v1/organisations/{organisation_id}/api-keys',
       '/api/v1/organisations/{organisation_id}/api-keys/{key_id}',
+      '/api/v1/organisations/{organisation_id}/api-keys/{key_id}/rotate',
       '/api/v1/organisations/{organisation_id}/audit-events',
       '/api/v1/organisations/{organisation_id}/audit-events/expired',
       '/api/v1/organisations/{organisation_id}/members',

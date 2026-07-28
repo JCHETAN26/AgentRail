@@ -367,6 +367,8 @@ grant write access to use the gate.
 - Added a model-backed Tribunal evidence sandbox that replaces raw untrusted strings from
   run/comparison evidence and prompt overrides with digest/length metadata before role prompts are
   assembled.
+- Added API-key rotation that replaces the public key id and secret hash in place, returns the new
+  bearer token once, invalidates the old token immediately and records a redacted audit event.
 - Added a PostgreSQL-backed monthly evaluation-item quota ledger per organisation, charged
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
 - Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
@@ -565,7 +567,7 @@ vacuous.
   and evaluation-run creation spends a durable monthly item quota per organisation, but quotas do
   not cover every workload class yet.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
-- **No API-key rotation or anomaly detection.**
+- **No API-key anomaly detection.**
 - The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture,
   replay records and the first programmatic evaluator are synthetic/deterministic. Live model
   evaluators and true live replay execution are not built yet.
