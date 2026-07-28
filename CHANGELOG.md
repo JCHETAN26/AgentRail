@@ -20,6 +20,9 @@ All notable changes to AgentRail are recorded here. The format follows
 - Evaluation suites can enable automatic Tribunal creation with
   `thresholds.tribunal.enabled = true`; worker aggregation creates one persisted Tribunal session
   after the comparison report and records the Tribunal id/outcome in the run summary.
+- Release policies can require Tribunal approval with `require_tribunal_approval = true`; missing
+  Tribunal verdicts return a retryable gate conflict, `conditional` or `blocked` verdicts block, and
+  only `approved` passes.
 - Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
   evidence blocks approval.
 - OpenAPI and generated TypeScript contracts for Tribunal responses.

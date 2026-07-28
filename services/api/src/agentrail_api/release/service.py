@@ -47,6 +47,7 @@ from agentrail_core.release import (
     evaluate_gate,
     parse_release_policy,
 )
+from agentrail_core.tribunal import get_persisted_tribunal_session
 
 CHECK_RUN_NAME = "AgentRail / release gate"
 POLICY_ANNOTATION_PATH = ".agentrail/release-policy.json"
@@ -212,11 +213,37 @@ async def evaluate_run_gate(
         )
 
     policy = parse_release_policy(policy_record.definition)
+    tribunal = await get_persisted_tribunal_session(
+        session,
+        run_id=run.id,
+        project_id=run.project_id,
+    )
+    if policy.require_tribunal_approval and tribunal is None:
+        # Missing Tribunal evidence is retryable: once a verdict is created, the
+        # same gate request may pass. Persisting a blocked GateEvaluation here
+        # would make that later approval unreachable because gate evaluations
+        # are intentionally idempotent on (run, policy).
+        raise ConflictError(
+            (
+                "This release policy requires Tribunal approval, but the run has no "
+                "Tribunal verdict yet."
+            ),
+            details={"run_id": run.id, "release_policy_id": policy_record.id},
+        )
     decision = evaluate_gate(
         policy,
         summary=report.summary,
         evaluator_metrics=report.evaluator_metrics,
         category_metrics=report.category_metrics,
+        tribunal=(
+            {
+                "id": tribunal.session.id,
+                "outcome": _enum_value(tribunal.verdict.outcome),
+                "primary_reason": tribunal.verdict.primary_reason,
+            }
+            if tribunal is not None
+            else None
+        ),
     )
 
     head_sha = request.head_sha or run.github_head_sha
@@ -406,6 +433,10 @@ def _check_summary(decision: dict[str, Any], policy: ReleasePolicyRecord) -> str
         lines.append("")
         lines.extend(f"- {violation['message']}" for violation in violations)
     return "\n".join(lines)
+
+
+def _enum_value(value: Any) -> Any:
+    return getattr(value, "value", value)
 
 
 def gate_outcome_is_blocked(evaluation: GateEvaluation) -> bool:

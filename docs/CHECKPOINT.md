@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 8 Multi-Agent Safety Tribunal automatic invocation                            |
-| **Status**     | In progress on branch `codex/p8-tribunal-auto-invoke`                               |
-| **Base**       | `main` @ `1763876` (Tribunal console inspector merged)                              |
-| **Next phase** | Tribunal release-gate binding                                                       |
+| **Phase**      | Phase 8 Multi-Agent Safety Tribunal release-gate binding                            |
+| **Status**     | In progress on branch `codex/p8-tribunal-gate-binding`                              |
+| **Base**       | `main` @ `9321341` (Tribunal auto-invocation merged)                                |
+| **Next phase** | Live model-backed Tribunal debate and forkable Tribunal replay                      |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -179,6 +179,9 @@ auto-delete on merge, so each phase has to clean up after itself.
 - Added `thresholds.tribunal.enabled` suite configuration. When true, worker aggregation creates the
   deterministic Tribunal after the comparison report and records `tribunal_session_id` and
   `tribunal_outcome` in the run summary.
+- Added `require_tribunal_approval` release-policy support. When true, the release gate reads the
+  persisted Tribunal verdict for the run; missing verdicts return a retryable conflict,
+  `conditional` or `blocked` verdicts block, and only `approved` passes.
 - Added OpenAPI and generated TypeScript contracts plus core/API tests for clean approval,
   conditional quality warnings, missing evidence and Auditor-overrides-Defender behavior.
 

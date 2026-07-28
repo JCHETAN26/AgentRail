@@ -15,6 +15,12 @@ from agentrail_api.routers.integrations import _KNOWN_EVENTS, _known
 from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import EvaluationRun, EvaluationRunState
 from agentrail_core.ids import new_sortable_id
+from agentrail_core.tribunal import (
+    TribunalSession,
+    TribunalSessionState,
+    TribunalVerdict,
+    TribunalVerdictOutcome,
+)
 from services.api.tests.test_execution_api import create_agent_version, create_frozen_suite
 
 pytestmark = pytest.mark.integration
@@ -85,6 +91,34 @@ async def attach_report(
                 exports={},
             )
         )
+        await session.commit()
+
+
+async def attach_tribunal(
+    session_factory: async_sessionmaker[AsyncSession],
+    run: dict[str, Any],
+    *,
+    outcome: TribunalVerdictOutcome,
+) -> None:
+    """Give a run the persisted Tribunal verdict the gate reads."""
+    async with session_factory() as session:
+        tribunal = TribunalSession(
+            id=new_sortable_id(),
+            project_id=str(run["project_id"]),
+            run_id=str(run["id"]),
+            state=TribunalSessionState.COMPLETED,
+            outcome=outcome,
+            summary={"outcome": outcome.value},
+        )
+        verdict = TribunalVerdict(
+            id=new_sortable_id(),
+            session_id=tribunal.id,
+            outcome=outcome,
+            primary_reason=f"Test Tribunal verdict: {outcome.value}.",
+            dissent={},
+            evidence={},
+        )
+        session.add_all([tribunal, verdict])
         await session.commit()
 
 
@@ -228,6 +262,70 @@ class TestTheGate:
             for violation in body["violations"]
             if "rate" in violation["kind"]
         )
+
+    async def test_required_tribunal_approval_waits_when_verdict_is_missing(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_report(session_factory, run, pass_rate=0.98, regressions=0)
+        policy = await create_policy(
+            tenant,
+            "Tribunal required",
+            {**LENIENT_POLICY, "require_tribunal_approval": True},
+        )
+
+        response = await tenant.client.post(
+            f"/api/v1/evaluation-runs/{run['id']}/gate",
+            json={"release_policy_id": policy["id"]},
+        )
+
+        assert response.status_code == 409
+        body = response.json()
+        assert body["code"] == "conflict"
+        assert "no Tribunal verdict yet" in body["message"]
+
+    async def test_required_tribunal_approval_blocks_non_approved_verdict(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_report(session_factory, run, pass_rate=0.98, regressions=0)
+        await attach_tribunal(session_factory, run, outcome=TribunalVerdictOutcome.BLOCKED)
+        policy = await create_policy(
+            tenant,
+            "Tribunal required",
+            {**LENIENT_POLICY, "require_tribunal_approval": True},
+        )
+
+        response = await tenant.client.post(
+            f"/api/v1/evaluation-runs/{run['id']}/gate",
+            json={"release_policy_id": policy["id"]},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["outcome"] == "blocked"
+        assert body["violations"][0]["kind"] == "require_tribunal_approval"
+        assert "blocked" in body["violations"][0]["message"]
+
+    async def test_required_tribunal_approval_allows_approved_verdict(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_report(session_factory, run, pass_rate=0.98, regressions=0)
+        await attach_tribunal(session_factory, run, outcome=TribunalVerdictOutcome.APPROVED)
+        policy = await create_policy(
+            tenant,
+            "Tribunal required",
+            {**LENIENT_POLICY, "require_tribunal_approval": True},
+        )
+
+        response = await tenant.client.post(
+            f"/api/v1/evaluation-runs/{run['id']}/gate",
+            json={"release_policy_id": policy["id"]},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["outcome"] == "passed"
 
     async def test_gating_the_same_run_twice_returns_one_recorded_verdict(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]

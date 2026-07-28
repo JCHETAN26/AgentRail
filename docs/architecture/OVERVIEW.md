@@ -188,7 +188,9 @@ model calls into CI. The console includes a Tribunal inspector that fetches or c
 deterministic verdict and displays role findings, arguments and the blackboard timeline. Evaluation
 suites can also opt into automatic deterministic Tribunal creation with
 `thresholds.tribunal.enabled = true`; worker aggregation writes the Tribunal id and outcome into the
-run summary after building the comparison report.
+run summary after building the comparison report. Release policies can make the Tribunal binding
+with `require_tribunal_approval = true`; a missing Tribunal verdict returns a retryable gate
+conflict, `conditional` or `blocked` blocks the gate, and `approved` satisfies the rule.
 
 ## Replay And Time Travel
 
@@ -208,6 +210,5 @@ rollback reasons preserved in release history.
 
 ## Not built yet
 
-Live model-backed Tribunal debate, release-gate binding for required Tribunal verdicts, external
-OpenTelemetry export, remaining security hardening (Phase 15), real deploy provider integration and
-production packaging.
+Live model-backed Tribunal debate, forkable Tribunal replay, external OpenTelemetry export,
+remaining security hardening (Phase 15), real deploy provider integration and production packaging.
