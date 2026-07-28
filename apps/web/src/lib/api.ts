@@ -26,6 +26,7 @@ import type {
   ProblemDetail,
   Project,
   Role,
+  TribunalSession,
 } from '@agentrail/contracts';
 import { CORRELATION_HEADER, IDEMPOTENCY_HEADER } from '@agentrail/contracts';
 
@@ -198,6 +199,18 @@ export async function listJobs(projectId: string, limit = 10): Promise<JobListRe
   return request<JobListResponse>(
     `/api/v1/projects/${encodeURIComponent(projectId)}/jobs?limit=${limit}`,
   );
+}
+
+// --- Tribunal ---------------------------------------------------------------
+
+export async function getTribunalSession(runId: string): Promise<TribunalSession> {
+  return request<TribunalSession>(`/api/v1/evaluation-runs/${encodeURIComponent(runId)}/tribunal`);
+}
+
+export async function createTribunalSession(runId: string): Promise<TribunalSession> {
+  return request<TribunalSession>(`/api/v1/evaluation-runs/${encodeURIComponent(runId)}/tribunal`, {
+    method: 'POST',
+  });
 }
 
 // --- Approvals --------------------------------------------------------------

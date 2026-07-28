@@ -15,6 +15,8 @@ All notable changes to AgentRail are recorded here. The format follows
 - `POST /api/v1/evaluation-runs/{run_id}/tribunal` creates an idempotent Tribunal verdict from
   run/comparison evidence; `GET /api/v1/evaluation-runs/{run_id}/tribunal` fetches the persisted
   blackboard.
+- Console Safety Tribunal inspector for fetching or creating a run's deterministic verdict and
+  reading the role findings, arguments and blackboard timeline.
 - Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
   evidence blocks approval.
 - OpenAPI and generated TypeScript contracts for Tribunal responses.

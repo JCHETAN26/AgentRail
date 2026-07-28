@@ -68,6 +68,19 @@ export type EvaluationResultListResponse = Schemas['EvaluationResultListResponse
 export type EvaluatorKind = Schemas['EvaluatorKind'];
 export type EvaluatorResultState = Schemas['EvaluatorResultState'];
 
+/** Multi-Agent Safety Tribunal. */
+export type TribunalSession = Schemas['TribunalSessionResponse'];
+export type TribunalVerdict = Schemas['TribunalVerdictResponse'];
+export type TribunalFinding = Schemas['TribunalFindingResponse'];
+export type TribunalArgument = Schemas['TribunalArgumentResponse'];
+export type TribunalBlackboardEntry = Schemas['TribunalBlackboardEntryResponse'];
+export type TribunalAgentRole = Schemas['TribunalAgentRole'];
+export type TribunalVerdictOutcome = Schemas['TribunalVerdictOutcome'];
+export type TribunalFindingSeverity = Schemas['TribunalFindingSeverity'];
+export type TribunalArgumentStance = Schemas['TribunalArgumentStance'];
+export type TribunalRound = Schemas['TribunalRound'];
+export type TribunalSessionState = Schemas['TribunalSessionState'];
+
 /** Trajectory trace explorer. */
 export type RunItemTrace = Schemas['RunItemTraceResponse'];
 export type RunItemTraceListResponse = Schemas['RunItemTraceListResponse'];

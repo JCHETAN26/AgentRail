@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiError, createJob, getJob } from '@/lib/api';
+import { ApiError, createJob, createTribunalSession, getJob, getTribunalSession } from '@/lib/api';
 
 const PROJECT_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAP';
+const RUN_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAR';
 
 function jsonResponse(body: unknown, init: { status?: number; headers?: HeadersInit } = {}) {
   return new Response(JSON.stringify(body), {
@@ -41,6 +42,30 @@ describe('createJob', () => {
 
     const headers = vi.mocked(fetch).mock.calls[0]![1]?.headers as Record<string, string>;
     expect(headers).not.toHaveProperty('Idempotency-Key');
+  });
+});
+
+describe('tribunal API', () => {
+  it('fetches the persisted Tribunal session for a run', async () => {
+    const tribunal = { id: '01ARZ3NDEKTSV4RRFFQ69G5FAT', run_id: RUN_ID, outcome: 'approved' };
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(tribunal));
+
+    const result = await getTribunalSession(RUN_ID);
+
+    expect(result).toEqual(tribunal);
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
+      `http://localhost:8000/api/v1/evaluation-runs/${RUN_ID}/tribunal`,
+    );
+  });
+
+  it('creates the deterministic Tribunal session for a run', async () => {
+    const tribunal = { id: '01ARZ3NDEKTSV4RRFFQ69G5FAT', run_id: RUN_ID, outcome: 'blocked' };
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(tribunal, { status: 201 }));
+
+    const result = await createTribunalSession(RUN_ID);
+
+    expect(result).toEqual(tribunal);
+    expect(vi.mocked(fetch).mock.calls[0]![1]?.method).toBe('POST');
   });
 });
 

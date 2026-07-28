@@ -6,6 +6,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 
 import { ApprovalQueue } from '@/components/approval-queue';
 import { JobLauncher } from '@/components/job-launcher';
+import { TribunalPanel } from '@/components/tribunal-panel';
 import { ApiError, createOrganisation, getMe, listProjects, signOut } from '@/lib/api';
 
 /**
@@ -123,6 +124,7 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
                 onSelect={setProjectId}
               />
               <JobLauncher projectId={selectedProjectId} />
+              <TribunalPanel />
               <ApprovalQueue projectId={selectedProjectId} role={selectedRole} />
             </>
           )}
