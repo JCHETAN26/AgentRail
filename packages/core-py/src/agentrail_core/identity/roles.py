@@ -47,6 +47,7 @@ class Permission(StrEnum):
     JOB_READ = "job:read"
     JOB_CREATE = "job:create"
     AUDIT_READ = "audit:read"
+    AUDIT_MANAGE = "audit:manage"
     APPROVAL_READ = "approval:read"
     APPROVAL_DECIDE = "approval:decide"
 
@@ -87,6 +88,7 @@ _DEVELOPER: frozenset[Permission] = _REVIEWER | frozenset(
 
 _ADMIN: frozenset[Permission] = _DEVELOPER | frozenset(
     {
+        Permission.AUDIT_MANAGE,
         Permission.MEMBER_MANAGE,
         Permission.API_KEY_MANAGE,
         Permission.ORGANISATION_UPDATE,

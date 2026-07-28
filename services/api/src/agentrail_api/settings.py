@@ -28,6 +28,9 @@ class ApiSettings(DatabaseSettings, QueueSettings):
     #: unit is one run item, so a suite with 50 dataset records spends 50.
     evaluation_item_monthly_quota: int = Field(default=50_000, ge=1, le=10_000_000)
 
+    #: Audit events older than this may be pruned by an organisation admin.
+    audit_event_retention_days: int = Field(default=365, ge=1, le=3650)
+
     # --- Authentication ----------------------------------------------------
     #: Where the console lives. Sign-in redirects back here.
     web_base_url: str = "http://localhost:3737"

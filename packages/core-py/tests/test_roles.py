@@ -69,6 +69,14 @@ class TestRoleMatrix:
     def test_viewer_cannot_read_the_audit_log(self) -> None:
         assert not user(Role.VIEWER).can(Permission.AUDIT_READ)
 
+    @pytest.mark.parametrize("role", [Role.VIEWER, Role.REVIEWER, Role.DEVELOPER])
+    def test_only_admins_and_owners_manage_audit_retention(self, role: Role) -> None:
+        assert not user(role).can(Permission.AUDIT_MANAGE)
+
+    @pytest.mark.parametrize("role", [Role.ADMIN, Role.OWNER])
+    def test_admins_manage_audit_retention(self, role: Role) -> None:
+        assert user(role).can(Permission.AUDIT_MANAGE)
+
     def test_a_viewer_can_see_an_approval_but_not_decide_it(self) -> None:
         """The distinction the reviewer role was created for in Phase 1 and only
         became load-bearing here: watching a run is not authorising it."""

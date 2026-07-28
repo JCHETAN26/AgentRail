@@ -9,8 +9,8 @@ Operational handoff between sessions. This file is the first thing to read when 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
 | **Phase**      | 14 — Security and supply chain                                                      |
-| **Status**     | In progress on branch `codex/p14-quota-retention`                                   |
-| **Base**       | `main` @ `c3a85a3` (Phase 14 security slice merged)                                 |
+| **Status**     | In progress on branch `codex/p14-audit-retention`                                   |
+| **Base**       | `main` @ `c90fe7c` (Phase 14 quota slice merged)                                    |
 | **Next phase** | 15 — Performance and analytical scale, after Phase 14 exits                         |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
@@ -32,6 +32,7 @@ Phase 12 shipped in PR [#46](https://github.com/JCHETAN26/AgentRail/pull/46).
 Phase 13 shipped in PR [#47](https://github.com/JCHETAN26/AgentRail/pull/47).
 Phase 14's security and supply-chain slice shipped in PR
 [#48](https://github.com/JCHETAN26/AgentRail/pull/48).
+Phase 14's durable quota slice shipped in PR [#49](https://github.com/JCHETAN26/AgentRail/pull/49).
 
 Merged branches through Phase 9 are deleted, local and remote. The repository does not
 auto-delete on merge, so each phase has to clean up after itself.
@@ -46,7 +47,8 @@ auto-delete on merge, so each phase has to clean up after itself.
 4. `services/api/src/agentrail_api/routers/integrations.py` — GitHub webhook replay defence
 5. `.github/workflows/ci.yml` — `containers / scan`
 6. `docs/security/THREAT_MODEL.md`
-7. `packages/core-py/src/agentrail_core/quotas.py` — durable quota period ledger
+7. `services/api/src/agentrail_api/identity/service.py` — audit retention pruning
+8. `packages/core-py/src/agentrail_core/quotas.py` — durable quota period ledger
 
 ---
 
@@ -297,6 +299,8 @@ grant write access to use the gate.
   the shared Dockerfile's pinned runtime inputs and proves the runtime user is non-root.
 - Added a PostgreSQL-backed monthly evaluation-item quota ledger per organisation, charged
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
+- Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
+  organisation and guarded by `audit:manage`.
 
 ## Architecture decisions taken
 
@@ -491,7 +495,7 @@ vacuous.
   and evaluation-run creation spends a durable monthly item quota per organisation, but quotas do
   not cover every workload class yet.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
-- **No API-key rotation or anomaly detection**, and no retention policy on the audit log (Phase 13).
+- **No API-key rotation or anomaly detection.**
 - The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture,
   replay records and the first programmatic evaluator are synthetic/deterministic. Live model
   evaluators and true live replay execution are not built yet.
@@ -577,24 +581,24 @@ Latest Phase 13 branch checks, run locally on 2026-07-27:
 
 Latest Phase 14 branch checks, run locally on 2026-07-27:
 
-| Command                                                                                             | Result                                                    |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `uv run ruff check .`                                                                               | Pass                                                      |
-| `uv run mypy packages/core-py/src services/api/src ...`                                             | Pass — 100 source files                                   |
-| `uv run pytest -q`                                                                                  | 460 passed, 9 skipped locally due PostgreSQL availability |
-| `uv run python scripts/export_openapi.py --check`                                                   | Pass                                                      |
-| `@agentrail/contracts check`                                                                        | Pass                                                      |
-| `uv run pytest services/api/tests/test_execution_api.py services/api/tests/test_security_api.py -q` | Pass — 12 tests                                           |
-| `pnpm run format:check`                                                                             | Pass                                                      |
+| Command                                                                                                                        | Result                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `uv run ruff check .`                                                                                                          | Pass                                                            |
+| `uv run mypy packages/core-py/src services/api/src ...`                                                                        | Pass — 100 source files                                         |
+| `uv run pytest -q`                                                                                                             | 460 passed, 9 skipped locally due PostgreSQL availability       |
+| `uv run python scripts/export_openapi.py --check`                                                                              | Pass                                                            |
+| `@agentrail/contracts check`                                                                                                   | Pass                                                            |
+| `uv run pytest services/api/tests/test_execution_api.py services/api/tests/test_security_api.py -q`                            | Pass — 12 tests                                                 |
+| `uv run pytest packages/core-py/tests/test_roles.py services/api/tests/test_auth_api.py services/api/tests/test_tenancy.py -q` | Pass — 77 passed, 8 skipped locally due PostgreSQL availability |
+| `pnpm run format:check`                                                                                                        | Pass                                                            |
 
 ---
 
 ## Next tasks (Phase 14 — Security and supply chain)
 
-1. Open the quota/retention slice pull request and let CI run the PostgreSQL-backed quota tests.
+1. Open the audit-retention slice pull request and let CI run the PostgreSQL-backed audit tests.
 2. Continue Phase 14 with PostgreSQL RLS defence in depth.
 3. Continue supply-chain hardening with immutable GitHub Action SHA pinning and SBOM generation.
-4. Add audit retention pruning/export semantics.
 
 **Exit criteria:** cross-tenant tests pass across all surfaces; security workflows green; green PR.
 

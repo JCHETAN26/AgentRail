@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentrail_api.auth.service import Actor, principal_for_organisation
+from agentrail_api.settings import ApiSettings
 from agentrail_core.correlation import current_context
 from agentrail_core.errors import ConflictError, ForbiddenError, ValidationFailedError
 from agentrail_core.identity import (
@@ -424,6 +425,40 @@ async def list_audit_events(
         .limit(bounded)
     )
     return list(rows.all())
+
+
+async def prune_expired_audit_events(
+    session: AsyncSession,
+    actor: Actor,
+    principal: Principal,
+    settings: ApiSettings,
+    *,
+    now: datetime,
+) -> tuple[datetime, int]:
+    """Delete audit rows older than the configured organisation retention window."""
+    authorize(principal, Permission.AUDIT_MANAGE, organisation_id=principal.organisation_id)
+    cutoff = now - timedelta(days=settings.audit_event_retention_days)
+    result = await session.execute(
+        delete(AuditEvent).where(
+            AuditEvent.organisation_id == principal.organisation_id,
+            AuditEvent.created_at < cutoff,
+        )
+    )
+    deleted_count = int(result.rowcount or 0)
+    await record_audit(
+        session,
+        organisation_id=principal.organisation_id,
+        actor=actor,
+        action="audit_events.pruned",
+        target_type="organisation",
+        target_id=principal.organisation_id,
+        context={
+            "retention_days": settings.audit_event_retention_days,
+            "cutoff": cutoff.isoformat(),
+            "deleted_count": deleted_count,
+        },
+    )
+    return cutoff, deleted_count
 
 
 async def count_jobs_in_organisation(session: AsyncSession, organisation_id: str) -> int:

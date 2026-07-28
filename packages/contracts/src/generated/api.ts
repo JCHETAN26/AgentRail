@@ -609,6 +609,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organisations/{organisation_id}/audit-events/expired": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Prune expired audit events */
+        delete: operations["prune_expired_audit_events"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organisations/{organisation_id}/members": {
         parameters: {
             query?: never;
@@ -1069,6 +1086,18 @@ export interface components {
             target_id: string | null;
             /** Target Type */
             target_type: string | null;
+        };
+        /** AuditRetentionResponse */
+        AuditRetentionResponse: {
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
+            /** Deleted Count */
+            deleted_count: number;
+            /** Retention Days */
+            retention_days: number;
         };
         /** AuthProviderInfo */
         AuthProviderInfo: {
@@ -1823,7 +1852,7 @@ export interface components {
          * @description A single authorisable action. Values are stable and appear in audit logs.
          * @enum {string}
          */
-        Permission: "organisation:read" | "organisation:update" | "member:read" | "member:manage" | "api_key:read" | "api_key:manage" | "project:read" | "project:create" | "project:update" | "agent:read" | "agent:manage" | "dataset:read" | "dataset:manage" | "run:read" | "run:create" | "run:cancel" | "job:read" | "job:create" | "audit:read" | "approval:read" | "approval:decide";
+        Permission: "organisation:read" | "organisation:update" | "member:read" | "member:manage" | "api_key:read" | "api_key:manage" | "project:read" | "project:create" | "project:update" | "agent:read" | "agent:manage" | "dataset:read" | "dataset:manage" | "run:read" | "run:create" | "run:cancel" | "job:read" | "job:create" | "audit:read" | "audit:manage" | "approval:read" | "approval:decide";
         /**
          * ProblemDetail
          * @description The body returned for every non-2xx API response.
@@ -4561,6 +4590,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEventListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    prune_expired_audit_events: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                organisation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditRetentionResponse"];
                 };
             };
             /** @description Not signed in. */

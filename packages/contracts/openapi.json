@@ -500,6 +500,30 @@
         "title": "AuditEventResponse",
         "type": "object"
       },
+      "AuditRetentionResponse": {
+        "properties": {
+          "cutoff": {
+            "format": "date-time",
+            "title": "Cutoff",
+            "type": "string"
+          },
+          "deleted_count": {
+            "title": "Deleted Count",
+            "type": "integer"
+          },
+          "retention_days": {
+            "title": "Retention Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "retention_days",
+          "cutoff",
+          "deleted_count"
+        ],
+        "title": "AuditRetentionResponse",
+        "type": "object"
+      },
       "AuthProviderInfo": {
         "properties": {
           "deterministic": {
@@ -2495,6 +2519,7 @@
           "job:read",
           "job:create",
           "audit:read",
+          "audit:manage",
           "approval:read",
           "approval:decide"
         ],
@@ -7292,6 +7317,96 @@
           }
         },
         "summary": "Recent audit events",
+        "tags": [
+          "organisations"
+        ]
+      }
+    },
+    "/api/v1/organisations/{organisation_id}/audit-events/expired": {
+      "delete": {
+        "operationId": "prune_expired_audit_events",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organisation_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Organisation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRetentionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Already exists."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Prune expired audit events",
         "tags": [
           "organisations"
         ]
