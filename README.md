@@ -19,8 +19,9 @@ The question AgentRail exists to answer:
 > candidates and roll back degraded ones, plus run-level observability metrics and SLO verdicts for
 > incident response. Phase 14 has authenticated rate limits, a durable monthly evaluation-item
 > quota ledger, GitHub webhook replay defence, console CSP/security headers and container image
-> security checks, plus admin-triggered audit retention pruning. Nothing in this README describes a capability that does not exist — see
-> [Known limitations](#known-limitations).
+> security checks, admin-triggered audit retention pruning and immutable GitHub Actions pins.
+> Nothing in this README describes a capability that does not exist — see [Known
+> limitations](#known-limitations).
 
 ---
 
