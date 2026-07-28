@@ -125,6 +125,41 @@ def test_reproducibility_can_be_waived_deliberately() -> None:
     assert decision.outcome is GateOutcome.PASSED
 
 
+def test_required_tribunal_approval_blocks_when_verdict_is_absent() -> None:
+    decision = decide(ReleasePolicy(require_tribunal_approval=True))
+
+    assert decision.blocked is True
+    assert decision.violations[0].kind is RuleKind.REQUIRE_TRIBUNAL_APPROVAL
+    assert "absent" in decision.violations[0].message
+
+
+@pytest.mark.parametrize("outcome", ["blocked", "conditional"])
+def test_required_tribunal_approval_blocks_non_approved_verdicts(outcome: str) -> None:
+    decision = evaluate_gate(
+        ReleasePolicy(require_tribunal_approval=True),
+        summary=PASSING_SUMMARY,
+        evaluator_metrics=EVALUATORS,
+        category_metrics=CATEGORIES,
+        tribunal={"outcome": outcome},
+    )
+
+    assert decision.blocked is True
+    assert decision.violations[0].subject == "tribunal"
+    assert outcome in decision.violations[0].message
+
+
+def test_required_tribunal_approval_passes_with_approved_verdict() -> None:
+    decision = evaluate_gate(
+        ReleasePolicy(require_tribunal_approval=True),
+        summary=PASSING_SUMMARY,
+        evaluator_metrics=EVALUATORS,
+        category_metrics=CATEGORIES,
+        tribunal={"outcome": "approved"},
+    )
+
+    assert decision.outcome is GateOutcome.PASSED
+
+
 def test_a_missing_pass_rate_reads_as_zero_rather_than_passing() -> None:
     decision = evaluate_gate(
         ReleasePolicy(min_pass_rate=0.5),
@@ -145,13 +180,16 @@ def test_parsing_accepts_a_complete_policy() -> None:
             "min_evaluator_pass_rate": {"task_success": 0.95},
             "min_category_pass_rate": {"diagnosis": 0.9},
             "require_reproducible": False,
+            "require_tribunal_approval": True,
         }
     )
 
     assert policy.min_pass_rate == 0.9
     assert policy.max_regressions == 3
     assert policy.min_evaluator_pass_rate == {"task_success": 0.95}
+    assert policy.min_category_pass_rate == {"diagnosis": 0.9}
     assert policy.require_reproducible is False
+    assert policy.require_tribunal_approval is True
 
 
 def test_a_policy_that_forbids_nothing_is_rejected() -> None:
@@ -175,6 +213,7 @@ def test_a_policy_that_forbids_nothing_is_rejected() -> None:
         {"min_evaluator_pass_rate": "all"},
         {"min_evaluator_pass_rate": {"task_success": 2}},
         {"min_pass_rate": 0.9, "require_reproducible": "yes"},
+        {"min_pass_rate": 0.9, "require_tribunal_approval": "yes"},
     ],
 )
 def test_unevaluable_policies_are_rejected(raw: dict[str, object]) -> None:

@@ -53,6 +53,7 @@ class RuleKind(StrEnum):
     MIN_EVALUATOR_PASS_RATE = "min_evaluator_pass_rate"  # noqa: S105
     MIN_CATEGORY_PASS_RATE = "min_category_pass_rate"  # noqa: S105
     REQUIRE_REPRODUCIBLE = "require_reproducible"
+    REQUIRE_TRIBUNAL_APPROVAL = "require_tribunal_approval"
     #: Not a threshold: a metric the policy names is absent from the report.
     MISSING_METRIC = "missing_metric"
 
@@ -127,6 +128,8 @@ class ReleasePolicy:
     #: default: a threshold applied to a number that will not reproduce is
     #: theatre, and worse, it is theatre that looks like evidence.
     require_reproducible: bool = True
+    #: Refuse to release unless the persisted Tribunal verdict approved the run.
+    require_tribunal_approval: bool = False
 
     def as_payload(self) -> dict[str, Any]:
         return {
@@ -135,6 +138,7 @@ class ReleasePolicy:
             "min_evaluator_pass_rate": dict(self.min_evaluator_pass_rate),
             "min_category_pass_rate": dict(self.min_category_pass_rate),
             "require_reproducible": self.require_reproducible,
+            "require_tribunal_approval": self.require_tribunal_approval,
         }
 
 
@@ -144,6 +148,7 @@ def evaluate_gate(
     summary: dict[str, Any],
     evaluator_metrics: dict[str, Any],
     category_metrics: dict[str, Any],
+    tribunal: dict[str, Any] | None = None,
 ) -> GateDecision:
     """Judge one comparison report against one policy.
 
@@ -165,6 +170,25 @@ def evaluate_gate(
                 ),
             )
         )
+
+    if policy.require_tribunal_approval:
+        tribunal_outcome = _tribunal_outcome(tribunal)
+        if tribunal_outcome != "approved":
+            if tribunal_outcome is None:
+                message = "A Tribunal approval is required by the release policy but absent."
+            else:
+                message = (
+                    f"Tribunal verdict {tribunal_outcome!r} is not the required 'approved' verdict."
+                )
+            violations.append(
+                GateViolation(
+                    kind=RuleKind.REQUIRE_TRIBUNAL_APPROVAL,
+                    subject="tribunal",
+                    expected=1.0,
+                    actual=1.0 if tribunal_outcome == "approved" else 0.0,
+                    message=message,
+                )
+            )
 
     if policy.min_pass_rate is not None:
         actual = _rate(summary.get("pass_rate"))
@@ -271,6 +295,7 @@ _KNOWN_KEYS: frozenset[str] = frozenset(
         "min_evaluator_pass_rate",
         "min_category_pass_rate",
         "require_reproducible",
+        "require_tribunal_approval",
     }
 )
 
@@ -306,6 +331,9 @@ def parse_release_policy(raw: dict[str, Any] | None) -> ReleasePolicy:
     require_reproducible = raw.get("require_reproducible", True)
     if not isinstance(require_reproducible, bool):
         raise ReleasePolicyError("require_reproducible must be a boolean")
+    require_tribunal_approval = raw.get("require_tribunal_approval", False)
+    if not isinstance(require_tribunal_approval, bool):
+        raise ReleasePolicyError("require_tribunal_approval must be a boolean")
 
     policy = ReleasePolicy(
         min_pass_rate=min_pass_rate,
@@ -317,6 +345,7 @@ def parse_release_policy(raw: dict[str, Any] | None) -> ReleasePolicy:
             raw.get("min_category_pass_rate"), "min_category_pass_rate"
         ),
         require_reproducible=require_reproducible,
+        require_tribunal_approval=require_tribunal_approval,
     )
     if not _has_any_rule(policy):
         # A policy that forbids nothing would report "passed" for every run,
@@ -332,6 +361,7 @@ def _has_any_rule(policy: ReleasePolicy) -> bool:
             policy.max_regressions is not None,
             bool(policy.min_evaluator_pass_rate),
             bool(policy.min_category_pass_rate),
+            policy.require_tribunal_approval,
         )
     )
 
@@ -365,6 +395,15 @@ def _rate(value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return 0.0
     return float(value)
+
+
+def _tribunal_outcome(tribunal: dict[str, Any] | None) -> str | None:
+    if not isinstance(tribunal, dict):
+        return None
+    outcome = tribunal.get("outcome")
+    if not isinstance(outcome, str):
+        return None
+    return outcome
 
 
 # ---------------------------------------------------------------------------
