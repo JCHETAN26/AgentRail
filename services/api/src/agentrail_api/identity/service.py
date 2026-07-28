@@ -413,6 +413,38 @@ async def revoke_api_key(
     return record
 
 
+async def rotate_api_key(
+    session: AsyncSession, actor: Actor, principal: Principal, *, key_id: str
+) -> IssuedApiKey:
+    authorize(principal, Permission.API_KEY_MANAGE, organisation_id=principal.organisation_id)
+
+    record = await session.scalar(
+        select(ApiKey).where(
+            ApiKey.id == key_id, ApiKey.organisation_id == principal.organisation_id
+        )
+    )
+    if record is None or record.revoked_at is not None:
+        raise ForbiddenError()
+
+    previous_key_id = record.key_id
+    generated = generate_api_key()
+    record.key_id = generated.key_id
+    record.secret_hash = generated.secret_hash
+    record.last_used_at = None
+    await session.flush()
+
+    await record_audit(
+        session,
+        organisation_id=principal.organisation_id,
+        actor=actor,
+        action="api_key.rotated",
+        target_type="api_key",
+        target_id=record.id,
+        context={"previous_key_id": previous_key_id, "key_id": record.key_id},
+    )
+    return IssuedApiKey(record=record, token=generated.token)
+
+
 async def list_audit_events(
     session: AsyncSession, principal: Principal, *, limit: int = 50
 ) -> list[AuditEvent]:

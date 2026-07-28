@@ -62,6 +62,8 @@ All notable changes to AgentRail are recorded here. The format follows
   transaction-local Postgres tenant context used by RLS policies.
 - Model-backed Tribunal calls now receive a sandboxed evidence envelope that removes raw untrusted
   strings from run/comparison evidence and prompt overrides before model prompts are assembled.
+- API keys can now be rotated in place; rotation returns the replacement token once, invalidates the
+  previous bearer token immediately and records a redacted audit event.
 
 ### Added — Phase 14: observability, SLOs and operations
 

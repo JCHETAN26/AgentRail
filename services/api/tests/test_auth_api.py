@@ -231,6 +231,42 @@ class TestApiKeys:
 
         assert after.status_code == 401
 
+    async def test_rotating_a_key_invalidates_the_old_token(
+        self, integration_app: FastAPI, tenant: Tenant
+    ) -> None:
+        created = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys",
+            json={"name": "rotating", "role": "developer"},
+        )
+        old_token = created.json()["token"]
+        key_id = created.json()["key"]["id"]
+        old_public_id = created.json()["key"]["key_id"]
+
+        rotated = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys/{key_id}/rotate"
+        )
+        new_token = rotated.json()["token"]
+
+        transport = httpx.ASGITransport(app=integration_app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://api",
+            headers={"authorization": f"Bearer {old_token}"},
+        ) as old_client:
+            old_response = await old_client.get("/api/v1/auth/me")
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://api",
+            headers={"authorization": f"Bearer {new_token}"},
+        ) as new_client:
+            new_response = await new_client.get("/api/v1/auth/me")
+
+        assert rotated.status_code == 200
+        assert new_token != old_token
+        assert rotated.json()["key"]["key_id"] != old_public_id
+        assert old_response.status_code == 401
+        assert new_response.status_code == 200
+
     async def test_a_key_cannot_be_created_for_another_organisation(
         self, tenant: Tenant, other_tenant: Tenant
     ) -> None:
@@ -252,6 +288,21 @@ class TestApiKeys:
 
         response = await tenant.client.delete(
             f"/api/v1/organisations/{tenant.organisation_id}/api-keys/{key_id}"
+        )
+
+        assert response.status_code == 403
+
+    async def test_a_key_cannot_be_rotated_from_another_organisation(
+        self, tenant: Tenant, other_tenant: Tenant
+    ) -> None:
+        created = await other_tenant.client.post(
+            f"/api/v1/organisations/{other_tenant.organisation_id}/api-keys",
+            json={"name": "theirs", "role": "viewer"},
+        )
+        key_id = created.json()["key"]["id"]
+
+        response = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys/{key_id}/rotate"
         )
 
         assert response.status_code == 403
@@ -358,6 +409,26 @@ class TestAuditLog:
         assert "api_key.created" in actions
         assert "organisation.created" in actions
         assert token not in events.text
+
+    async def test_key_rotation_is_audited_without_recording_the_token(
+        self, tenant: Tenant
+    ) -> None:
+        created = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys",
+            json={"name": "ci", "role": "developer"},
+        )
+        rotated = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys/"
+            f"{created.json()['key']['id']}/rotate"
+        )
+
+        events = await tenant.client.get(
+            f"/api/v1/organisations/{tenant.organisation_id}/audit-events"
+        )
+
+        actions = [event["action"] for event in events.json()["items"]]
+        assert "api_key.rotated" in actions
+        assert rotated.json()["token"] not in events.text
 
     async def test_audit_events_carry_the_correlation_id(self, tenant: Tenant) -> None:
         events = await tenant.client.get(
