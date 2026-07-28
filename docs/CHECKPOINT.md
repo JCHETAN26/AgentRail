@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 8 Multi-Agent Safety Tribunal OpenAI provider adapter                         |
-| **Status**     | In progress on branch `codex/p8-tribunal-openai-adapter`                            |
-| **Base**       | `main` @ `420e1cd` (Tribunal live-mode scaffold merged)                             |
-| **Next phase** | Forkable Tribunal replay                                                            |
+| **Phase**      | Phase 8 Multi-Agent Safety Tribunal replay persistence                              |
+| **Status**     | In progress on branch `codex/p9-tribunal-replay`                                    |
+| **Base**       | `main` @ `4cfb220` (OpenAI Tribunal adapter merged)                                 |
+| **Next phase** | Tribunal replay UI, live replay or remaining Phase 15 security hardening            |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -190,6 +190,11 @@ auto-delete on merge, so each phase has to clean up after itself.
   processes use `AGENTRAIL_OPENAI_API_KEY`, optional `AGENTRAIL_OPENAI_BASE_URL` and
   `AGENTRAIL_TRIBUNAL_MODEL_TIMEOUT_SECONDS`; missing credentials fail closed with a validation
   error instead of silently falling back to recorded mode.
+- Added recorded/forked Tribunal replay persistence with Alembic revision
+  `0015_tribunal_replays`, `POST`/`GET`
+  `/api/v1/tribunal-sessions/{tribunal_session_id}/replays`, prompt-version and role-prompt
+  override metadata, recorded-model override metadata, source/replay digests, divergence summaries,
+  redacted requests and safety summaries proving the source Tribunal session was not mutated.
 - Added OpenAPI and generated TypeScript contracts plus core/API tests for clean approval,
   conditional quality warnings, missing evidence and Auditor-overrides-Defender behavior.
 
@@ -647,13 +652,13 @@ Latest security/supply-chain branch checks, run locally on 2026-07-27:
 
 ## Next tasks
 
-1. Bind required `blocked` Tribunal verdicts into release-gate decisions.
-2. Add live model-backed specialist debate and prompt-versioning after the deterministic path is
-   release-gate aware.
+1. Add the console Tribunal replay view and fork controls.
+2. Add live-provider Tribunal replay after the recorded replay contract has shipped.
 3. Continue Phase 15 PostgreSQL RLS or SBOM/provenance after the Tribunal vertical slice.
 
-**Exit criteria:** required Tribunal blockers bind release gates, cross-tenant tests pass across the
-Tribunal surface, and the PR is green.
+**Exit criteria:** recorded Tribunal replay reproduces the source digest, forked replay persists
+divergence metadata without mutating the source session, cross-tenant tests pass across the Tribunal
+surface, and the PR is green.
 
 ---
 

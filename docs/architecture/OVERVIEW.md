@@ -208,6 +208,12 @@ validation error rather than silently falling back to recorded mode. The adapter
 JSON with the role prompt schema and records provider/model/response id/usage provenance in the
 existing Tribunal evidence.
 
+Tribunal sessions can also be replayed without mutating the source verdict. Recorded Tribunal
+replays reproduce the source digest through the recorded model client. Forked Tribunal replays accept
+explicit prompt-version, role-prompt and recorded-model override metadata, then persist the replayed
+outcome, source/replay digests, divergence summary, redacted request and a safety summary that proves
+no live provider was called and the original session was not changed.
+
 ## Replay And Time Travel
 
 The replay/time-travel slice adds durable replay records for persisted trajectories. A recorded
@@ -226,5 +232,6 @@ rollback reasons preserved in release history.
 
 ## Not built yet
 
-Forkable Tribunal replay, external OpenTelemetry export, remaining security hardening (Phase 15),
-real deploy provider integration and production packaging.
+Tribunal replay UI round-fork visualization, live-provider Tribunal replay, external OpenTelemetry
+export, remaining security hardening (Phase 15), real deploy provider integration and production
+packaging.

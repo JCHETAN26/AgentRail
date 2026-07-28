@@ -1149,6 +1149,55 @@
         "title": "CreateTrajectoryReplayRequest",
         "type": "object"
       },
+      "CreateTribunalReplayRequest": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/TribunalReplayMode",
+            "default": "recorded"
+          },
+          "model_overrides": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Overrides"
+          },
+          "prompt_overrides": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/TribunalAgentRole"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Overrides"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          }
+        },
+        "title": "CreateTribunalReplayRequest",
+        "type": "object"
+      },
       "CreatedApiKeyResponse": {
         "description": "Returned once, at creation.\n\n``token`` is the only time the full credential exists anywhere; the platform\nstores only its one-way digest and cannot show it again.",
         "properties": {
@@ -4070,6 +4119,139 @@
         "title": "TribunalFindingSeverity",
         "type": "string"
       },
+      "TribunalReplayListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TribunalReplayResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TribunalReplayListResponse",
+        "type": "object"
+      },
+      "TribunalReplayMode": {
+        "enum": [
+          "recorded",
+          "forked"
+        ],
+        "title": "TribunalReplayMode",
+        "type": "string"
+      },
+      "TribunalReplayResponse": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "divergence": {
+            "title": "Divergence",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TribunalReplayMode"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/TribunalVerdictOutcome"
+          },
+          "primary_reason": {
+            "title": "Primary Reason",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "replay_digest": {
+            "title": "Replay Digest",
+            "type": "string"
+          },
+          "request": {
+            "title": "Request",
+            "type": "object"
+          },
+          "result": {
+            "title": "Result",
+            "type": "object"
+          },
+          "safety_summary": {
+            "title": "Safety Summary",
+            "type": "object"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "source_digest": {
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "source_run_id": {
+            "title": "Source Run Id",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TribunalReplayState"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "session_id",
+          "source_run_id",
+          "mode",
+          "state",
+          "outcome",
+          "primary_reason",
+          "source_digest",
+          "replay_digest",
+          "created_at"
+        ],
+        "title": "TribunalReplayResponse",
+        "type": "object"
+      },
+      "TribunalReplayState": {
+        "enum": [
+          "CREATED",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "title": "TribunalReplayState",
+        "type": "string"
+      },
       "TribunalRound": {
         "enum": [
           "evidence",
@@ -6773,7 +6955,7 @@
             "description": "Validation failed."
           }
         },
-        "summary": "Fetch the deterministic multi-agent Safety Tribunal result",
+        "summary": "Fetch the multi-agent Safety Tribunal result",
         "tags": [
           "tribunal"
         ]
@@ -6851,7 +7033,7 @@
             "description": "Validation failed."
           }
         },
-        "summary": "Run the deterministic multi-agent Safety Tribunal",
+        "summary": "Run the multi-agent Safety Tribunal",
         "tags": [
           "tribunal"
         ]
@@ -9986,6 +10168,174 @@
         "summary": "List trajectory steps",
         "tags": [
           "trajectories"
+        ]
+      }
+    },
+    "/api/v1/tribunal-sessions/{tribunal_session_id}/replays": {
+      "get": {
+        "operationId": "list_tribunal_replays",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tribunal_session_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Tribunal Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TribunalReplayListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "List Tribunal replays",
+        "tags": [
+          "tribunal"
+        ]
+      },
+      "post": {
+        "operationId": "create_tribunal_replay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tribunal_session_id",
+            "required": true,
+            "schema": {
+              "maxLength": 26,
+              "minLength": 26,
+              "title": "Tribunal Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTribunalReplayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TribunalReplayResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not signed in."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not yours, or not permitted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Validation failed."
+          }
+        },
+        "summary": "Create a forkable Tribunal replay",
+        "tags": [
+          "tribunal"
         ]
       }
     },

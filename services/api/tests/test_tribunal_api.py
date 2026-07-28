@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import pytest
-from api_test_support import Tenant
+from api_test_support import Tenant, sign_in
+from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentrail_core.evaluators import ComparisonReport
+from agentrail_core.identity import Role
 from agentrail_core.ids import new_sortable_id
-from agentrail_core.tribunal import TribunalSession
+from agentrail_core.tribunal import TribunalReplay, TribunalSession
 from services.api.tests.test_execution_api import create_agent_version, create_frozen_suite
 
 pytestmark = pytest.mark.integration
@@ -174,3 +176,174 @@ class TestTribunalApi:
                 select(TribunalSession).where(TribunalSession.run_id == run["id"])
             )
         assert tribunal is None
+
+    async def test_recorded_replay_hashes_the_actual_replayed_tribunal(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(
+            tenant,
+            thresholds={
+                "task_success": 1.0,
+                "tribunal": {
+                    "enabled": True,
+                    "mode": "model_backed",
+                    "prompt_version": "tribunal-roles-v2",
+                },
+            },
+        )
+        await attach_comparison(session_factory, run)
+        created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+        assert created.status_code == 201, created.text
+
+        replay = await tenant.client.post(
+            f"/api/v1/tribunal-sessions/{created.json()['id']}/replays",
+            json={"mode": "recorded"},
+        )
+        listed = await tenant.client.get(
+            f"/api/v1/tribunal-sessions/{created.json()['id']}/replays"
+        )
+
+        assert replay.status_code == 200, replay.text
+        body = replay.json()
+        assert body["outcome"] == created.json()["outcome"]
+        assert body["result"]["source_outcome"] == created.json()["outcome"]
+        assert body["result"]["replay_outcome"] == created.json()["outcome"]
+        assert body["result"]["reproduced"] == (body["source_digest"] == body["replay_digest"])
+        assert body["result"]["evidence"]["prompt_version"] == "tribunal-roles-v2"
+        assert body["safety_summary"]["source_session_mutated"] is False
+        assert body["safety_summary"]["live_model_calls"] == 0
+        assert listed.status_code == 200
+        assert listed.json()["items"][0]["id"] == body["id"]
+        async with session_factory() as session:
+            replay_row = await session.scalar(select(TribunalReplay))
+        assert replay_row is not None
+
+    async def test_forked_replay_records_prompt_and_model_override_divergence(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(
+            tenant,
+            thresholds={
+                "task_success": 1.0,
+                "tribunal": {"enabled": True, "mode": "model_backed"},
+            },
+        )
+        await attach_comparison(session_factory, run)
+        created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+        assert created.status_code == 201, created.text
+        source_id = created.json()["id"]
+        source_summary = created.json()["summary"]
+
+        replay = await tenant.client.post(
+            f"/api/v1/tribunal-sessions/{source_id}/replays",
+            json={
+                "mode": "forked",
+                "prompt_version": "tribunal-roles-v3",
+                "prompt_overrides": {
+                    "defender": "Argue only from independently reproduced evidence."
+                },
+                "model_overrides": {"model": "tribunal-recorded-v2", "api_key": "secret"},
+            },
+        )
+        fetched = await tenant.client.get(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+
+        assert replay.status_code == 200, replay.text
+        body = replay.json()
+        assert body["result"]["reproduced"] is False
+        assert body["source_digest"] != body["replay_digest"]
+        assert body["divergence"]["diverged"] is True
+        assert body["divergence"]["changed_fields"] == [
+            "model_overrides",
+            "prompt_overrides",
+            "prompt_version",
+        ]
+        assert body["result"]["evidence"]["prompt_version"] == "tribunal-roles-v3"
+        assert body["result"]["evidence"]["prompt_override_roles"] == ["defender"]
+        assert body["request"]["model_overrides"]["api_key"] == "[REDACTED]"
+        assert "secret" not in replay.text
+        assert fetched.status_code == 200
+        assert fetched.json()["summary"] == source_summary
+
+    async def test_recorded_replay_rejects_fork_fields(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_comparison(session_factory, run)
+        created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+        assert created.status_code == 201, created.text
+
+        replay = await tenant.client.post(
+            f"/api/v1/tribunal-sessions/{created.json()['id']}/replays",
+            json={"mode": "recorded", "prompt_version": "tribunal-roles-v3"},
+        )
+
+        assert replay.status_code == 422
+        assert replay.json()["code"] == "validation_failed"
+
+    async def test_forked_replay_rejects_live_provider_override_alias(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_comparison(session_factory, run)
+        created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+        assert created.status_code == 201, created.text
+
+        replay = await tenant.client.post(
+            f"/api/v1/tribunal-sessions/{created.json()['id']}/replays",
+            json={"mode": "forked", "model_overrides": {"model_provider": "openai"}},
+        )
+
+        assert replay.status_code == 422
+        assert replay.json()["code"] == "validation_failed"
+        assert replay.json()["details"]["model_provider"] == "openai"
+
+    async def test_cannot_replay_another_tenants_tribunal(
+        self,
+        tenant: Tenant,
+        other_tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        run = await create_run(other_tenant)
+        await attach_comparison(session_factory, run)
+        created = await other_tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+        assert created.status_code == 201, created.text
+
+        listed = await tenant.client.get(
+            f"/api/v1/tribunal-sessions/{created.json()['id']}/replays"
+        )
+        replay = await tenant.client.post(
+            f"/api/v1/tribunal-sessions/{created.json()['id']}/replays",
+            json={"mode": "recorded"},
+        )
+
+        assert listed.status_code == 403
+        assert replay.status_code == 403
+
+    async def test_viewer_can_read_but_cannot_create_tribunal_replays(
+        self,
+        integration_app: FastAPI,
+        tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_comparison(session_factory, run)
+        created = await tenant.client.post(f"/api/v1/evaluation-runs/{run['id']}/tribunal")
+        assert created.status_code == 201, created.text
+        viewer = await sign_in(integration_app, "tribunal-replay-viewer@example.com")
+        try:
+            granted = await tenant.client.post(
+                f"/api/v1/organisations/{tenant.organisation_id}/members",
+                json={"email": "tribunal-replay-viewer@example.com", "role": Role.VIEWER.value},
+            )
+            assert granted.status_code == 201
+
+            readable = await viewer.get(f"/api/v1/tribunal-sessions/{created.json()['id']}/replays")
+            writable = await viewer.post(
+                f"/api/v1/tribunal-sessions/{created.json()['id']}/replays",
+                json={"mode": "recorded"},
+            )
+        finally:
+            await viewer.aclose()
+
+        assert readable.status_code == 200
+        assert writable.status_code == 403

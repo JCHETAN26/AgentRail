@@ -468,10 +468,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Fetch the deterministic multi-agent Safety Tribunal result */
+        /** Fetch the multi-agent Safety Tribunal result */
         get: operations["get_tribunal_session"];
         put?: never;
-        /** Run the deterministic multi-agent Safety Tribunal */
+        /** Run the multi-agent Safety Tribunal */
         post: operations["create_tribunal_session"];
         delete?: never;
         options?: never;
@@ -884,6 +884,24 @@ export interface paths {
         get: operations["list_trajectory_steps"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tribunal-sessions/{tribunal_session_id}/replays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tribunal replays */
+        get: operations["list_tribunal_replays"];
+        put?: never;
+        /** Create a forkable Tribunal replay */
+        post: operations["create_tribunal_replay"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1340,6 +1358,19 @@ export interface components {
             fork_overrides?: Record<string, never> | null;
             /** @default recorded */
             mode: components["schemas"]["ReplayMode"];
+        };
+        /** CreateTribunalReplayRequest */
+        CreateTribunalReplayRequest: {
+            /** @default recorded */
+            mode: components["schemas"]["TribunalReplayMode"];
+            /** Model Overrides */
+            model_overrides?: Record<string, never> | null;
+            /** Prompt Overrides */
+            prompt_overrides?: {
+                [key: string]: string;
+            } | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
         };
         /**
          * CreatedApiKeyResponse
@@ -2475,6 +2506,58 @@ export interface components {
          * @enum {string}
          */
         TribunalFindingSeverity: "info" | "warning" | "blocker";
+        /** TribunalReplayListResponse */
+        TribunalReplayListResponse: {
+            /** Items */
+            items: components["schemas"]["TribunalReplayResponse"][];
+        };
+        /**
+         * TribunalReplayMode
+         * @enum {string}
+         */
+        TribunalReplayMode: "recorded" | "forked";
+        /** TribunalReplayResponse */
+        TribunalReplayResponse: {
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Divergence */
+            divergence?: Record<string, never>;
+            /** Id */
+            id: string;
+            mode: components["schemas"]["TribunalReplayMode"];
+            outcome: components["schemas"]["TribunalVerdictOutcome"];
+            /** Primary Reason */
+            primary_reason: string;
+            /** Project Id */
+            project_id: string;
+            /** Replay Digest */
+            replay_digest: string;
+            /** Request */
+            request?: Record<string, never>;
+            /** Result */
+            result?: Record<string, never>;
+            /** Safety Summary */
+            safety_summary?: Record<string, never>;
+            /** Session Id */
+            session_id: string;
+            /** Source Digest */
+            source_digest: string;
+            /** Source Run Id */
+            source_run_id: string;
+            state: components["schemas"]["TribunalReplayState"];
+        };
+        /**
+         * TribunalReplayState
+         * @enum {string}
+         */
+        TribunalReplayState: "CREATED" | "COMPLETED" | "FAILED";
         /**
          * TribunalRound
          * @enum {string}
@@ -6260,6 +6343,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrajectoryStepListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_tribunal_replays: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tribunal_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TribunalReplayListResponse"];
+                };
+            };
+            /** @description Not signed in. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Not yours, or not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    create_tribunal_replay: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tribunal_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTribunalReplayRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TribunalReplayResponse"];
                 };
             };
             /** @description Not signed in. */
