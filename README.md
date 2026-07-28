@@ -17,9 +17,9 @@ The question AgentRail exists to answer:
 > monthly evaluation-item quota ledger, GitHub webhook replay defence, console CSP/security headers,
 > container image checks, audit retention pruning and immutable GitHub Actions pins. The newly added
 > Phase 8 Multi-Agent Safety Tribunal now has its deterministic backend foundation: persisted
-> sessions, a six-role blackboard, findings, arguments, verdicts and typed APIs. Live model-backed
-> debate, suite-config invocation, dashboard display and release-gate binding are still scheduled —
-> see [Known limitations](#known-limitations).
+> sessions, a six-role blackboard, findings, arguments, verdicts, typed APIs and a console
+> inspector. Live model-backed debate, suite-config invocation and release-gate binding are still
+> scheduled — see [Known limitations](#known-limitations).
 
 ---
 
@@ -185,8 +185,9 @@ These hold from Phase 0 onward and are enforced by tests, not by convention:
 
 Deliberate, and scheduled:
 
-- The Phase 8 Multi-Agent Safety Tribunal has a deterministic backend foundation, but is not wired
-  into suite configuration, the dashboard, live model-backed debate or release-gate enforcement yet.
+- The Phase 8 Multi-Agent Safety Tribunal has a deterministic backend foundation and console
+  inspector, but is not wired into suite configuration, live model-backed debate or release-gate
+  enforcement yet.
 - No PostgreSQL row-level security beneath the application-level tenant scoping (Phase 15).
 - The durable per-organisation quota ledger covers monthly evaluation item usage, but not every
   workload class yet.
