@@ -17,6 +17,9 @@ All notable changes to AgentRail are recorded here. The format follows
   blackboard.
 - Console Safety Tribunal inspector for fetching or creating a run's deterministic verdict and
   reading the role findings, arguments and blackboard timeline.
+- Evaluation suites can enable automatic Tribunal creation with
+  `thresholds.tribunal.enabled = true`; worker aggregation creates one persisted Tribunal session
+  after the comparison report and records the Tribunal id/outcome in the run summary.
 - Auditor blocker findings override Defender approval, and missing or non-reproducible comparison
   evidence blocks approval.
 - OpenAPI and generated TypeScript contracts for Tribunal responses.

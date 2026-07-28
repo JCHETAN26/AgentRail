@@ -30,6 +30,7 @@ from agentrail_core.identity import (
     authorize,
 )
 from agentrail_core.ids import new_sortable_id
+from agentrail_core.tribunal import TribunalConfigError, validate_tribunal_config
 
 REQUIRED_FIELDS = ("id", "input", "expected")
 MAX_REJECTIONS = 50
@@ -402,6 +403,12 @@ async def create_evaluation_suite(
             "A fault profile cannot be executed.",
             details={"index": invalid.index, "reason": invalid.reason},
         ) from invalid
+    try:
+        tribunal_config = validate_tribunal_config(thresholds)
+    except TribunalConfigError as invalid:
+        raise ValidationFailedError(
+            "Tribunal configuration is invalid.", details={"reason": str(invalid)}
+        ) from invalid
 
     row = await session.execute(
         select(Dataset.project_id, DatasetVersion.partition_counts, DatasetVersion.item_count)
@@ -430,6 +437,7 @@ async def create_evaluation_suite(
         "evaluator_count": len(evaluators),
         "thresholds": thresholds,
         "fault_profile_count": len(fault_profiles),
+        "tribunal_enabled": tribunal_config["enabled"],
     }
     suite = EvaluationSuite(
         id=new_sortable_id(),
