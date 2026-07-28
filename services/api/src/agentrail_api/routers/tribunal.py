@@ -89,10 +89,18 @@ async def create_tribunal_replay(
     body: CreateTribunalReplayRequest,
     actor: ActorDep,
     session: SessionDep,
+    settings: SettingsDep,
 ) -> TribunalReplayResponse:
     principal = await service.principal_for_tribunal_session(session, actor, tribunal_session_id)
     replay = await service.create_replay(
-        session, actor, principal, tribunal_session_id=tribunal_session_id, request=body
+        session,
+        actor,
+        principal,
+        tribunal_session_id=tribunal_session_id,
+        request=body,
+        openai_api_key=settings.openai_api_key,
+        openai_base_url=settings.openai_base_url,
+        model_timeout_seconds=settings.tribunal_model_timeout_seconds,
     )
     await session.commit()
     await session.refresh(replay)
