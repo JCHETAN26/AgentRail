@@ -156,6 +156,26 @@ class TestJobIsolation:
 
         async with session_factory() as session:
             await session.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_roles WHERE rolname = 'agentrail_rls_probe'
+                        ) THEN
+                            CREATE ROLE agentrail_rls_probe NOLOGIN;
+                        END IF;
+                    END
+                    $$;
+                    """
+                )
+            )
+            await session.execute(text("GRANT USAGE ON SCHEMA public TO agentrail_rls_probe"))
+            await session.execute(
+                text("GRANT SELECT ON ALL TABLES IN SCHEMA public TO agentrail_rls_probe")
+            )
+            await session.execute(text("SET LOCAL ROLE agentrail_rls_probe"))
+            await session.execute(
                 text("SELECT set_config('agentrail.organisation_id', :org, true)"),
                 {"org": tenant.organisation_id},
             )
