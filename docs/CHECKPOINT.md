@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 8 Multi-Agent Safety Tribunal live replay                                     |
-| **Status**     | In progress on branch `codex/p9-live-tribunal-replay`                               |
-| **Base**       | `main` @ `4dc6581` (Tribunal replay console merged)                                 |
-| **Next phase** | Remaining Phase 15 security hardening                                               |
+| **Phase**      | Phase 15 SBOM/provenance hardening                                                  |
+| **Status**     | In progress on branch `codex/p15-sbom-provenance`                                   |
+| **Base**       | `main` @ `445b189` (live Tribunal replay merged)                                    |
+| **Next phase** | Remaining Phase 15 PostgreSQL RLS hardening                                         |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -32,6 +32,8 @@ Phase 12 shipped in PR [#46](https://github.com/JCHETAN26/AgentRail/pull/46).
 Phase 13 shipped in PR [#47](https://github.com/JCHETAN26/AgentRail/pull/47).
 Tribunal replay persistence shipped in PR [#59](https://github.com/JCHETAN26/AgentRail/pull/59).
 Tribunal replay console shipped in PR [#60](https://github.com/JCHETAN26/AgentRail/pull/60).
+Live Tribunal replay provider selection shipped in PR
+[#61](https://github.com/JCHETAN26/AgentRail/pull/61).
 Phase 14's security and supply-chain slice shipped in PR
 [#48](https://github.com/JCHETAN26/AgentRail/pull/48).
 Phase 14's durable quota slice shipped in PR [#49](https://github.com/JCHETAN26/AgentRail/pull/49).
@@ -352,6 +354,8 @@ grant write access to use the gate.
 - Expanded console security headers with CSP and Permissions-Policy.
 - Renamed the container CI job to `containers / scan`; it builds each Python service image, checks
   the shared Dockerfile's pinned runtime inputs and proves the runtime user is non-root.
+- Added per-service container SBOM, Docker image inspect and provenance JSON artifacts to the
+  `containers / scan` matrix.
 - Added a PostgreSQL-backed monthly evaluation-item quota ledger per organisation, charged
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
 - Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
@@ -548,11 +552,10 @@ vacuous.
 
 - **No PostgreSQL row-level security.** Tenant scoping is enforced in the application and tested
   there; RLS as defence in depth is Phase 15.
-- **Tribunal is deterministic so far.** The Tribunal service, blackboard schema, verdict APIs,
-  suite-config invocation and console inspector exist. Live model-backed debate, prompt-versioning
-  and release-gate binding remain.
-- **No SBOM/provenance artefacts yet.** Workflow actions are now SHA-pinned, but CI still does not
-  emit SBOM or provenance evidence for built images.
+- **Tribunal evidence sandboxing is still incomplete.** The Tribunal service has deterministic and
+  model-backed debate paths, prompt-version metadata, release-gate binding, replay persistence,
+  console replay controls and live-provider replay selection. Hostile evidence still needs stronger
+  isolation from model system prompts.
 - **Quota coverage is partial.** Authenticated callers have short-lived Redis-backed rate limits,
   and evaluation-run creation spends a durable monthly item quota per organisation, but quotas do
   not cover every workload class yet.
@@ -659,7 +662,7 @@ Latest security/supply-chain branch checks, run locally on 2026-07-27:
 
 ## Next tasks
 
-1. Continue Phase 15 PostgreSQL RLS or SBOM/provenance after the Tribunal vertical slice.
+1. Continue Phase 15 PostgreSQL RLS hardening.
 2. Stop the Codespace when the full build is complete to avoid additional cost.
 
 **Exit criteria:** recorded Tribunal replay reproduces the source digest, forked replay persists

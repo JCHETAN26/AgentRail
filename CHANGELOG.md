@@ -53,6 +53,8 @@ All notable changes to AgentRail are recorded here. The format follows
   mutable third-party action refs.
 - CI container check renamed to `containers / scan` and verifies pinned runtime inputs plus non-root
   service images.
+- CI now uploads per-service container SBOM, Docker image inspect and provenance JSON artifacts for
+  every Python service image built by the `containers / scan` matrix.
 
 ### Added — Phase 14: observability, SLOs and operations
 
