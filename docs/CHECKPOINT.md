@@ -6,13 +6,13 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 ## Current state
 
-|                |                                                                                     |
-| -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | 14 — Security and supply chain                                                      |
-| **Status**     | In progress on branch `codex/p14-action-pinning`                                    |
-| **Base**       | `main` @ `b4d1b8c` (Phase 14 audit-retention slice merged)                          |
-| **Next phase** | 15 — Performance and analytical scale, after Phase 14 exits                         |
-| **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
+|                |                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------ |
+| **Phase**      | Build-plan reconciliation after the Phase 8 Tribunal insertion                       |
+| **Status**     | In progress on branch `codex/align-updated-buildplan`                                |
+| **Base**       | `main` @ `f54b1a7` (GitHub Actions SHA-pinning slice merged)                         |
+| **Next phase** | Implement the updated Phase 8 Tribunal, or continue Phase 15 security after priority |
+| **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks  |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
 applied branch protection, Dependabot triage) in [#19](https://github.com/JCHETAN26/AgentRail/pull/19).
@@ -35,6 +35,14 @@ Phase 14's security and supply-chain slice shipped in PR
 Phase 14's durable quota slice shipped in PR [#49](https://github.com/JCHETAN26/AgentRail/pull/49).
 Phase 14's audit-retention slice shipped in PR
 [#50](https://github.com/JCHETAN26/AgentRail/pull/50).
+Phase 14's action-pinning slice shipped in PR
+[#51](https://github.com/JCHETAN26/AgentRail/pull/51).
+
+`BUILDPLAN.md` was revised after PR #51. The new plan inserts **Phase 8 — Multi-Agent Safety
+Tribunal**, shifts replay/reliability/policy/release/canary/observability/security forward, and now
+names security and supply chain as **Phase 15**. PR labels before this checkpoint are historical
+labels from the old plan; the implementation has several later slices, but the new Tribunal phase is
+not built yet.
 
 Merged branches through Phase 9 are deleted, local and remote. The repository does not
 auto-delete on merge, so each phase has to clean up after itself.
@@ -43,7 +51,7 @@ auto-delete on merge, so each phase has to clean up after itself.
 
 ## Read these first
 
-1. `BUILDPLAN.md` Phase 14 — the exit criterion: cross-tenant/security workflows green
+1. `BUILDPLAN.md` — current phase map; especially the new Phase 8 Tribunal and Phase 15 security
 2. `services/api/src/agentrail_api/security.py` — Redis-backed rate and replay guards
 3. `services/api/src/agentrail_api/dependencies.py` — authenticated caller rate-limit wiring
 4. `services/api/src/agentrail_api/routers/integrations.py` — GitHub webhook replay defence
@@ -281,7 +289,7 @@ grant write access to use the gate.
 - Added pure canary tests and API coverage for promotion, rollback, blocked gates and tenant
   isolation.
 
-## Phase 13 progress
+## Phase 14 observability progress
 
 - Added `agentrail_core.observability`: pure SLO evaluation for task success, failed items,
   stranded leases, canary rollbacks and cost.
@@ -292,7 +300,7 @@ grant write access to use the gate.
 - Added operations docs: `docs/operations/SLO.md` and `docs/operations/INCIDENT_RUNBOOK.md`.
 - Added pure SLO tests and API coverage for correlation/trace visibility and tenant isolation.
 
-## Phase 14 progress
+## Phase 15 security and supply-chain progress
 
 - Added Redis-backed fixed-window request limits per authenticated user or API key.
 - Added signed GitHub webhook replay defence using `X-GitHub-Delivery` reservations.
@@ -495,7 +503,9 @@ vacuous.
 ## Known limitations
 
 - **No PostgreSQL row-level security.** Tenant scoping is enforced in the application and tested
-  there; RLS as defence in depth is Phase 14.
+  there; RLS as defence in depth is Phase 15.
+- **No Multi-Agent Safety Tribunal.** The updated build plan inserts this as Phase 8, but no
+  tribunal service, blackboard schema, specialist agent nodes, verdicts or dashboard exist yet.
 - **No SBOM/provenance artefacts yet.** Workflow actions are now SHA-pinned, but CI still does not
   emit SBOM or provenance evidence for built images.
 - **Quota coverage is partial.** Authenticated callers have short-lived Redis-backed rate limits,
@@ -586,7 +596,7 @@ Latest Phase 13 branch checks, run locally on 2026-07-27:
 | `pnpm build`                                            | Pass — web production build                            |
 | `uv build --all-packages`                               | Pass after network approval for `hatchling` build deps |
 
-Latest Phase 14 branch checks, run locally on 2026-07-27:
+Latest security/supply-chain branch checks, run locally on 2026-07-27:
 
 | Command                                                                                                                        | Result                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
@@ -602,11 +612,11 @@ Latest Phase 14 branch checks, run locally on 2026-07-27:
 
 ---
 
-## Next tasks (Phase 14 — Security and supply chain)
+## Next tasks
 
-1. Open the action-pinning slice pull request and let CI prove the pinned workflow actions.
-2. Continue Phase 14 with PostgreSQL RLS defence in depth.
-3. Continue supply-chain hardening with SBOM/provenance generation.
+1. Decide whether to backfill the updated Phase 8 Multi-Agent Safety Tribunal next.
+2. If continuing security first, proceed with Phase 15 PostgreSQL RLS defence in depth.
+3. Continue Phase 15 supply-chain hardening with SBOM/provenance generation.
 
 **Exit criteria:** cross-tenant tests pass across all surfaces; security workflows green; green PR.
 
