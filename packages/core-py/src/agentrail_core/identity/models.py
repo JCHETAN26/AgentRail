@@ -169,6 +169,10 @@ class ApiKey(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_ip_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_used_user_agent_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_anomaly_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    anomaly_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default=text("0"))
 
 
 class AuditEvent(Base):

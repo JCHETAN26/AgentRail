@@ -8,9 +8,9 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 15 DB tenant-context hardening                                                |
-| **Status**     | In progress on branch `codex/p15-db-tenant-context`                                 |
-| **Base**       | `main` @ `852d42a` (PostgreSQL RLS merged)                                          |
+| **Phase**      | Phase 15 API-key anomaly detection                                                  |
+| **Status**     | In progress on branch `codex/p15-api-key-anomaly-detection`                         |
+| **Base**       | `main` @ `8368065` (API-key rotation merged)                                        |
 | **Next phase** | Remaining security hardening                                                        |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
@@ -37,6 +37,9 @@ Live Tribunal replay provider selection shipped in PR
 Container SBOM/provenance artifacts shipped in PR
 [#62](https://github.com/JCHETAN26/AgentRail/pull/62).
 PostgreSQL RLS hardening shipped in PR [#63](https://github.com/JCHETAN26/AgentRail/pull/63).
+DB tenant-context binding shipped in PR [#64](https://github.com/JCHETAN26/AgentRail/pull/64).
+Tribunal evidence sandboxing shipped in PR [#65](https://github.com/JCHETAN26/AgentRail/pull/65).
+API-key rotation shipped in PR [#66](https://github.com/JCHETAN26/AgentRail/pull/66).
 Phase 14's security and supply-chain slice shipped in PR
 [#48](https://github.com/JCHETAN26/AgentRail/pull/48).
 Phase 14's durable quota slice shipped in PR [#49](https://github.com/JCHETAN26/AgentRail/pull/49).
@@ -369,6 +372,9 @@ grant write access to use the gate.
   assembled.
 - Added API-key rotation that replaces the public key id and secret hash in place, returns the new
   bearer token once, invalidates the old token immediately and records a redacted audit event.
+- Added API-key first-use and anomaly telemetry. Successful API-key authentication stores
+  deployment-secret HMAC client fingerprints, audits first use, and audits inactive-key reuse or
+  client fingerprint changes without storing raw IP addresses or user-agent strings.
 - Added a PostgreSQL-backed monthly evaluation-item quota ledger per organisation, charged
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
 - Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
@@ -406,6 +412,10 @@ grant write access to use the gate.
 | `0011_release_gates`         | Adds immutable release policies, gate evaluations unique on (run, policy), and nullable pull-request provenance on evaluation runs                                               |
 | `0012_canary_deployments`    | Adds durable canary deployment, promotion and rollback history                                                                                                                   |
 | `0013_quota_periods`         | Adds monthly organisation quota periods for durable evaluation-item usage accounting                                                                                             |
+| `0014_tribunal`              | Adds multi-agent Tribunal sessions, blackboard entries, findings, arguments and verdicts                                                                                         |
+| `0015_tribunal_replays`      | Adds forkable Tribunal replay records with source/replay digests, divergence and replay safety metadata                                                                          |
+| `0016_postgres_rls`          | Adds tenant-context row-level security policies for organisation, project and project-child tables                                                                               |
+| `0017_api_key_usage_anomaly` | Adds API-key usage fingerprint hashes, last anomaly timestamp and anomaly counter                                                                                                |
 
 `0002` backfills existing jobs against a synthetic "Legacy" organisation and project, created only if
 any jobs exist, using hard-coded identifiers so the migration is deterministic. The downgrade nulls
@@ -567,7 +577,6 @@ vacuous.
   and evaluation-run creation spends a durable monthly item quota per organisation, but quotas do
   not cover every workload class yet.
 - **No invitations.** A user must have signed in once before they can be added to an organisation.
-- **No API-key anomaly detection.**
 - The execution runtime is deterministic/recorded and uses suite item counts; trajectory capture,
   replay records and the first programmatic evaluator are synthetic/deterministic. Live model
   evaluators and true live replay execution are not built yet.

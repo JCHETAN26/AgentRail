@@ -190,6 +190,11 @@
       "ApiKeyResponse": {
         "description": "An API key as listed. Never includes the secret.",
         "properties": {
+          "anomaly_count": {
+            "default": 0,
+            "title": "Anomaly Count",
+            "type": "integer"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -215,6 +220,18 @@
             "description": "Public identifier. Not a credential.",
             "title": "Key Id",
             "type": "string"
+          },
+          "last_anomaly_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Anomaly At"
           },
           "last_used_at": {
             "anyOf": [
@@ -444,6 +461,10 @@
             "title": "Actor Type",
             "type": "string"
           },
+          "context": {
+            "title": "Context",
+            "type": "object"
+          },
           "correlation_id": {
             "anyOf": [
               {
@@ -494,6 +515,7 @@
           "action",
           "target_type",
           "target_id",
+          "context",
           "correlation_id",
           "created_at"
         ],

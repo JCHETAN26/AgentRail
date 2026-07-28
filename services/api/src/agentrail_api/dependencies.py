@@ -111,6 +111,7 @@ async def get_actor(
     request: Request,
     client: RedisDep,
     settings: SettingsDep,
+    context: ContextDep,
     authorization: Annotated[str | None, Header()] = None,
 ) -> Actor:
     """Authenticate the caller, or raise 401."""
@@ -118,6 +119,11 @@ async def get_actor(
         session,
         cookie_token=request.cookies.get(SESSION_COOKIE_NAME),
         authorization=authorization,
+        client_host=request.client.host if request.client is not None else None,
+        user_agent=request.headers.get("user-agent"),
+        inactivity_anomaly_days=settings.api_key_inactivity_anomaly_days,
+        fingerprint_secret=settings.api_key_fingerprint_secret_value,
+        correlation_id=context.correlation_id,
     )
     if actor.user is not None:
         await enforce_authenticated_rate_limit(
