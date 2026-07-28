@@ -9,10 +9,10 @@ sign-in and GitHub webhook routes requires a credential, and every tenant-owned 
 organisation.
 
 What is still missing is stated plainly below: the durable quota ledger currently covers monthly
-evaluation item usage only. PostgreSQL row-level security exists as defence in depth when a tenant
-context is set, but API and worker sessions do not yet set that context automatically. The updated
-Phase 8 Multi-Agent Safety Tribunal has prompt-versioned model-backed debate and replay scaffolding;
-evidence sandboxing remains future Tribunal hardening work.
+evaluation item usage only. PostgreSQL row-level security exists as defence in depth and authorised
+API/tenant-specific worker paths bind its transaction-local tenant context. The updated Phase 8
+Multi-Agent Safety Tribunal has prompt-versioned model-backed debate and replay scaffolding; model
+prompt inputs now receive sandboxed evidence instead of raw untrusted text.
 
 ## Assets
 
@@ -71,7 +71,7 @@ evidence sandboxing remains future Tribunal hardening work.
 | T25 | Passwordless dev sign-in reaches production       | **Mitigated**           | Three independent guards: `dev_auth_enabled` is false when deployed, the route rejects rather than advertising itself, and `ApiSettings` refuses to construct in a deployed environment without GitHub OAuth credentials. Tested.                                                                                                                                                                                                                                                                                                                                                                                                |
 | T26 | OAuth callback replayed or forged                 | **Mitigated**           | A random `state` is issued and only its digest is stored in an `HttpOnly` cookie for callback comparison; a mismatch is rejected. GitHub emails must be both `primary` and `verified`, and accounts match on `(provider, subject)` rather than email, so a reassigned address cannot inherit an account.                                                                                                                                                                                                                                                                                                                         |
 | T27 | Audit log tampered with or leaking secrets        | **Partially mitigated** | Audit events are append-only in application code and pass through the same redaction as the logger, so a token cannot be persisted. Organisation admins can prune events older than the configured retention window, scoped by organisation. RLS hides other organisations' audit rows when tenant context is set. Not yet mitigated: nothing at the database level prevents an operator with write access from editing rows in their own visible scope.                                                                                                                                                                         |
-| T28 | Tribunal evidence causes prompt injection         | **Partially mitigated** | Tribunal model-backed debate uses versioned role prompts, structured output schemas and fail-closed validation; deterministic Auditor blockers remain a safety floor. Evidence sandboxing is still incomplete: run/comparison evidence is persisted as JSONB and passed to model-backed roles, so future hardening must isolate hostile evidence from system prompt instructions.                                                                                                                                                                                                                                                |
+| T28 | Tribunal evidence causes prompt injection         | **Mitigated**           | Tribunal model-backed debate uses versioned role prompts, structured output schemas and fail-closed validation; deterministic Auditor blockers remain a safety floor. Model-backed role calls receive a sandboxed evidence envelope where arbitrary strings from run/comparison evidence and prompt overrides are reduced to digest/length metadata before they enter prompts.                                                                                                                                                                                                                                                   |
 
 ## Standing rules
 

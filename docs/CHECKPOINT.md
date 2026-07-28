@@ -364,6 +364,9 @@ grant write access to use the gate.
   when `agentrail.organisation_id` is set, with integration coverage using a non-bypass probe role.
 - Added automatic transaction-local DB tenant-context propagation for authorised API principals and
   tenant-specific worker execution/aggregation paths.
+- Added a model-backed Tribunal evidence sandbox that replaces raw untrusted strings from
+  run/comparison evidence and prompt overrides with digest/length metadata before role prompts are
+  assembled.
 - Added a PostgreSQL-backed monthly evaluation-item quota ledger per organisation, charged
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
 - Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
@@ -558,12 +561,6 @@ vacuous.
 
 ## Known limitations
 
-- **No PostgreSQL row-level security.** Tenant scoping is enforced in the application and tested
-  there; RLS as defence in depth is Phase 15.
-- **Tribunal evidence sandboxing is still incomplete.** The Tribunal service has deterministic and
-  model-backed debate paths, prompt-version metadata, release-gate binding, replay persistence,
-  console replay controls and live-provider replay selection. Hostile evidence still needs stronger
-  isolation from model system prompts.
 - **Quota coverage is partial.** Authenticated callers have short-lived Redis-backed rate limits,
   and evaluation-run creation spends a durable monthly item quota per organisation, but quotas do
   not cover every workload class yet.

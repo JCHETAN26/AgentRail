@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from hashlib import sha256
 from typing import Any, Protocol
 
 import httpx
@@ -100,6 +101,7 @@ _SESSION_STATES = ", ".join(f"'{state.value}'" for state in TribunalSessionState
 _REPLAY_MODES = ", ".join(f"'{mode.value}'" for mode in TribunalReplayMode)
 _REPLAY_STATES = ", ".join(f"'{state.value}'" for state in TribunalReplayState)
 DEFAULT_TRIBUNAL_PROMPT_VERSION = "tribunal-roles-v1"
+MAX_SANDBOX_COLLECTION_ITEMS = 25
 
 
 @dataclass(frozen=True, slots=True)
@@ -600,6 +602,42 @@ def build_tribunal_model_client(
     raise TribunalConfigError("thresholds.tribunal.model_provider must be recorded or openai.")
 
 
+def sandbox_tribunal_model_evidence(
+    *,
+    run: dict[str, Any],
+    comparison: dict[str, Any] | None,
+    deterministic_floor: TribunalDraft,
+    prompt_overrides: dict[TribunalAgentRole, str] | None = None,
+) -> dict[str, Any]:
+    """Return model-safe Tribunal evidence without raw untrusted text.
+
+    Model-backed Tribunal roles need metrics and verdict context, not arbitrary
+    strings from trajectories, evaluator output or user-supplied prompt forks.
+    Every string is reduced to digest/length metadata before it can enter a
+    model prompt.
+    """
+    sandboxed = {
+        "run": _sandbox_json_value(run),
+        "comparison": _sandbox_json_value(comparison),
+        "deterministic_floor": {
+            "outcome": deterministic_floor.outcome.value,
+            "primary_reason": _sandbox_string(deterministic_floor.primary_reason),
+            "summary": _sandbox_json_value(deterministic_floor.summary),
+        },
+        "prompt_overrides": {
+            role.value: _sandbox_string(prompt) for role, prompt in (prompt_overrides or {}).items()
+        },
+    }
+    return {
+        "sandbox": {
+            "version": "tribunal-evidence-sandbox-v1",
+            "untrusted_text_policy": "raw strings are replaced with sha256 and length metadata",
+        },
+        "evidence": sandboxed,
+        "summary": _sandbox_summary(sandboxed),
+    }
+
+
 async def decide_model_backed_tribunal(
     *,
     run: dict[str, Any],
@@ -618,18 +656,12 @@ async def decide_model_backed_tribunal(
     """
     prompts = default_tribunal_prompt_versions(prompt_version, prompt_overrides=prompt_overrides)
     deterministic_floor = decide_tribunal(run=run, comparison=comparison)
-    evidence = {
-        "run": run,
-        "comparison": comparison,
-        "deterministic_floor": {
-            "outcome": deterministic_floor.outcome.value,
-            "primary_reason": deterministic_floor.primary_reason,
-            "summary": deterministic_floor.summary,
-        },
-        "prompt_overrides": {
-            role.value: prompt for role, prompt in (prompt_overrides or {}).items()
-        },
-    }
+    evidence = sandbox_tribunal_model_evidence(
+        run=run,
+        comparison=comparison,
+        deterministic_floor=deterministic_floor,
+        prompt_overrides=prompt_overrides,
+    )
     findings: list[TribunalFindingDraft] = []
     arguments: list[TribunalArgumentDraft] = []
     model_calls: list[dict[str, Any]] = []
@@ -662,12 +694,15 @@ async def decide_model_backed_tribunal(
                 prompt=prompts[TribunalAgentRole.JUDGE],
                 evidence={
                     **evidence,
-                    "findings": [
-                        finding.evidence | {"message": finding.message} for finding in findings
-                    ],
-                    "arguments": [
-                        argument.evidence | {"message": argument.message} for argument in arguments
-                    ],
+                    "findings": _sandbox_json_value(
+                        [finding.evidence | {"message": finding.message} for finding in findings]
+                    ),
+                    "arguments": _sandbox_json_value(
+                        [
+                            argument.evidence | {"message": argument.message}
+                            for argument in arguments
+                        ]
+                    ),
                 },
             )
         )
@@ -752,6 +787,7 @@ async def decide_model_backed_tribunal(
                 role.value: prompt for role, prompt in (prompt_overrides or {}).items()
             },
             "model_calls": model_calls,
+            "model_evidence_sandbox": evidence["summary"],
         },
         summary={
             "mode": TribunalMode.MODEL_BACKED.value,
@@ -923,6 +959,66 @@ def _comparison_evidence(comparison: ComparisonReport | None) -> dict[str, Any] 
     }
 
 
+def _sandbox_json_value(value: Any, *, _depth: int = 0) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return _sandbox_string(value)
+    if isinstance(value, dict):
+        if _depth >= 6:
+            return {"kind": "sandboxed_depth_limit", "sha256": _digest(value)}
+        return {
+            str(key): _sandbox_json_value(child, _depth=_depth + 1)
+            for key, child in list(value.items())[:MAX_SANDBOX_COLLECTION_ITEMS]
+        } | _collection_limit_metadata(value)
+    if isinstance(value, (list, tuple)):
+        if _depth >= 6:
+            return {"kind": "sandboxed_depth_limit", "sha256": _digest(value)}
+        return [
+            _sandbox_json_value(child, _depth=_depth + 1)
+            for child in list(value)[:MAX_SANDBOX_COLLECTION_ITEMS]
+        ]
+    return _sandbox_string(str(value))
+
+
+def _sandbox_string(value: str) -> dict[str, Any]:
+    return {
+        "kind": "untrusted_text",
+        "sha256": sha256(value.encode("utf-8")).hexdigest(),
+        "length": len(value),
+    }
+
+
+def _collection_limit_metadata(value: dict[str, Any]) -> dict[str, Any]:
+    if len(value) <= MAX_SANDBOX_COLLECTION_ITEMS:
+        return {}
+    return {"_sandbox_truncated_keys": len(value) - MAX_SANDBOX_COLLECTION_ITEMS}
+
+
+def _sandbox_summary(value: Any) -> dict[str, Any]:
+    encoded = json.dumps(value, sort_keys=True, default=str)
+    return {
+        "sha256": sha256(encoded.encode("utf-8")).hexdigest(),
+        "byte_length": len(encoded.encode("utf-8")),
+        "untrusted_string_count": _count_untrusted_strings(value),
+    }
+
+
+def _count_untrusted_strings(value: Any) -> int:
+    if isinstance(value, dict):
+        if value.get("kind") == "untrusted_text":
+            return 1
+        return sum(_count_untrusted_strings(child) for child in value.values())
+    if isinstance(value, list):
+        return sum(_count_untrusted_strings(child) for child in value)
+    return 0
+
+
+def _digest(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, default=str)
+    return sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def _blackboard_entries(
     session_id: str,
     findings: list[TribunalFinding],
@@ -984,15 +1080,20 @@ def _number(value: Any) -> float:
 
 
 def _recorded_role_response(role: TribunalAgentRole, evidence: dict[str, Any]) -> dict[str, Any]:
-    comparison = evidence.get("comparison")
+    evidence_payload = evidence.get("evidence", evidence)
+    comparison = evidence_payload.get("comparison") if isinstance(evidence_payload, dict) else None
     summary = comparison.get("summary", {}) if isinstance(comparison, dict) else {}
-    run = evidence.get("run", {})
+    run = evidence_payload.get("run", {}) if isinstance(evidence_payload, dict) else {}
     pass_rate = _number(summary.get("pass_rate"))
     regression_count = int(summary.get("regression_count") or 0)
     reproducible = bool(summary.get("reproducible", False))
     failed_count = int(run.get("failed_count") or 0) if isinstance(run, dict) else 0
     if role is TribunalAgentRole.JUDGE:
-        floor = evidence.get("deterministic_floor", {})
+        floor = (
+            evidence_payload.get("deterministic_floor", {})
+            if isinstance(evidence_payload, dict)
+            else {}
+        )
         floor_outcome = floor.get("outcome") if isinstance(floor, dict) else None
         if floor_outcome == TribunalVerdictOutcome.BLOCKED.value:
             return {
