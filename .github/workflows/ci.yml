@@ -267,3 +267,83 @@ jobs:
           user="$(docker run --rm --entrypoint id ${{ matrix.service }}:ci -u)"
           echo "uid=$user"
           test "$user" != "0"
+
+      - name: Generate SBOM and provenance
+        env:
+          IMAGE_REF: ${{ matrix.service }}:ci
+          SERVICE_NAME: ${{ matrix.service }}
+        run: |
+          mkdir -p artifacts/container-security
+          docker run --rm -i --entrypoint python \
+            -e IMAGE_REF="${IMAGE_REF}" \
+            -e SERVICE_NAME="${SERVICE_NAME}" \
+            "${IMAGE_REF}" - <<'PY' > "artifacts/container-security/${SERVICE_NAME}-sbom.json"
+          import importlib.metadata as metadata
+          import json
+          import os
+          import platform
+
+          packages = sorted(
+              (
+                  {"name": distribution.metadata["Name"], "version": distribution.version}
+                  for distribution in metadata.distributions()
+              ),
+              key=lambda package: (package["name"].lower(), package["version"]),
+          )
+          print(
+              json.dumps(
+                  {
+                      "schema_version": "agentrail.sbom.v1",
+                      "service": os.environ["SERVICE_NAME"],
+                      "image": os.environ["IMAGE_REF"],
+                      "python": platform.python_version(),
+                      "packages": packages,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+          )
+          PY
+          docker image inspect "${IMAGE_REF}" > "artifacts/container-security/${SERVICE_NAME}-image-inspect.json"
+          python - <<'PY' > "artifacts/container-security/${SERVICE_NAME}-provenance.json"
+          import json
+          import os
+          import subprocess
+
+          image_ref = os.environ["IMAGE_REF"]
+          image = json.loads(subprocess.check_output(["docker", "image", "inspect", image_ref]))[0]
+          print(
+              json.dumps(
+                  {
+                      "schema_version": "agentrail.provenance.v1",
+                      "service": os.environ["SERVICE_NAME"],
+                      "image": image_ref,
+                      "image_id": image["Id"],
+                      "repo_tags": image.get("RepoTags", []),
+                      "created": image.get("Created"),
+                      "labels": image.get("Config", {}).get("Labels") or {},
+                      "source": {
+                          "repository": os.environ["GITHUB_REPOSITORY"],
+                          "ref": os.environ["GITHUB_REF"],
+                          "sha": os.environ["GITHUB_SHA"],
+                      },
+                      "workflow": {
+                          "name": os.environ["GITHUB_WORKFLOW"],
+                          "run_id": os.environ["GITHUB_RUN_ID"],
+                          "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                      },
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+          )
+          PY
+          python -m json.tool "artifacts/container-security/${SERVICE_NAME}-sbom.json" >/dev/null
+          python -m json.tool "artifacts/container-security/${SERVICE_NAME}-provenance.json" >/dev/null
+          test -s "artifacts/container-security/${SERVICE_NAME}-image-inspect.json"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # actions/upload-artifact@v7
+        with:
+          name: container-security-${{ matrix.service }}
+          path: artifacts/container-security/${{ matrix.service }}-*.json
+          retention-days: 30

@@ -48,6 +48,10 @@ codeql (python)
 
 Checks to add in later phases: `agent-quality / smoke-gate` (Phase 17).
 
+The required `containers / scan` matrix also uploads `container-security-*` artifacts for each
+Python service image. Each artifact bundle includes a Python package SBOM, Docker image inspect JSON
+and provenance JSON tied to the exact repository, ref, commit SHA and workflow run.
+
 ## Deviations from the build plan, and why
 
 The build plan specifies one required approval and a strict up-to-date requirement. Three settings
