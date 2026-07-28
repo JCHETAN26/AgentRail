@@ -13,6 +13,8 @@ All notable changes to AgentRail are recorded here. The format follows
 - Admin-triggered audit retention pruning for expired organisation audit events.
 - GitHub webhook replay defence using `X-GitHub-Delivery` reservations.
 - Console security headers now include CSP and Permissions-Policy.
+- GitHub Actions workflows are pinned to immutable commit SHAs, with a CI guard that rejects
+  mutable third-party action refs.
 - CI container check renamed to `containers / scan` and verifies pinned runtime inputs plus non-root
   service images.
 

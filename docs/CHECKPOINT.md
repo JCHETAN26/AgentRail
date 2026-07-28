@@ -9,8 +9,8 @@ Operational handoff between sessions. This file is the first thing to read when 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
 | **Phase**      | 14 — Security and supply chain                                                      |
-| **Status**     | In progress on branch `codex/p14-audit-retention`                                   |
-| **Base**       | `main` @ `c90fe7c` (Phase 14 quota slice merged)                                    |
+| **Status**     | In progress on branch `codex/p14-action-pinning`                                    |
+| **Base**       | `main` @ `b4d1b8c` (Phase 14 audit-retention slice merged)                          |
 | **Next phase** | 15 — Performance and analytical scale, after Phase 14 exits                         |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
@@ -33,6 +33,8 @@ Phase 13 shipped in PR [#47](https://github.com/JCHETAN26/AgentRail/pull/47).
 Phase 14's security and supply-chain slice shipped in PR
 [#48](https://github.com/JCHETAN26/AgentRail/pull/48).
 Phase 14's durable quota slice shipped in PR [#49](https://github.com/JCHETAN26/AgentRail/pull/49).
+Phase 14's audit-retention slice shipped in PR
+[#50](https://github.com/JCHETAN26/AgentRail/pull/50).
 
 Merged branches through Phase 9 are deleted, local and remote. The repository does not
 auto-delete on merge, so each phase has to clean up after itself.
@@ -49,6 +51,7 @@ auto-delete on merge, so each phase has to clean up after itself.
 6. `docs/security/THREAT_MODEL.md`
 7. `services/api/src/agentrail_api/identity/service.py` — audit retention pruning
 8. `packages/core-py/src/agentrail_core/quotas.py` — durable quota period ledger
+9. `scripts/check_github_actions_pinned.py` — immutable workflow-action pinning guard
 
 ---
 
@@ -301,6 +304,8 @@ grant write access to use the gate.
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
 - Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
   organisation and guarded by `audit:manage`.
+- Pinned third-party GitHub Actions workflow steps to immutable commit SHAs and added a CI guard
+  that rejects mutable action refs.
 
 ## Architecture decisions taken
 
@@ -491,6 +496,8 @@ vacuous.
 
 - **No PostgreSQL row-level security.** Tenant scoping is enforced in the application and tested
   there; RLS as defence in depth is Phase 14.
+- **No SBOM/provenance artefacts yet.** Workflow actions are now SHA-pinned, but CI still does not
+  emit SBOM or provenance evidence for built images.
 - **Quota coverage is partial.** Authenticated callers have short-lived Redis-backed rate limits,
   and evaluation-run creation spends a durable monthly item quota per organisation, but quotas do
   not cover every workload class yet.
@@ -591,14 +598,15 @@ Latest Phase 14 branch checks, run locally on 2026-07-27:
 | `uv run pytest services/api/tests/test_execution_api.py services/api/tests/test_security_api.py -q`                            | Pass — 12 tests                                                 |
 | `uv run pytest packages/core-py/tests/test_roles.py services/api/tests/test_auth_api.py services/api/tests/test_tenancy.py -q` | Pass — 77 passed, 8 skipped locally due PostgreSQL availability |
 | `pnpm run format:check`                                                                                                        | Pass                                                            |
+| `uv run python scripts/check_github_actions_pinned.py`                                                                         | Pass                                                            |
 
 ---
 
 ## Next tasks (Phase 14 — Security and supply chain)
 
-1. Open the audit-retention slice pull request and let CI run the PostgreSQL-backed audit tests.
+1. Open the action-pinning slice pull request and let CI prove the pinned workflow actions.
 2. Continue Phase 14 with PostgreSQL RLS defence in depth.
-3. Continue supply-chain hardening with immutable GitHub Action SHA pinning and SBOM generation.
+3. Continue supply-chain hardening with SBOM/provenance generation.
 
 **Exit criteria:** cross-tenant tests pass across all surfaces; security workflows green; green PR.
 
