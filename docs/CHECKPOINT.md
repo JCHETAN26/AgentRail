@@ -8,10 +8,10 @@ Operational handoff between sessions. This file is the first thing to read when 
 
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
-| **Phase**      | Phase 15 SBOM/provenance hardening                                                  |
-| **Status**     | In progress on branch `codex/p15-sbom-provenance`                                   |
-| **Base**       | `main` @ `445b189` (live Tribunal replay merged)                                    |
-| **Next phase** | Remaining Phase 15 PostgreSQL RLS hardening                                         |
+| **Phase**      | Phase 15 PostgreSQL RLS hardening                                                   |
+| **Status**     | In progress on branch `codex/p15-postgres-rls`                                      |
+| **Base**       | `main` @ `02a8b55` (container SBOM/provenance merged)                               |
+| **Next phase** | Automatic DB tenant-context setting and remaining security hardening                |
 | **Guardrails** | Branch protection live on `main`; direct pushes rejected; 10 required status checks |
 
 Phase 0 shipped in PR [#1](https://github.com/JCHETAN26/AgentRail/pull/1); housekeeping (MIT licence,
@@ -34,6 +34,8 @@ Tribunal replay persistence shipped in PR [#59](https://github.com/JCHETAN26/Age
 Tribunal replay console shipped in PR [#60](https://github.com/JCHETAN26/AgentRail/pull/60).
 Live Tribunal replay provider selection shipped in PR
 [#61](https://github.com/JCHETAN26/AgentRail/pull/61).
+Container SBOM/provenance artifacts shipped in PR
+[#62](https://github.com/JCHETAN26/AgentRail/pull/62).
 Phase 14's security and supply-chain slice shipped in PR
 [#48](https://github.com/JCHETAN26/AgentRail/pull/48).
 Phase 14's durable quota slice shipped in PR [#49](https://github.com/JCHETAN26/AgentRail/pull/49).
@@ -356,6 +358,10 @@ grant write access to use the gate.
   the shared Dockerfile's pinned runtime inputs and proves the runtime user is non-root.
 - Added per-service container SBOM, Docker image inspect and provenance JSON artifacts to the
   `containers / scan` matrix.
+- Added Alembic revision `0016_postgres_rls` with row-level security policies for
+  organisation-owned, project-owned and project-child tables. The policies enforce tenant filtering
+  when `agentrail.organisation_id` is set and preserve existing app/worker flows while automatic DB
+  tenant-context propagation is still being wired.
 - Added a PostgreSQL-backed monthly evaluation-item quota ledger per organisation, charged
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
 - Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
@@ -662,8 +668,9 @@ Latest security/supply-chain branch checks, run locally on 2026-07-27:
 
 ## Next tasks
 
-1. Continue Phase 15 PostgreSQL RLS hardening.
-2. Stop the Codespace when the full build is complete to avoid additional cost.
+1. Add automatic DB tenant-context setting for API principals and worker-scoped maintenance paths.
+2. Continue remaining security hardening.
+3. Stop the Codespace when the full build is complete to avoid additional cost.
 
 **Exit criteria:** recorded Tribunal replay reproduces the source digest, forked replay persists
 divergence metadata without mutating the source session, cross-tenant tests pass across the Tribunal
