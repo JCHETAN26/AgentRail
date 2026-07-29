@@ -34,6 +34,13 @@ from agentrail_core.tribunal import TribunalConfigError, validate_tribunal_confi
 
 REQUIRED_FIELDS = ("id", "input", "expected")
 MAX_REJECTIONS = 50
+MAX_DATASET_UPLOAD_BYTES = 1024 * 1024
+_ALLOWED_EXTENSIONS: dict[DatasetInputFormat, tuple[str, ...]] = {
+    "jsonl": (".jsonl", ".ndjson"),
+    "csv": (".csv",),
+}
+_ALLOWED_CONTROL_CHARACTERS = {"\n", "\r", "\t"}
+_ACTIVE_CONTENT_MARKERS = ("<script", "</script", "javascript:", "data:text/html")
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +54,83 @@ class DatasetValidation:
 
 def dataset_content_digest(request: CreateDatasetVersionRequest) -> str:
     return hashlib.sha256(request.content.encode("utf-8")).hexdigest()
+
+
+def validate_dataset_upload_envelope(request: CreateDatasetVersionRequest) -> dict[str, Any]:
+    """Validate upload metadata before parsing records.
+
+    The API currently accepts dataset bytes as a JSON string. These checks are
+    the security boundary around that upload: size, declared type/filename, and
+    a lightweight active-content scan. They deliberately do not reject ordinary
+    prompt-injection text inside synthetic incidents; the Tribunal evidence
+    sandbox owns that threat.
+    """
+    content_bytes = request.content.encode("utf-8")
+    if len(content_bytes) > MAX_DATASET_UPLOAD_BYTES:
+        raise ValidationFailedError(
+            "Dataset upload validation failed.",
+            details={
+                "reason": "content_too_large",
+                "max_bytes": MAX_DATASET_UPLOAD_BYTES,
+                "actual_bytes": len(content_bytes),
+            },
+        )
+
+    filename = (request.source_filename or "").strip()
+    if filename:
+        _validate_source_filename(filename, request.input_format)
+
+    _scan_dataset_content(request.content)
+    return {
+        "max_bytes": MAX_DATASET_UPLOAD_BYTES,
+        "actual_bytes": len(content_bytes),
+        "input_format": request.input_format,
+        "source_filename": filename or None,
+        "content_scan": "passed",
+    }
+
+
+def _validate_source_filename(filename: str, input_format: DatasetInputFormat) -> None:
+    if "/" in filename or "\\" in filename or filename in {".", ".."}:
+        raise ValidationFailedError(
+            "Dataset upload validation failed.",
+            details={"reason": "invalid_source_filename"},
+        )
+    if any(ord(character) < 32 for character in filename):
+        raise ValidationFailedError(
+            "Dataset upload validation failed.",
+            details={"reason": "invalid_source_filename"},
+        )
+    lowered = filename.lower()
+    allowed = _ALLOWED_EXTENSIONS[input_format]
+    if not lowered.endswith(allowed):
+        raise ValidationFailedError(
+            "Dataset upload validation failed.",
+            details={
+                "reason": "source_filename_type_mismatch",
+                "input_format": input_format,
+                "allowed_extensions": list(allowed),
+            },
+        )
+
+
+def _scan_dataset_content(content: str) -> None:
+    for character in content:
+        if character in _ALLOWED_CONTROL_CHARACTERS:
+            continue
+        if ord(character) < 32 or character == "\ufffd":
+            raise ValidationFailedError(
+                "Dataset upload validation failed.",
+                details={"reason": "content_scan_failed", "finding": "binary_or_control_data"},
+            )
+
+    lowered = content.lower()
+    for marker in _ACTIVE_CONTENT_MARKERS:
+        if marker in lowered:
+            raise ValidationFailedError(
+                "Dataset upload validation failed.",
+                details={"reason": "content_scan_failed", "finding": "active_content_marker"},
+            )
 
 
 def _normalise_storage_uri(
@@ -301,11 +385,13 @@ async def create_dataset_version(
 ) -> DatasetVersion:
     authorize(principal, Permission.DATASET_MANAGE, organisation_id=principal.organisation_id)
     dataset = await get_dataset(session, principal, dataset_id=dataset_id, lock_for_update=True)
+    upload_validation = validate_dataset_upload_envelope(request)
     validation = validate_dataset_content(request.input_format, request.content)
     if validation.rejected_count > 0 or validation.item_count == 0:
         raise ValidationFailedError(
             "Dataset validation failed.", details=validation.validation_report
         )
+    validation.validation_report["upload_validation"] = upload_validation
 
     digest = dataset_content_digest(request)
     duplicate_digest = await session.scalar(

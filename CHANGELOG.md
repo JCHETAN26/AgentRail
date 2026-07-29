@@ -67,6 +67,8 @@ All notable changes to AgentRail are recorded here. The format follows
 - API-key authentication now records first-use and suspicious-use telemetry with deployment-secret
   HMAC client fingerprints, auditing inactive-key reuse and client fingerprint changes without
   storing raw IP addresses or user-agent strings.
+- Dataset version uploads now enforce a dataset-specific byte ceiling, basename-only source
+  filenames, filename/type consistency and a lightweight active-content scan before record parsing.
 
 ### Added — Phase 14: observability, SLOs and operations
 
