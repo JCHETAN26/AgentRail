@@ -1,8 +1,9 @@
 """Generation and verification of session tokens and API keys.
 
 Neither a session token nor an API key is ever stored in a form that could be
-replayed if the database leaked. Only a one-way PBKDF2-HMAC-SHA256 digest is
-persisted, and every comparison uses :func:`hmac.compare_digest`.
+replayed if the database leaked. API keys are stored as bcrypt hashes; session
+tokens use deterministic PBKDF2-HMAC-SHA256 digests so cookie lookup stays
+indexed.
 
 Human passwords are not part of this system — sign-in is delegated to an OAuth
 provider. The KDF here exists for stored bearer tokens and scanner clarity, not
@@ -15,6 +16,8 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
+
+import bcrypt
 
 #: Everything after this prefix is secret. The prefix makes a leaked key
 #: greppable in logs and recognisable to secret scanners.
@@ -31,6 +34,15 @@ def _digest(value: str) -> str:
     return hashlib.pbkdf2_hmac(
         "sha256", value.encode("utf-8"), _DIGEST_SALT, _DIGEST_ITERATIONS
     ).hex()
+
+
+def hash_api_key_secret(value: str) -> str:
+    """Return the bcrypt hash stored for an API key secret."""
+    return bcrypt.hashpw(value.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
+
+
+def api_key_hash_needs_upgrade(stored_hash: str) -> bool:
+    return not stored_hash.startswith(("$2a$", "$2b$", "$2y$"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +63,7 @@ def generate_api_key() -> GeneratedApiKey:
     key_id = secrets.token_hex(KEY_ID_LENGTH // 2)
     secret = secrets.token_urlsafe(SECRET_BYTES)
     token = f"{API_KEY_PREFIX}_{key_id}_{secret}"
-    return GeneratedApiKey(key_id=key_id, token=token, secret_hash=_digest(secret))
+    return GeneratedApiKey(key_id=key_id, token=token, secret_hash=hash_api_key_secret(secret))
 
 
 def parse_api_key(token: str) -> tuple[str, str] | None:
@@ -73,7 +85,9 @@ def parse_api_key(token: str) -> tuple[str, str] | None:
 
 
 def verify_secret(presented: str, stored_hash: str) -> bool:
-    """Constant-time comparison of a presented secret against its stored digest."""
+    """Verify a presented API key secret against its stored bcrypt hash."""
+    if stored_hash.startswith(("$2a$", "$2b$", "$2y$")):
+        return bcrypt.checkpw(presented.encode("utf-8"), stored_hash.encode("ascii"))
     return hmac.compare_digest(_digest(presented), stored_hash)
 
 

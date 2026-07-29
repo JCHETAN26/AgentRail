@@ -13,6 +13,7 @@ by :func:`agentrail_core.identity.roles.authorize` and never here.
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -36,7 +37,9 @@ from agentrail_core.identity import (
     User,
 )
 from agentrail_core.identity.secrets import (
+    api_key_hash_needs_upgrade,
     generate_session_token,
+    hash_api_key_secret,
     hash_session_token,
     parse_api_key,
     verify_secret,
@@ -197,8 +200,10 @@ async def _actor_from_api_key(
         return None
     # Verify the secret before checking status, so a revoked key and an unknown
     # key take the same path and cannot be distinguished by timing.
-    if not verify_secret(secret, record.secret_hash):
+    if not await asyncio.to_thread(verify_secret, secret, record.secret_hash):
         return None
+    if api_key_hash_needs_upgrade(record.secret_hash):
+        record.secret_hash = await asyncio.to_thread(hash_api_key_secret, secret)
     now = datetime.now(UTC)
     if record.revoked_at is not None:
         return None
