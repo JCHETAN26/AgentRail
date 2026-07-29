@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from agentrail_api.app import attach_infrastructure, create_app
 from agentrail_api.settings import ApiSettings
 from agentrail_core.identity import ApiKey, AuditEvent, Role
+from agentrail_core.identity.secrets import parse_api_key
 from agentrail_core.ids import new_sortable_id
 
 pytestmark = pytest.mark.integration
@@ -170,6 +172,38 @@ class TestApiKeys:
         assert [o["organisation"]["id"] for o in me.json()["organisations"]] == [
             tenant.organisation_id
         ]
+
+    async def test_legacy_api_key_hash_is_upgraded_after_successful_use(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        created = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys",
+            json={"name": "legacy-ci", "role": Role.DEVELOPER.value},
+        )
+        assert created.status_code == 201, created.text
+        token = created.json()["token"]
+        parsed = parse_api_key(token)
+        assert parsed is not None
+        key_id, secret = parsed
+        legacy_hash = hashlib.pbkdf2_hmac(
+            "sha256", secret.encode("utf-8"), b"agentrail-token-digest-v1", 120_000
+        ).hex()
+
+        async with session_factory() as session:
+            record = await session.scalar(select(ApiKey).where(ApiKey.key_id == key_id))
+            assert record is not None
+            record.secret_hash = legacy_hash
+            await session.commit()
+
+        response = await tenant.client.get(
+            "/api/v1/auth/me", headers={"authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        async with session_factory() as session:
+            upgraded = await session.scalar(select(ApiKey).where(ApiKey.key_id == key_id))
+            assert upgraded is not None
+            assert upgraded.secret_hash.startswith("$2b$")
 
     async def test_read_only_api_key_use_persists_last_used_at(
         self,

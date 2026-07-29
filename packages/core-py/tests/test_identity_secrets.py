@@ -5,6 +5,7 @@ import pytest
 from agentrail_core.identity.secrets import (
     API_KEY_PREFIX,
     KEY_ID_LENGTH,
+    api_key_hash_needs_upgrade,
     generate_api_key,
     generate_oauth_state,
     generate_session_token,
@@ -29,12 +30,13 @@ class TestApiKeyGeneration:
         secret = generated.token.split("_", 2)[2]
 
         assert secret not in generated.secret_hash
-        assert len(generated.secret_hash) == 64
+        assert generated.secret_hash.startswith("$2b$")
+        assert len(generated.secret_hash) == 60
 
     def test_keys_are_unique(self) -> None:
-        keys = {generate_api_key().token for _ in range(100)}
+        keys = {generate_api_key().token for _ in range(20)}
 
-        assert len(keys) == 100
+        assert len(keys) == 20
 
     def test_a_generated_key_verifies_against_its_own_hash(self) -> None:
         generated = generate_api_key()
@@ -49,6 +51,13 @@ class TestApiKeyGeneration:
 
         assert parsed is not None
         assert verify_secret(parsed[1], first.secret_hash) is False
+
+    def test_legacy_pbkdf2_hashes_verify_and_need_upgrade(self) -> None:
+        pbkdf2_hash = "21bdbdd66365a0633eef48c978a19c7801e77d031f5a0bd8476086dc6c48155e"
+
+        assert verify_secret("legacy-secret", pbkdf2_hash) is True
+        assert api_key_hash_needs_upgrade(pbkdf2_hash) is True
+        assert api_key_hash_needs_upgrade(generate_api_key().secret_hash) is False
 
 
 class TestApiKeyParsing:

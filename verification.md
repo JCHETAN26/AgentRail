@@ -46,7 +46,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] Membership model with roles: owner, admin, developer, reviewer, viewer
 - [x] Role-based access control (RBAC) central policy functions
 - [x] API key generation with scope bounding (read, write, admin)
-- [ ] API key stored as bcrypt hash only (never plaintext)
+- [x] API key stored as bcrypt hash only (never plaintext)
 - [x] API key validation with constant-time comparison
 - [x] Secure dev mode (deterministic identity for local development)
 - [x] Audit log foundation (who did what, when)

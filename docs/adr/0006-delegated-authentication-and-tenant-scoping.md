@@ -52,16 +52,15 @@ until it expires, so "sign out" would only clear the browser's copy while a capt
 working. A server-side row can be revoked, and `test_sign_out_revokes_the_session_server_side`
 replays a captured token to prove it.
 
-PBKDF2-HMAC-SHA256 keeps persisted bearer tokens non-replayable while satisfying the same scanner
-rule set that protects human-password code paths. These are machine-generated 256-bit secrets, not
-user-chosen passwords, so the KDF is a defence-in-depth and review-signal choice rather than the
-primary source of strength.
+PBKDF2-HMAC-SHA256 keeps persisted session cookies non-replayable while preserving indexed lookup.
+API key secrets use bcrypt hashes because they are long-lived bearer credentials whose public key id
+already provides the lookup key.
 
 ### API keys are hashed, split, and doubly bounded
 
 Format: `ar_<key_id>_<secret>`. `key_id` is public and indexed, so verification is a single indexed
-lookup rather than a table scan; only the secret's digest is stored, and comparison uses
-`hmac.compare_digest`. The full token exists exactly once, in the creation response.
+lookup rather than a table scan; only the secret's bcrypt hash is stored. The full token exists
+exactly once, in the creation response.
 
 A key carries both a **role** and an optional **scope** list, and its effective permissions are the
 _intersection_. A leaked key is therefore bounded twice, and a key can never out-rank the principal
