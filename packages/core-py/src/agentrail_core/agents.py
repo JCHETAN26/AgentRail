@@ -11,7 +11,17 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func, text
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+    event,
+    func,
+    inspect,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -255,3 +265,17 @@ class AgentVersion(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+def agent_version_changed_fields(version: AgentVersion) -> list[str]:
+    state = inspect(version)
+    return [attribute.key for attribute in state.attrs if attribute.history.has_changes()]
+
+
+@event.listens_for(AgentVersion, "before_update")
+def _prevent_agent_version_update(_mapper: Any, _connection: Any, target: AgentVersion) -> None:
+    changed = agent_version_changed_fields(target)
+    if changed:
+        raise ValueError(
+            f"agent_versions are immutable after creation; changed fields: {', '.join(changed)}"
+        )

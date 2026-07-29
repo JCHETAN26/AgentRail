@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 from api_test_support import Tenant
+from sqlalchemy import update
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentrail_core.identity import AgentVersion
 from agentrail_core.ids import is_sortable_id
 
 pytestmark = pytest.mark.integration
@@ -95,6 +99,38 @@ class TestAgentVersions:
 
         assert first.status_code == 201
         assert duplicate.status_code == 409
+
+    async def test_versions_cannot_be_mutated_after_creation(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        agent = await create_agent(tenant)
+        created = (
+            await tenant.client.post(
+                f"/api/v1/agents/{agent['id']}/versions", json=version_payload()
+            )
+        ).json()
+
+        async with session_factory() as session:
+            version = await session.get(AgentVersion, created["id"])
+            assert version is not None
+            version.prompt_bundle = {"system": "mutated after creation"}
+
+            with pytest.raises(ValueError, match="immutable after creation"):
+                await session.commit()
+
+        async with session_factory() as session:
+            with pytest.raises(DBAPIError, match="immutable after creation"):
+                await session.execute(
+                    update(AgentVersion)
+                    .where(AgentVersion.id == created["id"])
+                    .values(prompt_bundle={"system": "bulk mutated after creation"})
+                )
+                await session.commit()
+
+        fetched = await tenant.client.get(f"/api/v1/agent-versions/{created['id']}")
+
+        assert fetched.status_code == 200
+        assert fetched.json()["prompt_bundle"] == created["prompt_bundle"]
 
     async def test_lists_newest_version_first(self, tenant: Tenant) -> None:
         agent = await create_agent(tenant)
