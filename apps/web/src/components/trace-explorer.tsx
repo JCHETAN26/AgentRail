@@ -211,7 +211,7 @@ function ComparisonSummary({
       {baseline === null ? (
         <>
           <p className="trace__meta" data-testid="no-baseline-note">
-            {comparison.baseline_agent_version_id === null
+            {comparison.baseline_agent_version_id == null
               ? 'This run declared no baseline version, so the metrics below are the candidate’s own.'
               : 'No earlier report scored the baseline version over this suite, so the metrics below are the candidate’s own.'}
           </p>

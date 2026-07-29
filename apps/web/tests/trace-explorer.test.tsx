@@ -266,6 +266,18 @@ describe('TraceExplorer', () => {
     expect(screen.queryByLabelText(/evaluator deltas/i)).toBeNull();
   });
 
+  it('says why a declared baseline produced no comparison', async () => {
+    mockTraceApi({
+      comparison: { baseline_agent_version_id: '01ARZ3NDEKTSV4RRFFQ69G5BAG', baseline: null },
+    });
+
+    await loadTrace();
+
+    expect(await screen.findByTestId('no-baseline-note')).toHaveTextContent(
+      /no earlier report scored the baseline version over this suite/i,
+    );
+  });
+
   it('shows baseline, candidate and delta columns when a baseline exists', async () => {
     mockTraceApi({
       comparison: {
