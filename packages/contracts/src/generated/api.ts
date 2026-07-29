@@ -1190,12 +1190,39 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * BaselineReportRef
+         * @description The earlier report a comparison is measured against.
+         */
+        BaselineReportRef: {
+            /** Candidate Agent Version Id */
+            candidate_agent_version_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Run Id */
+            run_id: string;
+            /** Suite Digest */
+            suite_digest: string;
+            /** Summary */
+            summary: Record<string, never>;
+        };
         /** ComparisonReportResponse */
         ComparisonReportResponse: {
+            baseline?: components["schemas"]["BaselineReportRef"] | null;
             /** Baseline Agent Version Id */
             baseline_agent_version_id?: string | null;
             /** Candidate Agent Version Id */
             candidate_agent_version_id: string;
+            /**
+             * Category Deltas
+             * @default []
+             */
+            category_deltas: components["schemas"]["MetricDeltaResponse"][];
             /** Category Metrics */
             category_metrics: Record<string, never>;
             /**
@@ -1203,6 +1230,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Evaluator Deltas
+             * @default []
+             */
+            evaluator_deltas: components["schemas"]["MetricDeltaResponse"][];
             /** Evaluator Metrics */
             evaluator_metrics: Record<string, never>;
             /** Exports */
@@ -1917,6 +1949,32 @@ export interface components {
             role: components["schemas"]["Role"];
             user: components["schemas"]["UserResponse"];
         };
+        /**
+         * MetricDeltaResponse
+         * @description One subject's baseline value, candidate value, and the difference.
+         */
+        MetricDeltaResponse: {
+            /** Baseline */
+            baseline: {
+                [key: string]: number;
+            };
+            /** Candidate */
+            candidate: {
+                [key: string]: number;
+            };
+            /** Delta */
+            delta: {
+                [key: string]: number;
+            };
+            status: components["schemas"]["MetricDeltaStatus"];
+            /** Subject */
+            subject: string;
+        };
+        /**
+         * MetricDeltaStatus
+         * @enum {string}
+         */
+        MetricDeltaStatus: "improved" | "regressed" | "unchanged" | "added" | "removed";
         /** OrganisationListResponse */
         OrganisationListResponse: {
             /** Items */

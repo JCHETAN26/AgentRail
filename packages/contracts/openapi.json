@@ -569,8 +569,58 @@
         "title": "AuthProviderInfo",
         "type": "object"
       },
+      "BaselineReportRef": {
+        "description": "The earlier report a comparison is measured against.",
+        "properties": {
+          "candidate_agent_version_id": {
+            "title": "Candidate Agent Version Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "suite_digest": {
+            "title": "Suite Digest",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "candidate_agent_version_id",
+          "suite_digest",
+          "summary",
+          "created_at"
+        ],
+        "title": "BaselineReportRef",
+        "type": "object"
+      },
       "ComparisonReportResponse": {
         "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BaselineReportRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "baseline_agent_version_id": {
             "anyOf": [
               {
@@ -586,6 +636,14 @@
             "title": "Candidate Agent Version Id",
             "type": "string"
           },
+          "category_deltas": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MetricDeltaResponse"
+            },
+            "title": "Category Deltas",
+            "type": "array"
+          },
           "category_metrics": {
             "title": "Category Metrics",
             "type": "object"
@@ -594,6 +652,14 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "evaluator_deltas": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MetricDeltaResponse"
+            },
+            "title": "Evaluator Deltas",
+            "type": "array"
           },
           "evaluator_metrics": {
             "title": "Evaluator Metrics",
@@ -2505,6 +2571,59 @@
         ],
         "title": "MemberResponse",
         "type": "object"
+      },
+      "MetricDeltaResponse": {
+        "description": "One subject's baseline value, candidate value, and the difference.",
+        "properties": {
+          "baseline": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Baseline",
+            "type": "object"
+          },
+          "candidate": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Candidate",
+            "type": "object"
+          },
+          "delta": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Delta",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MetricDeltaStatus"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "status",
+          "candidate",
+          "baseline",
+          "delta"
+        ],
+        "title": "MetricDeltaResponse",
+        "type": "object"
+      },
+      "MetricDeltaStatus": {
+        "enum": [
+          "improved",
+          "regressed",
+          "unchanged",
+          "added",
+          "removed"
+        ],
+        "title": "MetricDeltaStatus",
+        "type": "string"
       },
       "OrganisationListResponse": {
         "properties": {

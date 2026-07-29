@@ -22,6 +22,8 @@ import type {
   CreateTribunalReplayRequest,
   CreatedApiKey,
   DecideApprovalRequest,
+  ComparisonReport,
+  EvaluationResultListResponse,
   Job,
   JobListResponse,
   Me,
@@ -32,6 +34,11 @@ import type {
   TribunalReplay,
   TribunalReplayListResponse,
   TribunalSession,
+  RunItemState,
+  RunItemTraceListResponse,
+  Trajectory,
+  TrajectoryCheckpointListResponse,
+  TrajectoryStepListResponse,
 } from '@agentrail/contracts';
 import { CORRELATION_HEADER, IDEMPOTENCY_HEADER } from '@agentrail/contracts';
 
@@ -221,6 +228,55 @@ export async function getJob(jobId: string): Promise<Job> {
 export async function listJobs(projectId: string, limit = 10): Promise<JobListResponse> {
   return request<JobListResponse>(
     `/api/v1/projects/${encodeURIComponent(projectId)}/jobs?limit=${limit}`,
+  );
+}
+
+// --- Evaluation Evidence ----------------------------------------------------
+
+export async function getComparisonReport(runId: string): Promise<ComparisonReport> {
+  return request<ComparisonReport>(
+    `/api/v1/evaluation-runs/${encodeURIComponent(runId)}/comparison`,
+  );
+}
+
+export async function listEvaluationResults(
+  runId: string,
+  evaluatorSlug?: string,
+): Promise<EvaluationResultListResponse> {
+  const query =
+    evaluatorSlug === undefined ? '' : `?evaluator_slug=${encodeURIComponent(evaluatorSlug)}`;
+  return request<EvaluationResultListResponse>(
+    `/api/v1/evaluation-runs/${encodeURIComponent(runId)}/evaluator-results${query}`,
+  );
+}
+
+export async function listRunItems(
+  runId: string,
+  state?: RunItemState,
+): Promise<RunItemTraceListResponse> {
+  const query = state === undefined ? '' : `?state=${encodeURIComponent(state)}`;
+  return request<RunItemTraceListResponse>(
+    `/api/v1/evaluation-runs/${encodeURIComponent(runId)}/items${query}`,
+  );
+}
+
+export async function getTrajectory(trajectoryId: string): Promise<Trajectory> {
+  return request<Trajectory>(`/api/v1/trajectories/${encodeURIComponent(trajectoryId)}`);
+}
+
+export async function listTrajectorySteps(
+  trajectoryId: string,
+): Promise<TrajectoryStepListResponse> {
+  return request<TrajectoryStepListResponse>(
+    `/api/v1/trajectories/${encodeURIComponent(trajectoryId)}/steps`,
+  );
+}
+
+export async function listTrajectoryCheckpoints(
+  trajectoryId: string,
+): Promise<TrajectoryCheckpointListResponse> {
+  return request<TrajectoryCheckpointListResponse>(
+    `/api/v1/trajectories/${encodeURIComponent(trajectoryId)}/checkpoints`,
   );
 }
 

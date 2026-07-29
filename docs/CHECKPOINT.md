@@ -169,6 +169,13 @@ auto-delete on merge, so each phase has to clean up after itself.
 - Errors remain in comparison denominators and are surfaced as regressions.
 - Added comparison APIs to fetch a run report and list evaluator results with optional evaluator
   filtering.
+- Comparison reads now resolve a baseline report and return baseline/candidate/delta rows per
+  evaluator and category. The baseline must be an earlier report in the same project that scored the
+  run's baseline agent version over an identical suite digest, so unlike metrics are never
+  subtracted and another tenant's report can never be used.
+- Added the console Trace Explorer: comparison deltas, filterable evaluator results, run item trace
+  links, a timeline whose steps expose the graph state recorded at each step, tool call and evidence
+  inspectors, and persisted checkpoints.
 - Added aggregation and tenant-isolation tests for comparison reads.
 
 ## Phase 8 Tribunal progress

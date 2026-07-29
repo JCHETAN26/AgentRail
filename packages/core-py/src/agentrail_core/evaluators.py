@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -24,6 +25,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from agentrail_core.db import Base
 from agentrail_core.execution import RunItemState
+
+
+class MetricDeltaStatus(StrEnum):
+    IMPROVED = "improved"
+    REGRESSED = "regressed"
+    UNCHANGED = "unchanged"
+    ADDED = "added"
+    REMOVED = "removed"
 
 
 class EvaluatorKind(StrEnum):
@@ -248,3 +257,76 @@ def aggregate_results(
         "reproducible": True,
     }
     return summary, evaluator_metrics, category_metrics, regressions
+
+
+#: Metric fields carried through a baseline-to-candidate diff, in display order.
+COMPARABLE_METRIC_FIELDS = ("pass_rate", "mean_score", "total", "passed", "failed", "errors")
+
+#: Float noise below this magnitude is not a real change.
+_DELTA_EPSILON = 1e-9
+
+#: Fields that decide whether a subject improved or regressed, in priority order.
+_STATUS_FIELDS = ("pass_rate", "mean_score")
+
+
+def _comparable_values(metric: Any) -> dict[str, float]:
+    """Extract the finite numeric fields of one aggregated metric entry."""
+    if not isinstance(metric, dict):
+        return {}
+    values: dict[str, float] = {}
+    for field in COMPARABLE_METRIC_FIELDS:
+        raw = metric.get(field)
+        # bool is an int subclass, and a flag is not a measurement.
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            continue
+        number = float(raw)
+        if math.isfinite(number):
+            values[field] = number
+    return values
+
+
+def _delta_status(delta: dict[str, float]) -> MetricDeltaStatus:
+    for field in _STATUS_FIELDS:
+        change = delta.get(field)
+        if change is None or abs(change) <= _DELTA_EPSILON:
+            continue
+        return MetricDeltaStatus.IMPROVED if change > 0 else MetricDeltaStatus.REGRESSED
+    return MetricDeltaStatus.UNCHANGED
+
+
+def diff_metric_tables(
+    *, candidate: dict[str, Any], baseline: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Diff two aggregated metric tables subject by subject.
+
+    Both arguments are ``{subject: {field: value}}`` tables as produced by
+    :func:`aggregate_results`. Subjects present on only one side are reported as
+    added or removed with no delta, because there is nothing to subtract.
+    """
+    deltas: list[dict[str, Any]] = []
+    for subject in sorted(set(candidate) | set(baseline)):
+        candidate_values = _comparable_values(candidate.get(subject))
+        baseline_values = _comparable_values(baseline.get(subject))
+        if subject not in baseline:
+            status = MetricDeltaStatus.ADDED
+            delta: dict[str, float] = {}
+        elif subject not in candidate:
+            status = MetricDeltaStatus.REMOVED
+            delta = {}
+        else:
+            delta = {
+                field: value - baseline_values[field]
+                for field, value in candidate_values.items()
+                if field in baseline_values
+            }
+            status = _delta_status(delta)
+        deltas.append(
+            {
+                "subject": subject,
+                "status": status.value,
+                "candidate": candidate_values,
+                "baseline": baseline_values,
+                "delta": delta,
+            }
+        )
+    return deltas

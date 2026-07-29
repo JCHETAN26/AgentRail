@@ -258,6 +258,12 @@ classifies their tools before they run without a human.
   `/api/v1/evaluation-runs/{run_id}/comparison` and
   `/api/v1/evaluation-runs/{run_id}/evaluator-results`.
 - Aggregate evaluator, category and regression summaries with reproducible suite/evaluator digests.
+- Comparison reads resolve a baseline report — the most recent earlier report in the same project
+  that scored the run's baseline agent version over an identical `suite_digest` — and return
+  per-evaluator and per-category baseline/candidate/delta rows. Mismatched suites and other tenants'
+  reports are never used as a baseline; the response reports no baseline instead.
+- Console Trace Explorer for comparison deltas, evaluator results, run item trace links, timeline
+  steps with the graph state recorded at each step, tool calls, evidence payloads and checkpoints.
 - Contract, aggregation and tenant-isolation coverage for comparison reads.
 
 ### Added — Phase 6: trajectory capture and trace explorer
