@@ -27,43 +27,85 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function mockTraceApi() {
+const BASELINE_RUN_ID = '01ARZ3NDEKTSV4RRFFQ69G5BSE';
+
+/** The comparison payload used unless a test overrides individual fields. */
+function comparisonPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    id: '01ARZ3NDEKTSV4RRFFQ69G5CMP',
+    project_id: '01ARZ3NDEKTSV4RRFFQ69G5PRJ',
+    run_id: RUN_ID,
+    baseline_agent_version_id: null,
+    candidate_agent_version_id: '01ARZ3NDEKTSV4RRFFQ69G5AGV',
+    suite_digest: 'd'.repeat(64),
+    summary: { pass_rate: 0.875, regression_count: 1, reproducible: true },
+    evaluator_metrics: {
+      task_success: { pass_rate: 0.875, mean_score: 0.91, total: 8 },
+    },
+    category_metrics: {
+      diagnosis: { pass_rate: 0.75, mean_score: 0.82, total: 4 },
+    },
+    regressions: [
+      {
+        run_item_id: RUN_ITEM_ID,
+        item_index: 3,
+        evaluator_slug: 'task_success',
+        category: 'diagnosis',
+        score: 0.25,
+      },
+    ],
+    exports: {},
+    created_at: '2026-07-26T00:00:00Z',
+    baseline: null,
+    evaluator_deltas: [],
+    category_deltas: [],
+    ...overrides,
+  };
+}
+
+function evaluatorResult(index: number, state: 'PASSED' | 'FAILED') {
+  return {
+    id: `01ARZ3NDEKTSV4RRFFQ69G5E${String(index).padStart(2, '0')}`,
+    run_id: RUN_ID,
+    run_item_id: RUN_ITEM_ID,
+    evaluator_version_id: null,
+    evaluator_slug: `evaluator_${index}`,
+    evaluator_kind: 'outcome',
+    item_index: index,
+    partition: 'default',
+    category: 'diagnosis',
+    state,
+    score: state === 'PASSED' ? 1 : 0.25,
+    threshold: 0.8,
+    details: { reason: 'missing remediation' },
+    created_at: '2026-07-26T00:00:00Z',
+  };
+}
+
+function mockTraceApi(
+  options: {
+    comparison?: Record<string, unknown>;
+    comparisonStatus?: number;
+    results?: unknown[];
+  } = {},
+) {
   vi.mocked(fetch).mockImplementation((input) => {
     const url = String(input);
     if (url.endsWith(`/api/v1/evaluation-runs/${RUN_ID}/comparison`)) {
-      return Promise.resolve(
-        json({
-          id: '01ARZ3NDEKTSV4RRFFQ69G5CMP',
-          project_id: '01ARZ3NDEKTSV4RRFFQ69G5PRJ',
-          run_id: RUN_ID,
-          baseline_agent_version_id: null,
-          candidate_agent_version_id: '01ARZ3NDEKTSV4RRFFQ69G5AGV',
-          suite_digest: 'd'.repeat(64),
-          summary: { pass_rate: 0.875, regression_count: 1, reproducible: true },
-          evaluator_metrics: {
-            task_success: { pass_rate: 0.875, mean_score: 0.91, total: 8 },
-          },
-          category_metrics: {
-            diagnosis: { pass_rate: 0.75, mean_score: 0.82, total: 4 },
-          },
-          regressions: [
-            {
-              run_item_id: RUN_ITEM_ID,
-              item_index: 3,
-              evaluator_slug: 'task_success',
-              category: 'diagnosis',
-              score: 0.25,
-            },
-          ],
-          exports: {},
-          created_at: '2026-07-26T00:00:00Z',
-        }),
-      );
+      if (options.comparisonStatus !== undefined) {
+        return Promise.resolve(
+          json(
+            { code: 'forbidden', message: 'Not yours, or not permitted.', details: {} },
+            options.comparisonStatus,
+          ),
+        );
+      }
+      return Promise.resolve(json(comparisonPayload(options.comparison)));
     }
     if (url.endsWith(`/api/v1/evaluation-runs/${RUN_ID}/evaluator-results`)) {
       return Promise.resolve(
         json({
-          items: [
+          items: options.results ?? [
             {
               id: '01ARZ3NDEKTSV4RRFFQ69G5EVR',
               run_id: RUN_ID,
@@ -178,13 +220,17 @@ function mockTraceApi() {
   });
 }
 
+async function loadTrace() {
+  renderWithQueryClient(<TraceExplorer />);
+  await userEvent.type(screen.getByLabelText(/evaluation run id/i), RUN_ID);
+  await userEvent.click(screen.getByRole('button', { name: /load trace/i }));
+}
+
 describe('TraceExplorer', () => {
   it('renders comparison metrics and trajectory inspectors for a run', async () => {
     mockTraceApi();
 
-    renderWithQueryClient(<TraceExplorer />);
-    await userEvent.type(screen.getByLabelText(/evaluation run id/i), RUN_ID);
-    await userEvent.click(screen.getByRole('button', { name: /load trace/i }));
+    await loadTrace();
 
     expect(await screen.findByLabelText(/comparison ui/i)).toHaveTextContent('87.5%');
     expect(screen.getByLabelText(/comparison regressions/i)).toHaveTextContent(
@@ -201,9 +247,122 @@ describe('TraceExplorer', () => {
     expect(await screen.findByLabelText(/timeline visualization/i)).toHaveTextContent(
       'Recorded tool call',
     );
-    expect(screen.getByLabelText(/trajectory inspector/i)).toHaveTextContent('Checkpoints');
-    expect(screen.getByLabelText(/graph state inspector/i)).toHaveTextContent('tool_call');
+    expect(screen.getByLabelText(/persisted checkpoints/i)).toHaveTextContent('tool-call');
     expect(screen.getByLabelText(/tool call inspector/i)).toHaveTextContent('restart_service');
     expect(screen.getByLabelText(/evidence viewer/i)).toHaveTextContent('service stayed unhealthy');
+  });
+
+  it('shows candidate-only metrics when the report has no baseline', async () => {
+    mockTraceApi();
+
+    await loadTrace();
+
+    const comparison = await screen.findByLabelText(/comparison ui/i);
+    expect(comparison).toHaveTextContent('no baseline');
+    expect(screen.getByTestId('no-baseline-note')).toHaveTextContent(/declared no baseline/i);
+    expect(screen.getByLabelText(/evaluator metrics \(candidate\)/i)).toHaveTextContent(
+      'task_success',
+    );
+    expect(screen.queryByLabelText(/evaluator deltas/i)).toBeNull();
+  });
+
+  it('shows baseline, candidate and delta columns when a baseline exists', async () => {
+    mockTraceApi({
+      comparison: {
+        baseline_agent_version_id: '01ARZ3NDEKTSV4RRFFQ69G5BAG',
+        summary: { pass_rate: 0.5, regression_count: 1, reproducible: true },
+        baseline: {
+          id: '01ARZ3NDEKTSV4RRFFQ69G5BCP',
+          run_id: BASELINE_RUN_ID,
+          candidate_agent_version_id: '01ARZ3NDEKTSV4RRFFQ69G5BAG',
+          suite_digest: 'd'.repeat(64),
+          summary: { pass_rate: 0.875 },
+          created_at: '2026-07-25T00:00:00Z',
+        },
+        evaluator_deltas: [
+          {
+            subject: 'task_success',
+            status: 'regressed',
+            baseline: { pass_rate: 0.875, mean_score: 0.91 },
+            candidate: { pass_rate: 0.5, mean_score: 0.6 },
+            delta: { pass_rate: -0.375, mean_score: -0.31 },
+          },
+        ],
+        category_deltas: [
+          {
+            subject: 'diagnosis',
+            status: 'improved',
+            baseline: { pass_rate: 0.5 },
+            candidate: { pass_rate: 0.75 },
+            delta: { pass_rate: 0.25 },
+          },
+        ],
+      },
+    });
+
+    await loadTrace();
+
+    const deltas = await screen.findByLabelText(/evaluator deltas/i);
+    const row = within(deltas).getByRole('row', { name: /task_success/i });
+    expect(row).toHaveTextContent('87.5%');
+    expect(row).toHaveTextContent('50.0%');
+    expect(row).toHaveTextContent('-37.5pp');
+    expect(row).toHaveTextContent('-0.31');
+    expect(row).toHaveTextContent('regressed');
+
+    const comparison = screen.getByLabelText(/comparison ui/i);
+    expect(comparison).toHaveTextContent(BASELINE_RUN_ID);
+    // Run-level pass rate delta, not just the per-evaluator rows.
+    expect(comparison).toHaveTextContent('-37.5pp');
+    expect(
+      within(screen.getByLabelText(/category deltas/i)).getByRole('row', { name: /diagnosis/i }),
+    ).toHaveTextContent('+25.0pp');
+    expect(screen.queryByTestId('no-baseline-note')).toBeNull();
+  });
+
+  it('stops reporting loading once the comparison request fails', async () => {
+    mockTraceApi({ comparisonStatus: 403 });
+
+    await loadTrace();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not yours, or not permitted/i);
+    expect(screen.queryByText(/loading comparison report/i)).toBeNull();
+  });
+
+  it('keeps every evaluator result reachable past the first page', async () => {
+    const results = Array.from({ length: 20 }, (_, index) =>
+      evaluatorResult(index, index === 19 ? 'FAILED' : 'PASSED'),
+    );
+    mockTraceApi({ results });
+
+    await loadTrace();
+
+    const section = await screen.findByLabelText(/evaluator selection ui/i);
+    expect(within(section).queryByText('evaluator_19')).toBeNull();
+    expect(section).toHaveTextContent('Showing 12 of 20 results');
+
+    await userEvent.click(within(section).getByRole('button', { name: /show all 20/i }));
+    expect(within(section).getByText('evaluator_19')).toBeVisible();
+
+    await userEvent.click(within(section).getByRole('button', { name: /findings only/i }));
+    expect(within(section).getByText('evaluator_19')).toBeVisible();
+    expect(within(section).queryByText('evaluator_0')).toBeNull();
+  });
+
+  it('shows the graph state recorded for the selected timeline step', async () => {
+    mockTraceApi();
+
+    await loadTrace();
+
+    const inspector = await screen.findByLabelText(/graph state inspector/i);
+    // The first step is selected by default.
+    expect(inspector).toHaveTextContent('"stage": "tool_call"');
+
+    const timeline = screen.getByLabelText(/timeline visualization/i);
+    await userEvent.click(within(timeline).getByRole('button', { name: /collect evidence/i }));
+
+    expect(screen.getByLabelText(/graph state inspector/i)).toHaveTextContent(
+      '"stage": "evidence"',
+    );
   });
 });

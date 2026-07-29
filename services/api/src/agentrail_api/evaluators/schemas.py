@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from agentrail_core.evaluators import EvaluatorKind, EvaluatorResultState
+from agentrail_core.evaluators import EvaluatorKind, EvaluatorResultState, MetricDeltaStatus
 
 
 class EvaluationResultResponse(BaseModel):
@@ -33,6 +33,29 @@ class EvaluationResultListResponse(BaseModel):
     items: list[EvaluationResultResponse]
 
 
+class MetricDeltaResponse(BaseModel):
+    """One subject's baseline value, candidate value, and the difference."""
+
+    subject: str
+    status: MetricDeltaStatus
+    candidate: dict[str, float]
+    baseline: dict[str, float]
+    delta: dict[str, float]
+
+
+class BaselineReportRef(BaseModel):
+    """The earlier report a comparison is measured against."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    run_id: str
+    candidate_agent_version_id: str
+    suite_digest: str
+    summary: dict[str, Any]
+    created_at: datetime
+
+
 class ComparisonReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -48,3 +71,8 @@ class ComparisonReportResponse(BaseModel):
     regressions: list[dict[str, Any]]
     exports: dict[str, Any]
     created_at: datetime
+    #: Absent when the run declared no baseline version, or when no earlier
+    #: report scored that version over an identical suite.
+    baseline: BaselineReportRef | None = None
+    evaluator_deltas: list[MetricDeltaResponse] = []
+    category_deltas: list[MetricDeltaResponse] = []

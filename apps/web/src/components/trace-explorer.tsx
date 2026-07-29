@@ -3,6 +3,7 @@
 import type {
   ComparisonReport,
   EvaluationResult,
+  MetricDelta,
   RunItemTrace,
   Trajectory,
   TrajectoryCheckpoint,
@@ -22,6 +23,9 @@ import {
 } from '@/lib/api';
 
 const RUN_ID_LENGTH = 26;
+
+/** Rows rendered before the evaluator result table asks to be expanded. */
+const RESULT_PAGE_SIZE = 12;
 
 export function TraceExplorer() {
   const inputId = useId();
@@ -128,7 +132,7 @@ export function TraceExplorer() {
           <QueryError query={comparison} />
           <QueryError query={results} />
           <QueryError query={runItems} />
-          <ComparisonSummary comparison={comparison.data} />
+          <ComparisonSummary comparison={comparison.data} isPending={comparison.isPending} />
           <EvaluatorResults results={results.data?.items ?? []} />
           <RunItems
             items={runItems.data?.items ?? []}
@@ -139,6 +143,7 @@ export function TraceExplorer() {
           <QueryError query={steps} />
           <QueryError query={checkpoints} />
           <TrajectoryInspector
+            key={selectedTrajectoryId ?? 'no-trajectory'}
             trajectory={trajectory.data}
             steps={steps.data?.items ?? []}
             checkpoints={checkpoints.data?.items ?? []}
@@ -149,21 +154,32 @@ export function TraceExplorer() {
   );
 }
 
-function ComparisonSummary({ comparison }: { comparison: ComparisonReport | undefined }) {
+function ComparisonSummary({
+  comparison,
+  isPending,
+}: {
+  comparison: ComparisonReport | undefined;
+  isPending: boolean;
+}) {
   if (comparison === undefined) {
-    return (
+    // A failed request is already reported by QueryError; only a request still
+    // in flight should claim the report is on its way.
+    return isPending ? (
       <p className="loading" role="status">
         Loading comparison report…
       </p>
-    );
+    ) : null;
   }
 
+  const baseline = comparison.baseline ?? null;
   const evaluatorEntries = Object.entries(comparison.evaluator_metrics).filter(([, value]) =>
     isRecord(value),
   );
   const categoryEntries = Object.entries(comparison.category_metrics).filter(([, value]) =>
     isRecord(value),
   );
+  const baselinePassRate = baseline === null ? null : numberMetric(baseline.summary.pass_rate);
+  const candidatePassRate = numberMetric(comparison.summary.pass_rate);
 
   return (
     <section className="trace__section" aria-label="Comparison UI">
@@ -172,9 +188,18 @@ function ComparisonSummary({ comparison }: { comparison: ComparisonReport | unde
         <span className="badge">{comparison.regressions.length} regressions</span>
       </header>
       <dl className="trace__metrics">
+        <Metric label="Pass rate" value={formatPercent(candidatePassRate)} />
         <Metric
-          label="Pass rate"
-          value={formatPercent(numberMetric(comparison.summary.pass_rate))}
+          label="Baseline pass rate"
+          value={baselinePassRate === null ? 'no baseline' : formatPercent(baselinePassRate)}
+        />
+        <Metric
+          label="Pass rate delta"
+          value={
+            baselinePassRate === null
+              ? '—'
+              : formatPointsDelta(candidatePassRate - baselinePassRate)
+          }
         />
         <Metric
           label="Regressions"
@@ -183,10 +208,65 @@ function ComparisonSummary({ comparison }: { comparison: ComparisonReport | unde
         <Metric label="Suite digest" value={digestPrefix(comparison.suite_digest)} />
       </dl>
 
-      <MetricTable title="Evaluator deltas" entries={evaluatorEntries} />
-      <MetricTable title="Category breakdown" entries={categoryEntries} />
+      {baseline === null ? (
+        <>
+          <p className="trace__meta" data-testid="no-baseline-note">
+            {comparison.baseline_agent_version_id === null
+              ? 'This run declared no baseline version, so the metrics below are the candidate’s own.'
+              : 'No earlier report scored the baseline version over this suite, so the metrics below are the candidate’s own.'}
+          </p>
+          <MetricTable title="Evaluator metrics (candidate)" entries={evaluatorEntries} />
+          <MetricTable title="Category metrics (candidate)" entries={categoryEntries} />
+        </>
+      ) : (
+        <>
+          <p className="trace__meta">
+            Compared against run <code>{baseline.run_id}</code> of agent version{' '}
+            <code>{digestPrefix(baseline.candidate_agent_version_id)}</code>.
+          </p>
+          <DeltaTable title="Evaluator deltas" deltas={comparison.evaluator_deltas} />
+          <DeltaTable title="Category deltas" deltas={comparison.category_deltas} />
+        </>
+      )}
       <RegressionList regressions={comparison.regressions} />
     </section>
+  );
+}
+
+function DeltaTable({ title, deltas }: { title: string; deltas: MetricDelta[] }) {
+  if (deltas.length === 0) {
+    return null;
+  }
+  return (
+    <div className="trace__table" aria-label={title}>
+      <h4>{title}</h4>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Subject</th>
+            <th scope="col">Baseline pass rate</th>
+            <th scope="col">Candidate pass rate</th>
+            <th scope="col">Δ pass rate</th>
+            <th scope="col">Δ mean score</th>
+            <th scope="col">Direction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {deltas.map((delta) => (
+            <tr key={delta.subject}>
+              <td>{delta.subject}</td>
+              <td>{formatOptionalPercent(delta.baseline.pass_rate)}</td>
+              <td>{formatOptionalPercent(delta.candidate.pass_rate)}</td>
+              <td>{formatOptionalPointsDelta(delta.delta.pass_rate)}</td>
+              <td>{formatOptionalDecimalDelta(delta.delta.mean_score)}</td>
+              <td>
+                <span className={`badge badge--delta-${delta.status}`}>{delta.status}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -256,16 +336,46 @@ function RegressionList({ regressions }: { regressions: Record<string, unknown>[
 }
 
 function EvaluatorResults({ results }: { results: EvaluationResult[] }) {
+  const [findingsOnly, setFindingsOnly] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
   if (results.length === 0) {
     return null;
   }
+
   const failed = results.filter((result) => result.state !== 'PASSED');
+  const selected = findingsOnly ? failed : results;
+  const rows = expanded ? selected : selected.slice(0, RESULT_PAGE_SIZE);
+
   return (
     <section className="trace__section" aria-label="Evaluator selection UI">
       <header className="trace__section-header">
         <h3>Evaluator results</h3>
         <span className="badge">{failed.length} findings</span>
       </header>
+      <div className="trace__controls">
+        <button
+          className="button button--quiet"
+          type="button"
+          aria-pressed={findingsOnly}
+          onClick={() => setFindingsOnly((current) => !current)}
+        >
+          Findings only
+        </button>
+        <span className="trace__meta" role="status">
+          Showing {rows.length} of {selected.length}
+          {findingsOnly ? ` findings (${results.length} results)` : ' results'}
+        </span>
+        {selected.length > RESULT_PAGE_SIZE ? (
+          <button
+            className="button button--quiet"
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+          >
+            {expanded ? 'Show fewer' : `Show all ${selected.length}`}
+          </button>
+        ) : null}
+      </div>
       <div className="trace__table">
         <table>
           <thead>
@@ -277,7 +387,7 @@ function EvaluatorResults({ results }: { results: EvaluationResult[] }) {
             </tr>
           </thead>
           <tbody>
-            {results.slice(0, 12).map((result) => (
+            {rows.map((result) => (
               <tr key={result.id}>
                 <td>{result.evaluator_slug}</td>
                 <td>{result.item_index}</td>
@@ -292,6 +402,11 @@ function EvaluatorResults({ results }: { results: EvaluationResult[] }) {
           </tbody>
         </table>
       </div>
+      {rows.length === 0 ? (
+        <p className="empty" role="status">
+          No findings in this run.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -348,12 +463,15 @@ function TrajectoryInspector({
   steps: TrajectoryStep[];
   checkpoints: TrajectoryCheckpoint[];
 }) {
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+
   if (trajectory === undefined) {
     return null;
   }
 
   const toolSteps = steps.filter((step) => step.step_type === 'tool_call');
   const evidenceSteps = steps.filter((step) => Object.keys(step.evidence).length > 0);
+  const selectedStep = steps.find((step) => step.id === selectedStepId) ?? steps[0] ?? null;
 
   return (
     <section className="trace__section" aria-label="Trajectory inspector">
@@ -368,11 +486,16 @@ function TrajectoryInspector({
       </dl>
 
       <div className="trace__split">
-        <JsonPanel title="Graph state" value={trajectory.graph_state} />
+        <JsonPanel title="Latest graph state" value={trajectory.graph_state} />
         <JsonPanel title="Final checkpoint" value={trajectory.final_checkpoint} />
       </div>
 
-      <Timeline steps={steps} />
+      <Timeline
+        steps={steps}
+        selectedStepId={selectedStep?.id ?? null}
+        onSelect={setSelectedStepId}
+      />
+      <StepGraphState step={selectedStep} />
       <StepInspector
         title="Tool call inspector"
         empty="No tool calls recorded."
@@ -388,7 +511,15 @@ function TrajectoryInspector({
   );
 }
 
-function Timeline({ steps }: { steps: TrajectoryStep[] }) {
+function Timeline({
+  steps,
+  selectedStepId,
+  onSelect,
+}: {
+  steps: TrajectoryStep[];
+  selectedStepId: string | null;
+  onSelect: (stepId: string) => void;
+}) {
   if (steps.length === 0) {
     return (
       <p className="empty" role="status">
@@ -401,16 +532,40 @@ function Timeline({ steps }: { steps: TrajectoryStep[] }) {
       {steps.map((step) => (
         <li key={step.id}>
           <span className="trace__sequence">{step.step_index}</span>
-          <div>
+          <button
+            className="trace__timeline-step"
+            type="button"
+            aria-pressed={step.id === selectedStepId}
+            onClick={() => onSelect(step.id)}
+          >
             <strong>{step.title}</strong>
             <span className="trace__meta">
               {step.step_type}
               {step.latency_ms === null ? '' : ` · ${step.latency_ms}ms`}
             </span>
-          </div>
+          </button>
         </li>
       ))}
     </ol>
+  );
+}
+
+function StepGraphState({ step }: { step: TrajectoryStep | null }) {
+  return (
+    <section className="trace__subsection" aria-label="Graph state inspector">
+      <h4>Graph state at step</h4>
+      {step === null ? (
+        <p className="empty" role="status">
+          Select a timeline step to inspect its recorded state.
+        </p>
+      ) : Object.keys(step.checkpoint).length === 0 ? (
+        <p className="empty" role="status">
+          Step {step.step_index} recorded no graph state.
+        </p>
+      ) : (
+        <JsonPanel title={`Step ${step.step_index} · ${step.title}`} value={step.checkpoint} />
+      )}
+    </section>
   );
 }
 
@@ -457,7 +612,7 @@ function CheckpointList({ checkpoints }: { checkpoints: TrajectoryCheckpoint[] }
     return null;
   }
   return (
-    <section className="trace__subsection" aria-label="Graph state inspector">
+    <section className="trace__subsection" aria-label="Persisted checkpoints">
       <h4>Checkpoints</h4>
       <ul className="trace__step-details">
         {checkpoints.map((checkpoint) => (
@@ -527,6 +682,31 @@ function formatPercent(value: number): string {
 
 function formatDecimal(value: number): string {
   return value.toFixed(2);
+}
+
+function signed(value: number, formatted: string): string {
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
+/** Rate differences read as percentage points, not as a percentage of a rate. */
+function formatPointsDelta(value: number): string {
+  return signed(value, `${(value * 100).toFixed(1)}pp`);
+}
+
+function formatDecimalDelta(value: number): string {
+  return signed(value, value.toFixed(2));
+}
+
+function formatOptionalPercent(value: number | undefined): string {
+  return value === undefined ? '—' : formatPercent(value);
+}
+
+function formatOptionalPointsDelta(value: number | undefined): string {
+  return value === undefined ? '—' : formatPointsDelta(value);
+}
+
+function formatOptionalDecimalDelta(value: number | undefined): string {
+  return value === undefined ? '—' : formatDecimalDelta(value);
 }
 
 function digestPrefix(value: string | null | undefined): string {

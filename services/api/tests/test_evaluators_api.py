@@ -20,26 +20,36 @@ from services.api.tests.test_execution_api import create_agent_version, create_f
 pytestmark = pytest.mark.integration
 
 
-async def create_run(tenant: Tenant) -> dict[str, object]:
+async def create_run(
+    tenant: Tenant,
+    *,
+    name: str = "Comparison Candidate",
+    baseline_agent_version_id: str | None = None,
+) -> dict[str, object]:
     suite = await create_frozen_suite(tenant, count=1)
-    candidate = await create_agent_version(tenant, "Comparison Candidate")
-    response = await tenant.client.post(
-        "/api/v1/evaluation-runs",
-        json={
-            "evaluation_suite_id": suite["id"],
-            "candidate_agent_version_id": candidate["id"],
-        },
-    )
+    candidate = await create_agent_version(tenant, name)
+    body: dict[str, object] = {
+        "evaluation_suite_id": suite["id"],
+        "candidate_agent_version_id": candidate["id"],
+    }
+    if baseline_agent_version_id is not None:
+        body["baseline_agent_version_id"] = baseline_agent_version_id
+    response = await tenant.client.post("/api/v1/evaluation-runs", json=body)
     assert response.status_code == 201, response.text
     return response.json()
 
 
 async def attach_comparison(
-    session_factory: async_sessionmaker[AsyncSession], run: dict[str, object]
+    session_factory: async_sessionmaker[AsyncSession],
+    run: dict[str, object],
+    *,
+    pass_rate: float = 1.0,
+    suite_digest: str = "0" * 64,
 ) -> str:
     async with session_factory() as session:
         item = await session.scalar(select(RunItem).where(RunItem.run_id == run["id"]))
         assert item is not None
+        baseline_version = run["baseline_agent_version_id"]
         result = EvaluationResult(
             id=new_sortable_id(),
             run_id=str(run["id"]),
@@ -59,18 +69,18 @@ async def attach_comparison(
             id=new_sortable_id(),
             project_id=str(run["project_id"]),
             run_id=str(run["id"]),
-            baseline_agent_version_id=None,
+            baseline_agent_version_id=None if baseline_version is None else str(baseline_version),
             candidate_agent_version_id=str(run["candidate_agent_version_id"]),
-            suite_digest="0" * 64,
+            suite_digest=suite_digest,
             summary={
                 "item_count": 1,
                 "result_count": 1,
-                "pass_rate": 1.0,
+                "pass_rate": pass_rate,
                 "errors_in_denominator": True,
                 "reproducible": True,
             },
-            evaluator_metrics={"task_success": {"total": 1, "passed": 1, "pass_rate": 1.0}},
-            category_metrics={"correctness": {"total": 1, "passed": 1, "pass_rate": 1.0}},
+            evaluator_metrics={"task_success": {"total": 1, "passed": 1, "pass_rate": pass_rate}},
+            category_metrics={"correctness": {"total": 1, "passed": 1, "pass_rate": pass_rate}},
             regressions=[],
             exports={"json": f"agentrail://evaluation-runs/{run['id']}/comparison"},
         )
@@ -98,6 +108,83 @@ class TestEvaluatorApi:
         assert results.status_code == 200
         assert results.json()["items"][0]["evaluator_slug"] == "task_success"
         assert results.json()["items"][0]["score"] == 1.0
+
+    async def test_comparison_reports_baseline_to_candidate_deltas(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        baseline_run = await create_run(tenant, name="Comparison Baseline")
+        await attach_comparison(session_factory, baseline_run, pass_rate=1.0)
+        candidate_run = await create_run(
+            tenant,
+            baseline_agent_version_id=str(baseline_run["candidate_agent_version_id"]),
+        )
+        await attach_comparison(session_factory, candidate_run, pass_rate=0.25)
+
+        comparison = await tenant.client.get(
+            f"/api/v1/evaluation-runs/{candidate_run['id']}/comparison"
+        )
+
+        assert comparison.status_code == 200, comparison.text
+        body = comparison.json()
+        assert body["baseline"]["run_id"] == baseline_run["id"]
+        (evaluator_delta,) = body["evaluator_deltas"]
+        assert evaluator_delta["subject"] == "task_success"
+        assert evaluator_delta["status"] == "regressed"
+        assert evaluator_delta["baseline"]["pass_rate"] == 1.0
+        assert evaluator_delta["candidate"]["pass_rate"] == 0.25
+        assert evaluator_delta["delta"]["pass_rate"] == -0.75
+        (category_delta,) = body["category_deltas"]
+        assert category_delta["subject"] == "correctness"
+        assert category_delta["delta"]["pass_rate"] == -0.75
+
+    async def test_comparison_omits_baseline_when_suite_digest_differs(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        baseline_run = await create_run(tenant, name="Comparison Baseline")
+        await attach_comparison(session_factory, baseline_run, suite_digest="1" * 64)
+        candidate_run = await create_run(
+            tenant,
+            baseline_agent_version_id=str(baseline_run["candidate_agent_version_id"]),
+        )
+        await attach_comparison(session_factory, candidate_run, suite_digest="2" * 64)
+
+        comparison = await tenant.client.get(
+            f"/api/v1/evaluation-runs/{candidate_run['id']}/comparison"
+        )
+
+        assert comparison.status_code == 200, comparison.text
+        body = comparison.json()
+        assert body["baseline"] is None
+        assert body["evaluator_deltas"] == []
+        assert body["category_deltas"] == []
+
+    async def test_comparison_never_uses_another_tenants_baseline(
+        self,
+        tenant: Tenant,
+        other_tenant: Tenant,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        foreign_baseline = await create_run(other_tenant, name="Foreign Baseline")
+        await attach_comparison(session_factory, foreign_baseline)
+        # Name the other tenant's agent version as our baseline. Reports live in
+        # their project, so ours must come back with no baseline at all.
+        candidate_run = await create_run(tenant)
+        await attach_comparison(session_factory, candidate_run, pass_rate=0.5)
+        async with session_factory() as session:
+            report = await session.scalar(
+                select(ComparisonReport).where(ComparisonReport.run_id == candidate_run["id"])
+            )
+            assert report is not None
+            report.baseline_agent_version_id = str(foreign_baseline["candidate_agent_version_id"])
+            await session.commit()
+
+        comparison = await tenant.client.get(
+            f"/api/v1/evaluation-runs/{candidate_run['id']}/comparison"
+        )
+
+        assert comparison.status_code == 200, comparison.text
+        assert comparison.json()["baseline"] is None
+        assert comparison.json()["evaluator_deltas"] == []
 
     async def test_cannot_read_another_tenants_comparison(
         self,

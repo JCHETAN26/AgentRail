@@ -933,6 +933,63 @@ code {
   align-items: start;
 }
 
+.trace__timeline-step {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: start;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trace__timeline-step:hover {
+  border-color: var(--border);
+}
+
+.trace__timeline-step[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.trace__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.trace__controls .button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.badge--delta-improved {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.badge--delta-regressed {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.badge--delta-added,
+.badge--delta-removed {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.badge--delta-unchanged {
+  color: var(--text-muted);
+}
+
 .trace__sequence {
   display: inline-grid;
   place-items: center;

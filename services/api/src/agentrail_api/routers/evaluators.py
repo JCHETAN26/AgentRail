@@ -9,12 +9,15 @@ from fastapi import APIRouter, Path, Query
 from agentrail_api.dependencies import ActorDep, SessionDep
 from agentrail_api.evaluators import service
 from agentrail_api.evaluators.schemas import (
+    BaselineReportRef,
     ComparisonReportResponse,
     EvaluationResultListResponse,
     EvaluationResultResponse,
+    MetricDeltaResponse,
 )
 from agentrail_api.execution.service import principal_for_run
 from agentrail_core.errors import ProblemDetail
+from agentrail_core.evaluators import diff_metric_tables
 
 router = APIRouter(prefix="/api/v1", tags=["evaluators"])
 
@@ -39,7 +42,23 @@ async def get_comparison_report(
 ) -> ComparisonReportResponse:
     principal = await principal_for_run(session, actor, run_id)
     report = await service.get_comparison_report(session, principal, run_id=run_id)
-    return ComparisonReportResponse.model_validate(report)
+    response = ComparisonReportResponse.model_validate(report)
+    baseline = await service.get_baseline_report(session, principal, report=report)
+    if baseline is not None:
+        response.baseline = BaselineReportRef.model_validate(baseline)
+        response.evaluator_deltas = [
+            MetricDeltaResponse.model_validate(delta)
+            for delta in diff_metric_tables(
+                candidate=report.evaluator_metrics, baseline=baseline.evaluator_metrics
+            )
+        ]
+        response.category_deltas = [
+            MetricDeltaResponse.model_validate(delta)
+            for delta in diff_metric_tables(
+                candidate=report.category_metrics, baseline=baseline.category_metrics
+            )
+        ]
+    return response
 
 
 @router.get(
