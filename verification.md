@@ -41,7 +41,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 ## Identity
 
 - [x] OAuth 2.0 browser sign-in (GitHub or Google)
-- [ ] User model with email, name, avatar
+- [x] User model with email, name, avatar
 - [x] Organisation model with slug and display name
 - [x] Membership model with roles: owner, admin, developer, reviewer, viewer
 - [x] Role-based access control (RBAC) central policy functions
@@ -93,9 +93,9 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 - [x] AgentDefinition model (stable logical identity)
 - [x] AgentVersion model (immutable: graph, prompts, model config, tools, policy, source commit, content digest)
-- [ ] ToolContract model (JSON schema, risk level, side-effect class, timeout, retry, approval policy)
+- [x] ToolContract model (JSON schema, risk level, side-effect class, timeout, retry, approval policy)
 - [x] PolicyBundle model (immutable rules)
-- [ ] Framework adapter interface (LangGraph adapter, deterministic adapter, recorded adapter)
+- [x] Framework adapter interface (LangGraph adapter, deterministic adapter, recorded adapter)
 - [x] Version digest computation (SHA-256 of serialized config)
 - [ ] Version comparison UI (diff viewer for prompt changes)
 

@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentrail_api.agents.schemas import CreateAgentVersionRequest
 from agentrail_api.auth.service import Actor, principal_for_organisation
 from agentrail_api.identity.service import record_audit, slugify
-from agentrail_core.errors import ConflictError, ForbiddenError
+from agentrail_core.agents import ToolContractError, canonical_tool_contracts
+from agentrail_core.errors import ConflictError, ForbiddenError, ValidationFailedError
 from agentrail_core.identity import (
     AgentDefinition,
     AgentVersion,
@@ -27,11 +28,20 @@ from agentrail_core.ids import new_sortable_id
 
 def version_content_digest(request: CreateAgentVersionRequest) -> str:
     """Return the canonical digest for an immutable version payload."""
+    return _version_content_digest(
+        request,
+        tool_contracts=canonical_tool_contracts(request.tool_contracts),
+    )
+
+
+def _version_content_digest(
+    request: CreateAgentVersionRequest, *, tool_contracts: list[dict[str, Any]]
+) -> str:
     canonical = {
         "graph_spec": request.graph_spec,
         "prompt_bundle": request.prompt_bundle,
         "model_config": request.model_settings,
-        "tool_contracts": request.tool_contracts,
+        "tool_contracts": tool_contracts,
         "policy_bundle": request.policy_bundle,
         "source_commit": request.source_commit,
     }
@@ -165,7 +175,14 @@ async def create_agent_version(
 ) -> AgentVersion:
     authorize(principal, Permission.AGENT_MANAGE, organisation_id=principal.organisation_id)
     agent = await get_agent_definition(session, principal, agent_id=agent_id, lock_for_update=True)
-    digest = version_content_digest(request)
+    try:
+        tool_contracts = canonical_tool_contracts(request.tool_contracts)
+        digest = _version_content_digest(request, tool_contracts=tool_contracts)
+    except ToolContractError as invalid:
+        raise ValidationFailedError(
+            "The agent version contains an invalid tool contract.",
+            details={"reason": invalid.reason},
+        ) from invalid
 
     duplicate_digest = await session.scalar(
         select(AgentVersion.id).where(
@@ -189,7 +206,7 @@ async def create_agent_version(
         graph_spec=request.graph_spec,
         prompt_bundle=request.prompt_bundle,
         model_config=request.model_settings,
-        tool_contracts=request.tool_contracts,
+        tool_contracts=tool_contracts,
         policy_bundle=request.policy_bundle,
         source_commit=request.source_commit,
         created_by=actor.user.id if actor.user else None,
