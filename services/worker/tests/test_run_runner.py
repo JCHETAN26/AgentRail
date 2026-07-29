@@ -8,13 +8,20 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.datasets import Dataset, DatasetVersion, EvaluationSuite
+from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import EvaluationRun, EvaluationRunState, RunItem, RunItemState
 from agentrail_core.identity import AgentDefinition, AgentVersion
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.trajectories import Trajectory, TrajectoryStep, TrajectoryStepType
 from agentrail_core.tribunal import TribunalSession
-from agentrail_worker.run_runner import EvaluationRunRunner, RunOutcome
+from agentrail_worker.run_runner import (
+    EvaluationRunRunner,
+    RunOutcome,
+    _aggregate_run_state,
+    _tribunal_gate_summary,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -110,6 +117,29 @@ async def load_run(session_factory: async_sessionmaker[AsyncSession], run_id: st
     return run
 
 
+def test_tribunal_gate_forces_blocked_runs_to_failed() -> None:
+    assert (
+        _aggregate_run_state(failed_count=0, tribunal_outcome="blocked")
+        is EvaluationRunState.FAILED
+    )
+    assert (
+        _aggregate_run_state(failed_count=0, tribunal_outcome="conditional")
+        is EvaluationRunState.PASSED
+    )
+    assert (
+        _aggregate_run_state(failed_count=1, tribunal_outcome="conditional")
+        is EvaluationRunState.PASSED
+    )
+    assert _aggregate_run_state(failed_count=1, tribunal_outcome=None) is EvaluationRunState.FAILED
+
+
+def test_tribunal_gate_summary_marks_conditional_as_approval_required() -> None:
+    assert _tribunal_gate_summary("blocked")["effect"] == "blocked_run"
+    conditional = _tribunal_gate_summary("conditional")
+    assert conditional["effect"] == "passed_with_warnings"
+    assert conditional["requires_human_approval"] is True
+
+
 class TestEvaluationRunRunner:
     async def test_completes_a_100_item_suite(
         self, session_factory: async_sessionmaker[AsyncSession], project_id: str
@@ -166,6 +196,176 @@ class TestEvaluationRunRunner:
         assert tribunal.outcome == "approved"
         assert run.summary["tribunal_session_id"] == tribunal.id
         assert run.summary["tribunal_outcome"] == "approved"
+        assert run.summary["tribunal_gate"]["effect"] == "approved"
+
+    async def test_tribunal_blocked_verdict_forces_run_failure(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=2,
+            thresholds={"tribunal": {"enabled": True}},
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="run-worker", lease_seconds=5)
+
+        async def non_reproducible_report(
+            session: AsyncSession, *, run: EvaluationRun
+        ) -> ComparisonReport:
+            report = ComparisonReport(
+                id=new_sortable_id(),
+                project_id=run.project_id,
+                run_id=run.id,
+                baseline_agent_version_id=run.baseline_agent_version_id,
+                candidate_agent_version_id=run.candidate_agent_version_id,
+                suite_digest="blocked-by-tribunal",
+                summary={
+                    "item_count": run.item_count,
+                    "result_count": run.item_count,
+                    "pass_rate": 1.0,
+                    "regression_count": 0,
+                    "errors_in_denominator": True,
+                    "reproducible": False,
+                },
+                evaluator_metrics={
+                    "task_success": {
+                        "total": run.item_count,
+                        "passed": run.item_count,
+                        "failed": 0,
+                        "errors": 0,
+                        "pass_rate": 1.0,
+                        "mean_score": 1.0,
+                    }
+                },
+                category_metrics={
+                    "quality": {
+                        "total": run.item_count,
+                        "passed": run.item_count,
+                        "failed": 0,
+                        "errors": 0,
+                        "pass_rate": 1.0,
+                        "mean_score": 1.0,
+                    }
+                },
+                regressions=[],
+                exports={},
+            )
+            session.add(report)
+            await session.flush()
+            return report
+
+        monkeypatch.setattr(runner, "_build_comparison_report", non_reproducible_report)
+
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.FAILED
+        async with session_factory() as session:
+            run = await session.get(EvaluationRun, run_id)
+            tribunal = await session.scalar(
+                select(TribunalSession).where(TribunalSession.run_id == run_id)
+            )
+        assert run is not None
+        assert tribunal is not None
+        assert tribunal.outcome == "blocked"
+        assert run.state == EvaluationRunState.FAILED
+        assert run.failed_count == 0
+        assert run.summary["tribunal_outcome"] == "blocked"
+        assert run.summary["tribunal_gate"]["effect"] == "blocked_run"
+
+    async def test_conditional_tribunal_verdict_passes_with_human_approval_warning(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=2,
+            thresholds={"tribunal": {"enabled": True}},
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="run-worker", lease_seconds=5)
+
+        async def warning_report(session: AsyncSession, *, run: EvaluationRun) -> ComparisonReport:
+            report = ComparisonReport(
+                id=new_sortable_id(),
+                project_id=run.project_id,
+                run_id=run.id,
+                baseline_agent_version_id=run.baseline_agent_version_id,
+                candidate_agent_version_id=run.candidate_agent_version_id,
+                suite_digest="conditional-tribunal",
+                summary={
+                    "item_count": run.item_count,
+                    "result_count": run.item_count,
+                    "pass_rate": 0.95,
+                    "regression_count": 1,
+                    "errors_in_denominator": True,
+                    "reproducible": True,
+                },
+                evaluator_metrics={
+                    "task_success": {
+                        "total": run.item_count,
+                        "passed": run.item_count,
+                        "failed": 0,
+                        "errors": 0,
+                        "pass_rate": 1.0,
+                        "mean_score": 1.0,
+                    }
+                },
+                category_metrics={
+                    "quality": {
+                        "total": run.item_count,
+                        "passed": run.item_count,
+                        "failed": 0,
+                        "errors": 0,
+                        "pass_rate": 1.0,
+                        "mean_score": 1.0,
+                    }
+                },
+                regressions=[
+                    {
+                        "run_item_id": "recorded-warning",
+                        "item_index": 0,
+                        "partition": "default",
+                        "evaluator_slug": "task_success",
+                        "category": "quality",
+                        "state": "FAILED",
+                        "score": 0.95,
+                    }
+                ],
+                exports={},
+            )
+            session.add(report)
+            await session.flush()
+            return report
+
+        monkeypatch.setattr(runner, "_build_comparison_report", warning_report)
+
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.PASSED
+        async with session_factory() as session:
+            run = await session.get(EvaluationRun, run_id)
+            tribunal = await session.scalar(
+                select(TribunalSession).where(TribunalSession.run_id == run_id)
+            )
+            approval = await session.scalar(
+                select(ApprovalRequest).where(ApprovalRequest.run_id == run_id)
+            )
+        assert run is not None
+        assert tribunal is not None
+        assert approval is not None
+        assert tribunal.outcome == "conditional"
+        assert run.state == EvaluationRunState.PASSED
+        assert str(approval.state) == ApprovalState.PENDING.value
+        assert approval.tool == "tribunal_conditional_release"
+        assert run.summary["tribunal_conditional_approval_id"] == approval.id
+        assert run.summary["tribunal_conditional_approval_state"] == "PENDING"
+        assert run.summary["tribunal_gate"]["effect"] == "passed_with_warnings"
+        assert run.summary["tribunal_gate"]["requires_human_approval"] is True
 
     async def test_does_not_create_tribunal_by_default(
         self, session_factory: async_sessionmaker[AsyncSession], project_id: str

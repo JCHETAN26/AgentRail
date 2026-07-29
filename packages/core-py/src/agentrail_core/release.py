@@ -173,9 +173,18 @@ def evaluate_gate(
 
     if policy.require_tribunal_approval:
         tribunal_outcome = _tribunal_outcome(tribunal)
-        if tribunal_outcome != "approved":
+        tribunal_approved = tribunal_outcome == "approved" or (
+            tribunal_outcome == "conditional"
+            and _tribunal_conditional_approval_state(tribunal) == "APPROVED"
+        )
+        if not tribunal_approved:
             if tribunal_outcome is None:
                 message = "A Tribunal approval is required by the release policy but absent."
+            elif tribunal_outcome == "conditional":
+                message = (
+                    "Tribunal verdict 'conditional' requires an approved human review before "
+                    "the release gate can pass."
+                )
             else:
                 message = (
                     f"Tribunal verdict {tribunal_outcome!r} is not the required 'approved' verdict."
@@ -404,6 +413,15 @@ def _tribunal_outcome(tribunal: dict[str, Any] | None) -> str | None:
     if not isinstance(outcome, str):
         return None
     return outcome
+
+
+def _tribunal_conditional_approval_state(tribunal: dict[str, Any] | None) -> str | None:
+    if not isinstance(tribunal, dict):
+        return None
+    state = tribunal.get("conditional_approval_state")
+    if not isinstance(state, str):
+        return None
+    return state
 
 
 # ---------------------------------------------------------------------------

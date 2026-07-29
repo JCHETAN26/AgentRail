@@ -82,6 +82,46 @@ def test_quality_warning_becomes_conditional() -> None:
     assert verdict.summary["warning_count"] == 1
 
 
+def test_quality_finding_links_to_regressed_trajectory_step() -> None:
+    report = comparison(pass_rate=0.9) | {
+        "summary": {
+            "pass_rate": 0.9,
+            "regression_count": 1,
+            "reproducible": True,
+        },
+        "regressions": [
+            {
+                "run_item_id": "01KRUNITEM000000000000000",
+                "item_index": 3,
+                "evaluator_slug": "task_success",
+                "trajectory_step": {
+                    "trajectory_id": "01KTRAJECTORY00000000000",
+                    "step_id": "01KSTEP00000000000000000",
+                    "step_index": 5,
+                    "step_type": "final_result",
+                    "title": "Recorded final result",
+                },
+            }
+        ],
+    }
+
+    verdict = decide_tribunal(run=RUN, comparison=report)
+
+    quality = next(finding for finding in verdict.findings if finding.subject == "quality")
+    assert quality.evidence["trajectory_steps"] == [
+        {
+            "trajectory_id": "01KTRAJECTORY00000000000",
+            "step_id": "01KSTEP00000000000000000",
+            "step_index": 5,
+            "step_type": "final_result",
+            "title": "Recorded final result",
+            "item_index": 3,
+            "run_item_id": "01KRUNITEM000000000000000",
+            "evaluator_slug": "task_success",
+        }
+    ]
+
+
 def test_default_prompt_versions_cover_every_tribunal_role() -> None:
     prompts = default_tribunal_prompt_versions()
 

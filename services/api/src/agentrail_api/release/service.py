@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentrail_api.auth.service import Actor, principal_for_organisation
 from agentrail_api.identity.service import record_audit
 from agentrail_api.release.schemas import CreateReleasePolicyRequest, EvaluateGateRequest
+from agentrail_core.approvals import ApprovalRequest
 from agentrail_core.errors import ConflictError, ForbiddenError, ValidationFailedError
 from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import (
@@ -231,6 +232,11 @@ async def evaluate_run_gate(
             ),
             details={"run_id": run.id, "release_policy_id": policy_record.id},
         )
+    conditional_approval_id = None
+    if tribunal is not None:
+        conditional_approval_id = tribunal.session.summary.get(
+            "conditional_approval_id"
+        ) or run.summary.get("tribunal_conditional_approval_id")
     decision = evaluate_gate(
         policy,
         summary=report.summary,
@@ -241,6 +247,10 @@ async def evaluate_run_gate(
                 "id": tribunal.session.id,
                 "outcome": _enum_value(tribunal.verdict.outcome),
                 "primary_reason": tribunal.verdict.primary_reason,
+                "conditional_approval_id": conditional_approval_id,
+                "conditional_approval_state": await _conditional_approval_state(
+                    session, run=run, approval_id=conditional_approval_id
+                ),
             }
             if tribunal is not None
             else None
@@ -479,6 +489,21 @@ def _tribunal_summary(tribunal: Any | None) -> str | None:
     outcome = _enum_value(tribunal.verdict.outcome)
     reason = str(tribunal.verdict.primary_reason).strip()
     return f"{outcome}: {reason}" if reason else str(outcome)
+
+
+async def _conditional_approval_state(
+    session: AsyncSession, *, run: EvaluationRun, approval_id: Any
+) -> str | None:
+    if not isinstance(approval_id, str):
+        return None
+    state = await session.scalar(
+        select(ApprovalRequest.state).where(
+            ApprovalRequest.id == approval_id,
+            ApprovalRequest.run_id == run.id,
+            ApprovalRequest.project_id == run.project_id,
+        )
+    )
+    return str(_enum_value(state)) if state is not None else None
 
 
 def _enum_value(value: Any) -> Any:

@@ -59,6 +59,7 @@ from agentrail_core.trajectories import (
 )
 from agentrail_core.tribunal import (
     TribunalMode,
+    TribunalVerdictOutcome,
     build_tribunal_model_client,
     create_or_get_tribunal_session,
     tribunal_enabled,
@@ -66,6 +67,9 @@ from agentrail_core.tribunal import (
 )
 
 logger = get_logger(__name__)
+_TRIBUNAL_CONDITIONAL_APPROVAL_TOOL = "tribunal_conditional_release"
+_TRIBUNAL_CONDITIONAL_APPROVAL_STEP = 9000
+_TRIBUNAL_TRAJECTORY_LINK_LIMIT = 10
 
 
 async def _set_run_tenant_context(session: AsyncSession, run: EvaluationRun) -> None:
@@ -82,6 +86,201 @@ class RunOutcome(StrEnum):
     CANCELLED = "cancelled"
     SKIPPED = "skipped"
     MISSING = "missing"
+
+
+def _aggregate_run_state(*, failed_count: int, tribunal_outcome: str | None) -> EvaluationRunState:
+    if tribunal_outcome == TribunalVerdictOutcome.BLOCKED.value:
+        return EvaluationRunState.FAILED
+    if tribunal_outcome == TribunalVerdictOutcome.CONDITIONAL.value:
+        return EvaluationRunState.PASSED
+    if failed_count > 0:
+        return EvaluationRunState.FAILED
+    return EvaluationRunState.PASSED
+
+
+def _tribunal_gate_summary(outcome: str) -> dict[str, Any]:
+    if outcome == TribunalVerdictOutcome.BLOCKED.value:
+        return {
+            "effect": "blocked_run",
+            "requires_human_approval": False,
+            "message": "Tribunal blocked the run, so Round 4 forced the run to FAILED.",
+        }
+    if outcome == TribunalVerdictOutcome.CONDITIONAL.value:
+        return {
+            "effect": "passed_with_warnings",
+            "requires_human_approval": True,
+            "message": (
+                "Tribunal returned a conditional verdict, so the run passed with "
+                "warnings and requires human approval before release."
+            ),
+        }
+    return {
+        "effect": "approved",
+        "requires_human_approval": False,
+        "message": "Tribunal approved the run.",
+    }
+
+
+async def _attach_trajectory_step_links(
+    session: AsyncSession, regressions: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    run_item_ids: list[str] = []
+    seen: set[str] = set()
+    for regression in regressions:
+        run_item_id = regression.get("run_item_id")
+        if isinstance(run_item_id, str) and run_item_id not in seen:
+            seen.add(run_item_id)
+            run_item_ids.append(run_item_id)
+        if len(run_item_ids) >= _TRIBUNAL_TRAJECTORY_LINK_LIMIT:
+            break
+
+    if not run_item_ids:
+        return regressions
+
+    trajectories = list(
+        (
+            await session.scalars(
+                select(Trajectory).where(Trajectory.run_item_id.in_(run_item_ids))
+            )
+        ).all()
+    )
+    trajectories_by_item = {trajectory.run_item_id: trajectory for trajectory in trajectories}
+    trajectory_ids = [trajectory.id for trajectory in trajectories]
+    if not trajectory_ids:
+        return regressions
+
+    preferred_steps = list(
+        (
+            await session.scalars(
+                select(TrajectoryStep)
+                .where(TrajectoryStep.trajectory_id.in_(trajectory_ids))
+                .where(
+                    TrajectoryStep.step_type.in_(
+                        [TrajectoryStepType.ERROR, TrajectoryStepType.FINAL_RESULT]
+                    )
+                )
+                .order_by(TrajectoryStep.trajectory_id, TrajectoryStep.step_index.desc())
+            )
+        ).all()
+    )
+    steps_by_trajectory = _select_trajectory_steps(preferred_steps)
+    missing_trajectory_ids = [
+        trajectory_id
+        for trajectory_id in trajectory_ids
+        if trajectory_id not in steps_by_trajectory
+    ]
+    if missing_trajectory_ids:
+        fallback_steps = list(
+            (
+                await session.scalars(
+                    select(TrajectoryStep)
+                    .where(TrajectoryStep.trajectory_id.in_(missing_trajectory_ids))
+                    .order_by(TrajectoryStep.trajectory_id, TrajectoryStep.step_index.desc())
+                )
+            ).all()
+        )
+        steps_by_trajectory.update(_select_trajectory_steps(fallback_steps))
+
+    links_by_item: dict[str, dict[str, Any]] = {}
+    for run_item_id, trajectory in trajectories_by_item.items():
+        step = steps_by_trajectory.get(trajectory.id)
+        if step is None:
+            continue
+        links_by_item[run_item_id] = _trajectory_step_payload(trajectory, step)
+
+    enriched: list[dict[str, Any]] = []
+    for regression in regressions:
+        linked = dict(regression)
+        run_item_id = regression.get("run_item_id")
+        if isinstance(run_item_id, str) and run_item_id in links_by_item:
+            linked["trajectory_step"] = links_by_item[run_item_id]
+        enriched.append(linked)
+    return enriched
+
+
+def _select_trajectory_steps(steps: list[TrajectoryStep]) -> dict[str, TrajectoryStep]:
+    selected: dict[str, TrajectoryStep] = {}
+    for step in steps:
+        current = selected.get(step.trajectory_id)
+        if current is None or _trajectory_step_rank(step) > _trajectory_step_rank(current):
+            selected[step.trajectory_id] = step
+    return selected
+
+
+def _trajectory_step_rank(step: TrajectoryStep) -> tuple[int, int]:
+    step_type = _enum_value(step.step_type)
+    preferred = 2 if step_type == TrajectoryStepType.ERROR.value else 1
+    return (preferred, step.step_index)
+
+
+def _trajectory_step_payload(trajectory: Trajectory, step: TrajectoryStep) -> dict[str, Any]:
+    return {
+        "trajectory_id": trajectory.id,
+        "trajectory_state": _enum_value(trajectory.state),
+        "step_id": step.id,
+        "step_index": step.step_index,
+        "step_type": _enum_value(step.step_type),
+        "title": step.title,
+    }
+
+
+def _enum_value(value: Any) -> str:
+    raw = getattr(value, "value", value)
+    return str(raw)
+
+
+async def _ensure_tribunal_conditional_approval(
+    session: AsyncSession, *, run: EvaluationRun, tribunal_session_id: str
+) -> ApprovalRequest:
+    item = await session.scalar(
+        select(RunItem).where(RunItem.run_id == run.id).order_by(RunItem.item_index).limit(1)
+    )
+    if item is None:  # pragma: no cover - runs always own at least one item
+        raise RuntimeError("Cannot create Tribunal approval for a run with no items.")
+    trajectory_id = await session.scalar(
+        select(Trajectory.id).where(Trajectory.run_item_id == item.id).limit(1)
+    )
+    arguments = {
+        "tribunal_session_id": tribunal_session_id,
+        "outcome": TribunalVerdictOutcome.CONDITIONAL.value,
+        "action": "approve_conditional_release",
+    }
+    key = side_effect_key(
+        run_item_id=item.id,
+        step_index=_TRIBUNAL_CONDITIONAL_APPROVAL_STEP,
+        tool=_TRIBUNAL_CONDITIONAL_APPROVAL_TOOL,
+        arguments=arguments,
+    )
+    existing = await session.scalar(
+        select(ApprovalRequest).where(ApprovalRequest.idempotency_key == key).with_for_update()
+    )
+    if existing is not None:
+        return existing
+    request = ApprovalRequest(
+        id=new_sortable_id(),
+        project_id=run.project_id,
+        run_id=run.id,
+        run_item_id=item.id,
+        trajectory_id=trajectory_id,
+        idempotency_key=key,
+        tool=_TRIBUNAL_CONDITIONAL_APPROVAL_TOOL,
+        risk_level=ToolRiskLevel.HIGH_RISK_WRITE.value,
+        state=ApprovalState.PENDING,
+        requested_arguments=arguments,
+        reason="Tribunal returned a conditional verdict; release requires human approval.",
+    )
+    try:
+        async with session.begin_nested():
+            session.add(request)
+            await session.flush()
+    except IntegrityError:
+        winner = await session.scalar(
+            select(ApprovalRequest).where(ApprovalRequest.idempotency_key == key).with_for_update()
+        )
+        if winner is None:  # pragma: no cover - only reachable if the row vanished
+            raise
+        return winner
+    return request
 
 
 #: Attempts share one trajectory — it is keyed by run item, not by attempt — so
@@ -983,6 +1182,7 @@ class EvaluationRunRunner:
             comparison = await self._build_comparison_report(session, run=run)
             suite = await session.get(EvaluationSuite, run.evaluation_suite_id)
             tribunal_summary: dict[str, Any] = {}
+            tribunal_outcome: str | None = None
             if suite is not None and tribunal_enabled(suite.thresholds):
                 tribunal_config = suite.thresholds.get("tribunal")
                 model_client = None
@@ -1006,13 +1206,26 @@ class EvaluationRunRunner:
                     "tribunal_session_id": tribunal.session.id,
                     "tribunal_outcome": tribunal.session.outcome.value,
                 }
-            run.state = EvaluationRunState.PASSED if failed == 0 else EvaluationRunState.FAILED
+                tribunal_outcome = tribunal.session.outcome.value
+                tribunal_summary["tribunal_gate"] = _tribunal_gate_summary(tribunal_outcome)
+                if tribunal_outcome == TribunalVerdictOutcome.CONDITIONAL.value:
+                    approval = await _ensure_tribunal_conditional_approval(
+                        session, run=run, tribunal_session_id=tribunal.session.id
+                    )
+                    tribunal_summary["tribunal_conditional_approval_id"] = approval.id
+                    tribunal_summary["tribunal_conditional_approval_state"] = _enum_value(
+                        approval.state
+                    )
+            final_state = _aggregate_run_state(
+                failed_count=failed, tribunal_outcome=tribunal_outcome
+            )
+            run.state = final_state
             run.summary = {**run.summary, "comparison_report_id": comparison.id, **tribunal_summary}
             run.completed_at = datetime.now(UTC)
             run.updated_at = run.completed_at
             run.version += 1
             await session.commit()
-        return RunOutcome.PASSED if failed == 0 else RunOutcome.FAILED
+        return RunOutcome.PASSED if final_state is EvaluationRunState.PASSED else RunOutcome.FAILED
 
     async def _build_comparison_report(
         self, session: AsyncSession, *, run: EvaluationRun
@@ -1068,6 +1281,7 @@ class EvaluationRunRunner:
         summary, evaluator_metrics, category_metrics, regressions = aggregate_results(
             item_count=run.item_count, results=results
         )
+        regressions = await _attach_trajectory_step_links(session, regressions)
         report = ComparisonReport(
             id=new_sortable_id(),
             project_id=run.project_id,
