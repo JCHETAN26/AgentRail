@@ -360,6 +360,12 @@ grant write access to use the gate.
 - Expanded console security headers with CSP and Permissions-Policy.
 - Renamed the container CI job to `containers / scan`; it builds each Python service image, checks
   the shared Dockerfile's pinned runtime inputs and proves the runtime user is non-root.
+- Added Trivy vulnerability scans to `containers / scan`, failing the matrix on fixed high/critical
+  OS or library vulnerabilities in any Python service image.
+- Upgraded FastAPI and Starlette across the Python services to clear the Starlette fixed-CVE
+  findings surfaced by the new scan gate.
+- Updated the pinned Python service base image to `python:3.12.13-slim-bookworm`, applied Debian
+  security updates during image builds and removed the build-time `uv` cache from runtime layers.
 - Added per-service container SBOM, Docker image inspect and provenance JSON artifacts to the
   `containers / scan` matrix.
 - Added Alembic revision `0016_postgres_rls` with row-level security policies for

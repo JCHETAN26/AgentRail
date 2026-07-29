@@ -6,7 +6,7 @@
 
 FROM ghcr.io/astral-sh/uv:0.11.32 AS uv
 
-FROM python:3.12.8-slim-bookworm AS runtime
+FROM python:3.12.13-slim-bookworm AS runtime
 
 ARG SERVICE_PACKAGE
 ENV PYTHONUNBUFFERED=1 \
@@ -16,6 +16,12 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:${PATH}"
 
 COPY --from=uv /uv /usr/local/bin/uv
+
+# Apply Debian security patches on top of the pinned Python base image and
+# remove apt metadata so only runtime packages remain in the final layer.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -30,7 +36,8 @@ COPY packages ./packages
 COPY services ./services
 
 RUN test -n "${SERVICE_PACKAGE}" \
-    && uv sync --frozen --no-dev --package "${SERVICE_PACKAGE}"
+    && uv sync --frozen --no-dev --package "${SERVICE_PACKAGE}" \
+    && rm -rf /root/.cache/uv
 
 # Services run unprivileged. Nothing in the image needs write access at runtime.
 RUN useradd --create-home --uid 10001 agentrail \

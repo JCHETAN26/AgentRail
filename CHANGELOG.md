@@ -53,6 +53,12 @@ All notable changes to AgentRail are recorded here. The format follows
   mutable third-party action refs.
 - CI container check renamed to `containers / scan` and verifies pinned runtime inputs plus non-root
   service images.
+- CI now runs Trivy vulnerability scans against every Python service image in the
+  `containers / scan` matrix, failing on fixed high/critical OS or library vulnerabilities.
+- FastAPI and Starlette are upgraded across the Python services to clear the Starlette fixed-CVE
+  findings surfaced by the new container scan.
+- Python service images now use the pinned `python:3.12.13-slim-bookworm` base, apply Debian
+  security updates during build and remove the build-time `uv` cache from the runtime layer.
 - CI now uploads per-service container SBOM, Docker image inspect and provenance JSON artifacts for
   every Python service image built by the `containers / scan` matrix.
 - PostgreSQL row-level security migration `0016_postgres_rls` adds tenant-context policies across
