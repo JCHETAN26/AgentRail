@@ -636,6 +636,25 @@ code {
   margin: 0.35rem 0 0;
 }
 
+.tribunal__evidence-links {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tribunal__evidence-links li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.tribunal__evidence-links a {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .tribunal__arguments {
   margin-top: 1rem;
 }

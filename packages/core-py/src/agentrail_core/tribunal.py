@@ -312,6 +312,7 @@ def decide_tribunal(*, run: dict[str, Any], comparison: dict[str, Any] | None) -
     reproducible = bool(summary.get("reproducible", False))
     failed_count = int(run.get("failed_count") or 0)
     item_count = int(run.get("item_count") or 0)
+    trajectory_step_links = _trajectory_step_links(comparison)
 
     findings: list[TribunalFindingDraft] = [
         TribunalFindingDraft(
@@ -335,6 +336,7 @@ def decide_tribunal(*, run: dict[str, Any], comparison: dict[str, Any] | None) -
                     "failed_count": failed_count,
                     "pass_rate": pass_rate,
                     "regression_count": regression_count,
+                    "trajectory_steps": trajectory_step_links,
                 },
             )
         )
@@ -1155,6 +1157,43 @@ def _number(value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return 0.0
     return float(value)
+
+
+def _trajectory_step_links(comparison: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(comparison, dict):
+        return []
+    regressions = comparison.get("regressions")
+    if not isinstance(regressions, list):
+        return []
+    links: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for regression in regressions:
+        if not isinstance(regression, dict):
+            continue
+        raw_link = regression.get("trajectory_step")
+        if not isinstance(raw_link, dict):
+            continue
+        trajectory_id = raw_link.get("trajectory_id")
+        step_id = raw_link.get("step_id")
+        if not isinstance(trajectory_id, str) or not isinstance(step_id, str):
+            continue
+        key = (trajectory_id, step_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        links.append(
+            {
+                "trajectory_id": trajectory_id,
+                "step_id": step_id,
+                "step_index": raw_link.get("step_index"),
+                "step_type": raw_link.get("step_type"),
+                "title": raw_link.get("title"),
+                "item_index": regression.get("item_index"),
+                "run_item_id": regression.get("run_item_id"),
+                "evaluator_slug": regression.get("evaluator_slug"),
+            }
+        )
+    return links[:10]
 
 
 def _recorded_role_response(role: TribunalAgentRole, evidence: dict[str, Any]) -> dict[str, Any]:

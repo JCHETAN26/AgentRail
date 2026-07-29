@@ -59,6 +59,7 @@ from agentrail_core.trajectories import (
 )
 from agentrail_core.tribunal import (
     TribunalMode,
+    TribunalVerdictOutcome,
     build_tribunal_model_client,
     create_or_get_tribunal_session,
     tribunal_enabled,
@@ -82,6 +83,98 @@ class RunOutcome(StrEnum):
     CANCELLED = "cancelled"
     SKIPPED = "skipped"
     MISSING = "missing"
+
+
+def _aggregate_run_state(*, failed_count: int, tribunal_outcome: str | None) -> EvaluationRunState:
+    if failed_count > 0:
+        return EvaluationRunState.FAILED
+    if tribunal_outcome == TribunalVerdictOutcome.BLOCKED.value:
+        return EvaluationRunState.FAILED
+    return EvaluationRunState.PASSED
+
+
+def _tribunal_gate_summary(outcome: str) -> dict[str, Any]:
+    if outcome == TribunalVerdictOutcome.BLOCKED.value:
+        return {
+            "effect": "blocked_run",
+            "requires_human_approval": False,
+            "message": "Tribunal blocked the run, so Round 4 forced the run to FAILED.",
+        }
+    if outcome == TribunalVerdictOutcome.CONDITIONAL.value:
+        return {
+            "effect": "passed_with_warnings",
+            "requires_human_approval": True,
+            "message": (
+                "Tribunal returned a conditional verdict, so the run passed with "
+                "warnings and requires human approval before release."
+            ),
+        }
+    return {
+        "effect": "approved",
+        "requires_human_approval": False,
+        "message": "Tribunal approved the run.",
+    }
+
+
+async def _attach_trajectory_step_links(
+    session: AsyncSession, regressions: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for regression in regressions:
+        linked = dict(regression)
+        run_item_id = regression.get("run_item_id")
+        if isinstance(run_item_id, str):
+            link = await _trajectory_step_link(session, run_item_id=run_item_id)
+            if link is not None:
+                linked["trajectory_step"] = link
+        enriched.append(linked)
+    return enriched
+
+
+async def _trajectory_step_link(
+    session: AsyncSession, *, run_item_id: str
+) -> dict[str, Any] | None:
+    trajectory = await session.scalar(
+        select(Trajectory).where(Trajectory.run_item_id == run_item_id)
+    )
+    if trajectory is None:
+        return None
+    step = await session.scalar(
+        select(TrajectoryStep)
+        .where(TrajectoryStep.trajectory_id == trajectory.id)
+        .where(
+            TrajectoryStep.step_type.in_(
+                [TrajectoryStepType.ERROR, TrajectoryStepType.FINAL_RESULT]
+            )
+        )
+        .order_by(
+            (TrajectoryStep.step_type == TrajectoryStepType.ERROR).desc(),
+            TrajectoryStep.step_index.desc(),
+        )
+        .limit(1)
+    )
+    if step is None:
+        step = await session.scalar(
+            select(TrajectoryStep)
+            .where(TrajectoryStep.trajectory_id == trajectory.id)
+            .order_by(TrajectoryStep.step_index.desc())
+            .limit(1)
+        )
+    if step is None:
+        return None
+    return {
+        "trajectory_id": trajectory.id,
+        "trajectory_state": _enum_value(trajectory.state),
+        "step_id": step.id,
+        "step_index": step.step_index,
+        "step_type": _enum_value(step.step_type),
+        "title": step.title,
+    }
+
+
+def _enum_value(value: Any) -> str:
+    raw = getattr(value, "value", value)
+    return str(raw)
 
 
 #: Attempts share one trajectory — it is keyed by run item, not by attempt — so
@@ -983,6 +1076,7 @@ class EvaluationRunRunner:
             comparison = await self._build_comparison_report(session, run=run)
             suite = await session.get(EvaluationSuite, run.evaluation_suite_id)
             tribunal_summary: dict[str, Any] = {}
+            tribunal_outcome: str | None = None
             if suite is not None and tribunal_enabled(suite.thresholds):
                 tribunal_config = suite.thresholds.get("tribunal")
                 model_client = None
@@ -1006,13 +1100,18 @@ class EvaluationRunRunner:
                     "tribunal_session_id": tribunal.session.id,
                     "tribunal_outcome": tribunal.session.outcome.value,
                 }
-            run.state = EvaluationRunState.PASSED if failed == 0 else EvaluationRunState.FAILED
+                tribunal_outcome = tribunal.session.outcome.value
+                tribunal_summary["tribunal_gate"] = _tribunal_gate_summary(tribunal_outcome)
+            final_state = _aggregate_run_state(
+                failed_count=failed, tribunal_outcome=tribunal_outcome
+            )
+            run.state = final_state
             run.summary = {**run.summary, "comparison_report_id": comparison.id, **tribunal_summary}
             run.completed_at = datetime.now(UTC)
             run.updated_at = run.completed_at
             run.version += 1
             await session.commit()
-        return RunOutcome.PASSED if failed == 0 else RunOutcome.FAILED
+        return RunOutcome.PASSED if final_state is EvaluationRunState.PASSED else RunOutcome.FAILED
 
     async def _build_comparison_report(
         self, session: AsyncSession, *, run: EvaluationRun
@@ -1068,6 +1167,7 @@ class EvaluationRunRunner:
         summary, evaluator_metrics, category_metrics, regressions = aggregate_results(
             item_count=run.item_count, results=results
         )
+        regressions = await _attach_trajectory_step_links(session, regressions)
         report = ComparisonReport(
             id=new_sortable_id(),
             project_id=run.project_id,

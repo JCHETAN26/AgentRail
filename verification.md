@@ -230,7 +230,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] Round 1 — Evidence: Prosecutor, Auditor, Economist, Historian run in parallel, write findings to blackboard
 - [x] Round 2 — Debate: Defender reads all findings, writes rebuttals; Prosecutor may write counter-rebuttals (one iteration)
 - [x] Round 3 — Verdict: Judge reads full blackboard, renders structured Verdict
-- [ ] Round 4 — Gate integration:
+- [x] Round 4 — Gate integration:
   - blocked → run status FAILED, release gate blocks regardless of other metrics
   - conditional → run status PASSED with warnings, release gate requires human approval
   - approved → run status follows programmatic evaluator logic
@@ -248,7 +248,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] Blackboard timeline (who said what, when)
 - [ ] Finding severity heatmap (by agent and type)
 - [x] Verdict card with primary reason and dissent visible
-- [ ] Evidence links from findings to specific trajectory steps
+- [x] Evidence links from findings to specific trajectory steps
 - [x] Argument thread view (rebuttals and counter-rebuttals)
 
 ## Tribunal Failure Injection
@@ -335,7 +335,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 - [x] Integration tests: high-risk tool cannot execute without approval
 - [x] Integration tests: delayed event cannot bypass rejection
-- [ ] Integration tests: tribunal blocked always blocks execution
+- [x] Integration tests: tribunal blocked always blocks execution
 - [ ] E2E tests: full approve → resume → complete flow
 
 ---

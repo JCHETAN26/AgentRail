@@ -337,6 +337,53 @@ function messageFromPayload(payload: Record<string, unknown>): string | null {
   return typeof payload.message === 'string' ? payload.message : null;
 }
 
+type EvidenceStepLink = {
+  trajectoryId: string;
+  stepId: string;
+  stepIndex: number | null;
+  stepType: string | null;
+  title: string | null;
+  itemIndex: number | null;
+  evaluatorSlug: string | null;
+};
+
+function evidenceStepLinks(evidence: Record<string, unknown> | undefined): EvidenceStepLink[] {
+  const rawLinks = evidence?.trajectory_steps;
+  if (!Array.isArray(rawLinks)) {
+    return [];
+  }
+  return rawLinks.flatMap((rawLink) => {
+    if (!isRecord(rawLink)) {
+      return [];
+    }
+    const trajectoryId = rawLink.trajectory_id;
+    const stepId = rawLink.step_id;
+    if (typeof trajectoryId !== 'string' || typeof stepId !== 'string') {
+      return [];
+    }
+    return [
+      {
+        trajectoryId,
+        stepId,
+        stepIndex: typeof rawLink.step_index === 'number' ? rawLink.step_index : null,
+        stepType: typeof rawLink.step_type === 'string' ? rawLink.step_type : null,
+        title: typeof rawLink.title === 'string' ? rawLink.title : null,
+        itemIndex: typeof rawLink.item_index === 'number' ? rawLink.item_index : null,
+        evaluatorSlug: typeof rawLink.evaluator_slug === 'string' ? rawLink.evaluator_slug : null,
+      },
+    ];
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function trajectoryStepHref(link: EvidenceStepLink): string {
+  const params = link.stepType ? `?step_type=${encodeURIComponent(link.stepType)}` : '';
+  return `/api/v1/trajectories/${encodeURIComponent(link.trajectoryId)}/steps${params}#${encodeURIComponent(link.stepId)}`;
+}
+
 function RoleFindings({
   role,
   findings,
@@ -360,11 +407,33 @@ function RoleFindings({
                 {finding.severity}
               </span>
               <p>{finding.message}</p>
+              <EvidenceLinks links={evidenceStepLinks(finding.evidence)} />
             </li>
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+function EvidenceLinks({ links }: { links: EvidenceStepLink[] }) {
+  if (links.length === 0) {
+    return null;
+  }
+  return (
+    <ul className="tribunal__evidence-links" aria-label="Finding evidence links">
+      {links.map((link) => (
+        <li key={`${link.trajectoryId}:${link.stepId}`}>
+          <a href={trajectoryStepHref(link)}>
+            {link.itemIndex === null ? 'item' : `item ${link.itemIndex}`} -{' '}
+            {link.stepIndex === null ? 'step' : `step ${link.stepIndex}`}
+          </a>
+          <span className="tribunal__meta">
+            {link.evaluatorSlug ?? 'trajectory'} - {link.title ?? link.stepType ?? 'evidence'}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

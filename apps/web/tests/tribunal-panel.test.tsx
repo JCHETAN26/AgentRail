@@ -76,7 +76,19 @@ const TRIBUNAL = {
       severity: 'blocker',
       subject: 'evidence',
       message: 'Comparison evidence is missing.',
-      evidence: {},
+      evidence: {
+        trajectory_steps: [
+          {
+            trajectory_id: '01ARZ3NDEKTSV4RRFFQ69G5TR',
+            step_id: '01ARZ3NDEKTSV4RRFFQ69G5ST',
+            step_index: 5,
+            step_type: 'final_result',
+            title: 'Recorded final result',
+            item_index: 3,
+            evaluator_slug: 'task_success',
+          },
+        ],
+      },
       created_at: '2026-07-28T00:00:00Z',
     },
     {
@@ -155,6 +167,11 @@ describe('TribunalPanel', () => {
       'Comparison evidence is missing.',
     );
     expect(screen.getByLabelText(/tribunal state machine/i)).toHaveTextContent('TRIBUNAL_VERDICT');
+    expect(screen.getByLabelText(/finding evidence links/i)).toHaveTextContent('item 3 - step 5');
+    expect(screen.getByRole('link', { name: /item 3 - step 5/i })).toHaveAttribute(
+      'href',
+      '/api/v1/trajectories/01ARZ3NDEKTSV4RRFFQ69G5TR/steps?step_type=final_result#01ARZ3NDEKTSV4RRFFQ69G5ST',
+    );
     expect(vi.mocked(fetch).mock.calls[0]![1]?.method).toBe('POST');
   });
 
