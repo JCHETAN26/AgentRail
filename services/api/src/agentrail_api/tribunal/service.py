@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -18,6 +19,7 @@ from agentrail_api.tribunal.schemas import (
     TribunalBlackboardEntryResponse,
     TribunalFindingResponse,
     TribunalReplayResponse,
+    TribunalRoundResponse,
     TribunalSessionResponse,
     TribunalVerdictResponse,
 )
@@ -298,6 +300,7 @@ def as_response(bundle: TribunalPersistenceBundle) -> TribunalSessionResponse:
         created_at=bundle.session.created_at,
         completed_at=bundle.session.completed_at,
         verdict=TribunalVerdictResponse.model_validate(bundle.verdict),
+        rounds=[TribunalRoundResponse.model_validate(round_) for round_ in bundle.rounds],
         findings=[TribunalFindingResponse.model_validate(finding) for finding in bundle.findings],
         arguments=[
             TribunalArgumentResponse.model_validate(argument) for argument in bundle.arguments
@@ -359,31 +362,25 @@ def _tribunal_source_digest(bundle: TribunalPersistenceBundle) -> str:
         {
             "summary": bundle.session.summary,
             "verdict": {
-                "outcome": bundle.verdict.outcome,
+                "outcome": _enum_value(bundle.verdict.outcome),
                 "primary_reason": bundle.verdict.primary_reason,
                 "dissent": bundle.verdict.dissent,
                 "evidence": bundle.verdict.evidence,
             },
-            "findings": [
-                {
-                    "agent_role": finding.agent_role,
-                    "severity": finding.severity,
-                    "subject": finding.subject,
-                    "message": finding.message,
-                    "evidence": finding.evidence,
-                }
-                for finding in bundle.findings
-            ],
-            "arguments": [
-                {
-                    "round": argument.round,
-                    "agent_role": argument.agent_role,
-                    "stance": argument.stance,
-                    "message": argument.message,
-                    "evidence": argument.evidence,
-                }
-                for argument in bundle.arguments
-            ],
+            "rounds": sorted(
+                (
+                    {
+                        "sequence": round_.sequence,
+                        "round": _enum_value(round_.round),
+                        "state": _enum_value(round_.state),
+                        "summary": round_.summary,
+                    }
+                    for round_ in bundle.rounds
+                ),
+                key=lambda item: item["sequence"],
+            ),
+            "findings": _canonical_findings(bundle.findings),
+            "arguments": _canonical_arguments(bundle.arguments),
         }
     )
 
@@ -391,34 +388,112 @@ def _tribunal_source_digest(bundle: TribunalPersistenceBundle) -> str:
 def _tribunal_draft_digest(draft: Any) -> str:
     return _digest(
         {
-            "summary": draft.summary,
+            "summary": _published_tribunal_summary(draft.summary),
             "verdict": {
-                "outcome": draft.outcome,
+                "outcome": _enum_value(draft.outcome),
                 "primary_reason": draft.primary_reason,
                 "dissent": draft.dissent,
                 "evidence": draft.evidence,
             },
-            "findings": [
-                {
-                    "agent_role": finding.agent_role,
-                    "severity": finding.severity,
-                    "subject": finding.subject,
-                    "message": finding.message,
-                    "evidence": finding.evidence,
-                }
-                for finding in draft.findings
-            ],
-            "arguments": [
-                {
-                    "round": argument.round,
-                    "agent_role": argument.agent_role,
-                    "stance": argument.stance,
-                    "message": argument.message,
-                    "evidence": argument.evidence,
-                }
-                for argument in draft.arguments
-            ],
+            "rounds": _canonical_rounds_for_draft(draft),
+            "findings": _canonical_findings(draft.findings),
+            "arguments": _canonical_arguments(draft.arguments),
         }
+    )
+
+
+def _published_tribunal_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **summary,
+        "state_path": [
+            "TRIBUNAL_QUEUED",
+            "TRIBUNAL_EVIDENCE",
+            "TRIBUNAL_DEBATE",
+            "TRIBUNAL_VERDICT",
+            "PUBLISHED",
+        ],
+    }
+
+
+def _canonical_rounds_for_draft(draft: Any) -> list[dict[str, Any]]:
+    argument_counts = {"evidence": 0, "debate": 0, "verdict": 0}
+    for argument in draft.arguments:
+        argument_counts[_enum_value(argument.round)] += 1
+    return [
+        {
+            "sequence": 1,
+            "round": "evidence",
+            "state": "TRIBUNAL_EVIDENCE",
+            "summary": {
+                "finding_count": len(draft.findings),
+                "argument_count": argument_counts["evidence"],
+                "outcome": None,
+            },
+        },
+        {
+            "sequence": 2,
+            "round": "debate",
+            "state": "TRIBUNAL_DEBATE",
+            "summary": {
+                "finding_count": 0,
+                "argument_count": argument_counts["debate"],
+                "outcome": None,
+            },
+        },
+        {
+            "sequence": 3,
+            "round": "verdict",
+            "state": "TRIBUNAL_VERDICT",
+            "summary": {
+                "finding_count": 0,
+                "argument_count": argument_counts["verdict"],
+                "outcome": _enum_value(draft.outcome),
+            },
+        },
+    ]
+
+
+def _canonical_findings(findings: Iterable[Any]) -> list[dict[str, Any]]:
+    return sorted(
+        (
+            {
+                "agent_role": _enum_value(finding.agent_role),
+                "severity": _enum_value(finding.severity),
+                "subject": finding.subject,
+                "message": finding.message,
+                "evidence": finding.evidence,
+            }
+            for finding in findings
+        ),
+        key=lambda item: (
+            item["agent_role"],
+            item["severity"],
+            item["subject"],
+            item["message"],
+            _canonical_sort_key(item["evidence"]),
+        ),
+    )
+
+
+def _canonical_arguments(arguments: Iterable[Any]) -> list[dict[str, Any]]:
+    return sorted(
+        (
+            {
+                "round": _enum_value(argument.round),
+                "agent_role": _enum_value(argument.agent_role),
+                "stance": _enum_value(argument.stance),
+                "message": argument.message,
+                "evidence": argument.evidence,
+            }
+            for argument in arguments
+        ),
+        key=lambda item: (
+            item["round"],
+            item["agent_role"],
+            item["stance"],
+            item["message"],
+            _canonical_sort_key(item["evidence"]),
+        ),
     )
 
 
@@ -451,6 +526,10 @@ def _tribunal_divergence_summary(
 def _digest(value: Any) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _canonical_sort_key(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def _enum_value(value: Any) -> str:

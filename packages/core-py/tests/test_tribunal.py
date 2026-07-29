@@ -18,11 +18,13 @@ from agentrail_core.tribunal import (
     TribunalModelRequest,
     TribunalModelResponse,
     TribunalRound,
+    TribunalSessionState,
     TribunalVerdictOutcome,
     build_tribunal_model_client,
     decide_model_backed_tribunal,
     decide_tribunal,
     default_tribunal_prompt_versions,
+    tribunal_state_path,
     validate_tribunal_config,
 )
 
@@ -86,6 +88,16 @@ def test_default_prompt_versions_cover_every_tribunal_role() -> None:
     assert set(prompts) == set(TribunalAgentRole)
     assert prompts[TribunalAgentRole.JUDGE].version == DEFAULT_TRIBUNAL_PROMPT_VERSION
     assert "outcome" in prompts[TribunalAgentRole.JUDGE].response_schema["required"]
+
+
+def test_tribunal_state_machine_path_is_explicit() -> None:
+    assert tribunal_state_path() == (
+        TribunalSessionState.TRIBUNAL_QUEUED,
+        TribunalSessionState.TRIBUNAL_EVIDENCE,
+        TribunalSessionState.TRIBUNAL_DEBATE,
+        TribunalSessionState.TRIBUNAL_VERDICT,
+        TribunalSessionState.PUBLISHED,
+    )
 
 
 @pytest.mark.asyncio

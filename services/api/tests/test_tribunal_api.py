@@ -16,6 +16,7 @@ from agentrail_core.tribunal import (
     TribunalModelRequest,
     TribunalModelResponse,
     TribunalReplay,
+    TribunalRoundRecord,
     TribunalSession,
 )
 from services.api.tests.test_execution_api import create_agent_version, create_frozen_suite
@@ -112,12 +113,39 @@ class TestTribunalApi:
         assert fetched.status_code == 200, fetched.text
         assert replay.json()["id"] == created.json()["id"] == fetched.json()["id"]
         assert created.json()["outcome"] == "approved"
+        assert created.json()["state"] == "PUBLISHED"
+        assert created.json()["summary"]["state_path"] == [
+            "TRIBUNAL_QUEUED",
+            "TRIBUNAL_EVIDENCE",
+            "TRIBUNAL_DEBATE",
+            "TRIBUNAL_VERDICT",
+            "PUBLISHED",
+        ]
+        assert [round_["round"] for round_ in created.json()["rounds"]] == [
+            "evidence",
+            "debate",
+            "verdict",
+        ]
+        assert [round_["state"] for round_ in created.json()["rounds"]] == [
+            "TRIBUNAL_EVIDENCE",
+            "TRIBUNAL_DEBATE",
+            "TRIBUNAL_VERDICT",
+        ]
         assert created.json()["summary"]["agent_count"] == 6
         assert len(created.json()["findings"]) >= 5
         assert created.json()["verdict"]["outcome"] == "approved"
         assert [entry["sequence"] for entry in created.json()["blackboard"]] == list(
             range(1, len(created.json()["blackboard"]) + 1)
         )
+        async with session_factory() as session:
+            persisted_rounds = (
+                await session.scalars(
+                    select(TribunalRoundRecord)
+                    .where(TribunalRoundRecord.session_id == created.json()["id"])
+                    .order_by(TribunalRoundRecord.sequence)
+                )
+            ).all()
+        assert [round_.round for round_ in persisted_rounds] == ["evidence", "debate", "verdict"]
 
     async def test_auditor_blocker_overrides_defender_approval(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
@@ -239,7 +267,8 @@ class TestTribunalApi:
         assert body["outcome"] == created.json()["outcome"]
         assert body["result"]["source_outcome"] == created.json()["outcome"]
         assert body["result"]["replay_outcome"] == created.json()["outcome"]
-        assert body["result"]["reproduced"] == (body["source_digest"] == body["replay_digest"])
+        assert body["source_digest"] == body["replay_digest"]
+        assert body["result"]["reproduced"] is True
         assert body["result"]["evidence"]["prompt_version"] == "tribunal-roles-v2"
         assert body["safety_summary"]["source_session_mutated"] is False
         assert body["safety_summary"]["live_model_calls"] == 0

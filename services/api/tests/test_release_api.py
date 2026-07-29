@@ -106,7 +106,7 @@ async def attach_tribunal(
             id=new_sortable_id(),
             project_id=str(run["project_id"]),
             run_id=str(run["id"]),
-            state=TribunalSessionState.COMPLETED,
+            state=TribunalSessionState.PUBLISHED,
             outcome=outcome,
             summary={"outcome": outcome.value},
         )

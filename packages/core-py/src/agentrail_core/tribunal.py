@@ -73,7 +73,11 @@ class TribunalVerdictOutcome(StrEnum):
 
 
 class TribunalSessionState(StrEnum):
-    COMPLETED = "completed"
+    TRIBUNAL_QUEUED = "TRIBUNAL_QUEUED"
+    TRIBUNAL_EVIDENCE = "TRIBUNAL_EVIDENCE"
+    TRIBUNAL_DEBATE = "TRIBUNAL_DEBATE"
+    TRIBUNAL_VERDICT = "TRIBUNAL_VERDICT"
+    PUBLISHED = "PUBLISHED"
 
 
 class TribunalMode(StrEnum):
@@ -102,6 +106,18 @@ _REPLAY_MODES = ", ".join(f"'{mode.value}'" for mode in TribunalReplayMode)
 _REPLAY_STATES = ", ".join(f"'{state.value}'" for state in TribunalReplayState)
 DEFAULT_TRIBUNAL_PROMPT_VERSION = "tribunal-roles-v1"
 MAX_SANDBOX_COLLECTION_ITEMS = 25
+TRIBUNAL_STATE_PATH: tuple[TribunalSessionState, ...] = (
+    TribunalSessionState.TRIBUNAL_QUEUED,
+    TribunalSessionState.TRIBUNAL_EVIDENCE,
+    TribunalSessionState.TRIBUNAL_DEBATE,
+    TribunalSessionState.TRIBUNAL_VERDICT,
+    TribunalSessionState.PUBLISHED,
+)
+ROUND_STATE_BY_ROUND: dict[TribunalRound, TribunalSessionState] = {
+    TribunalRound.EVIDENCE: TribunalSessionState.TRIBUNAL_EVIDENCE,
+    TribunalRound.DEBATE: TribunalSessionState.TRIBUNAL_DEBATE,
+    TribunalRound.VERDICT: TribunalSessionState.TRIBUNAL_VERDICT,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +153,7 @@ class TribunalDraft:
 class TribunalPersistenceBundle:
     session: TribunalSession
     verdict: TribunalVerdict
+    rounds: list[TribunalRoundRecord]
     findings: list[TribunalFinding]
     arguments: list[TribunalArgument]
     blackboard: list[TribunalBlackboardEntry]
@@ -213,6 +230,11 @@ def validate_tribunal_config(thresholds: dict[str, Any]) -> dict[str, Any]:
 
 def tribunal_enabled(thresholds: dict[str, Any]) -> bool:
     return bool(validate_tribunal_config(thresholds)["enabled"])
+
+
+def tribunal_state_path() -> tuple[TribunalSessionState, ...]:
+    """Return the only valid Tribunal lifecycle path."""
+    return TRIBUNAL_STATE_PATH
 
 
 def default_tribunal_prompt_versions(
@@ -839,9 +861,12 @@ async def create_or_get_tribunal_session(
         id=new_sortable_id(),
         project_id=run.project_id,
         run_id=run.id,
-        state=TribunalSessionState.COMPLETED,
+        state=TribunalSessionState.PUBLISHED,
         outcome=draft.outcome,
-        summary=draft.summary,
+        summary={
+            **draft.summary,
+            "state_path": [state.value for state in tribunal_state_path()],
+        },
         created_by=created_by,
         created_at=now,
         completed_at=now,
@@ -849,6 +874,7 @@ async def create_or_get_tribunal_session(
     db.add(tribunal)
     await db.flush()
 
+    rounds = _tribunal_round_records(tribunal.id, draft, created_at=now, completed_at=now)
     findings = [
         TribunalFinding(
             id=new_sortable_id(),
@@ -885,8 +911,11 @@ async def create_or_get_tribunal_session(
         evidence=draft.evidence,
         created_at=now,
     )
-    db.add_all([*findings, *arguments, *blackboard, verdict])
-    return TribunalPersistenceBundle(tribunal, verdict, findings, arguments, blackboard), True
+    db.add_all([*rounds, *findings, *arguments, *blackboard, verdict])
+    return (
+        TribunalPersistenceBundle(tribunal, verdict, rounds, findings, arguments, blackboard),
+        True,
+    )
 
 
 async def get_persisted_tribunal_session(
@@ -914,6 +943,15 @@ async def get_persisted_tribunal_session(
             )
         ).all()
     )
+    rounds = list(
+        (
+            await db.scalars(
+                select(TribunalRoundRecord)
+                .where(TribunalRoundRecord.session_id == tribunal.id)
+                .order_by(TribunalRoundRecord.sequence)
+            )
+        ).all()
+    )
     arguments = list(
         (
             await db.scalars(
@@ -932,7 +970,7 @@ async def get_persisted_tribunal_session(
             )
         ).all()
     )
-    return TribunalPersistenceBundle(tribunal, verdict, findings, arguments, blackboard)
+    return TribunalPersistenceBundle(tribunal, verdict, rounds, findings, arguments, blackboard)
 
 
 def _run_evidence(run: EvaluationRun) -> dict[str, Any]:
@@ -1063,6 +1101,46 @@ def _blackboard_entries(
         )
         sequence += 1
     return entries
+
+
+def _tribunal_round_records(
+    session_id: str,
+    draft: TribunalDraft,
+    *,
+    created_at: datetime,
+    completed_at: datetime,
+) -> list[TribunalRoundRecord]:
+    findings_by_round = {
+        TribunalRound.EVIDENCE: len(draft.findings),
+        TribunalRound.DEBATE: 0,
+        TribunalRound.VERDICT: 0,
+    }
+    arguments_by_round = {
+        TribunalRound.EVIDENCE: 0,
+        TribunalRound.DEBATE: 0,
+        TribunalRound.VERDICT: 0,
+    }
+    for argument in draft.arguments:
+        arguments_by_round[argument.round] += 1
+    records: list[TribunalRoundRecord] = []
+    for sequence, round_ in enumerate(TribunalRound, start=1):
+        records.append(
+            TribunalRoundRecord(
+                id=new_sortable_id(),
+                session_id=session_id,
+                sequence=sequence,
+                round=round_,
+                state=ROUND_STATE_BY_ROUND[round_],
+                summary={
+                    "finding_count": findings_by_round[round_],
+                    "argument_count": arguments_by_round[round_],
+                    "outcome": draft.outcome.value if round_ is TribunalRound.VERDICT else None,
+                },
+                started_at=created_at,
+                completed_at=completed_at,
+            )
+        )
+    return records
 
 
 def _stance_for_outcome(outcome: TribunalVerdictOutcome) -> TribunalArgumentStance:
@@ -1357,8 +1435,8 @@ class TribunalSession(Base):
     state: Mapped[TribunalSessionState] = mapped_column(
         String(32),
         nullable=False,
-        default=TribunalSessionState.COMPLETED,
-        server_default=TribunalSessionState.COMPLETED.value,
+        default=TribunalSessionState.TRIBUNAL_QUEUED,
+        server_default=TribunalSessionState.TRIBUNAL_QUEUED.value,
     )
     outcome: Mapped[TribunalVerdictOutcome] = mapped_column(String(32), nullable=False)
     summary: Mapped[dict[str, Any]] = mapped_column(
@@ -1418,6 +1496,32 @@ class TribunalReplay(Base):
     )
     created_by: Mapped[str | None] = mapped_column(String(26), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TribunalRoundRecord(Base):
+    __tablename__ = "tribunal_rounds"
+    __table_args__ = (
+        CheckConstraint(f"round IN ({_ROUNDS})", name="ck_tribunal_rounds_round"),
+        CheckConstraint(f"state IN ({_SESSION_STATES})", name="ck_tribunal_rounds_state"),
+        UniqueConstraint("session_id", "round", name="uq_tribunal_rounds_session_round"),
+        UniqueConstraint("session_id", "sequence", name="uq_tribunal_rounds_session_sequence"),
+        Index("ix_tribunal_rounds_session_id", "session_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("tribunal_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    round: Mapped[TribunalRound] = mapped_column(String(32), nullable=False)
+    state: Mapped[TribunalSessionState] = mapped_column(String(32), nullable=False)
+    summary: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

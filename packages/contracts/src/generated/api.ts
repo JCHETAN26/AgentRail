@@ -2609,6 +2609,24 @@ export interface components {
          * @enum {string}
          */
         TribunalRound: "evidence" | "debate" | "verdict";
+        /** TribunalRoundResponse */
+        TribunalRoundResponse: {
+            /** Completed At */
+            completed_at: string | null;
+            /** Id */
+            id: string;
+            round: components["schemas"]["TribunalRound"];
+            /** Sequence */
+            sequence: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            state: components["schemas"]["TribunalSessionState"];
+            /** Summary */
+            summary?: Record<string, never>;
+        };
         /** TribunalSessionResponse */
         TribunalSessionResponse: {
             /** Arguments */
@@ -2634,6 +2652,8 @@ export interface components {
             outcome: components["schemas"]["TribunalVerdictOutcome"];
             /** Project Id */
             project_id: string;
+            /** Rounds */
+            rounds: components["schemas"]["TribunalRoundResponse"][];
             /** Run Id */
             run_id: string;
             state: components["schemas"]["TribunalSessionState"];
@@ -2645,7 +2665,7 @@ export interface components {
          * TribunalSessionState
          * @enum {string}
          */
-        TribunalSessionState: "completed";
+        TribunalSessionState: "TRIBUNAL_QUEUED" | "TRIBUNAL_EVIDENCE" | "TRIBUNAL_DEBATE" | "TRIBUNAL_VERDICT" | "PUBLISHED";
         /**
          * TribunalVerdictOutcome
          * @enum {string}
