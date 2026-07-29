@@ -9,11 +9,13 @@ restarting a process that is working correctly.
 from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response, status
+from starlette.responses import PlainTextResponse
 
 from agentrail_api import __version__
 from agentrail_api.dependencies import RedisDep, SettingsDep
 from agentrail_core.db import check_database
 from agentrail_core.health import HealthResponse, ReadinessResponse, evaluate_readiness
+from agentrail_core.observability import render_prometheus_metrics
 from agentrail_core.queue import check_redis
 
 router = APIRouter(tags=["health"])
@@ -47,3 +49,15 @@ async def readyz(
     if report.status == "not_ready":
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return report
+
+
+@router.get("/metrics", response_class=PlainTextResponse, summary="Prometheus metrics")
+async def metrics(settings: SettingsDep) -> PlainTextResponse:
+    return PlainTextResponse(
+        render_prometheus_metrics(
+            service=settings.service_name,
+            version=__version__,
+            readiness={"process": True},
+        ),
+        media_type="text/plain; version=0.0.4",
+    )

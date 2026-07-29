@@ -1,0 +1,20 @@
+groups:
+  - name: agentrail-slo
+    rules:
+      - alert: AgentRailDependencyDown
+        expr: agentrail_dependency_ready == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: 'AgentRail dependency is not ready'
+          description: '{{ $labels.service }} reports {{ $labels.dependency }} as unavailable.'
+
+      - alert: AgentRailServiceMissing
+        expr: absent(agentrail_build_info)
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: 'AgentRail metrics disappeared'
+          description: 'Prometheus has not scraped any AgentRail build metadata.'

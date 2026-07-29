@@ -10,5 +10,7 @@ uv.lock
 # compares them byte-for-byte against a freshly generated copy.
 packages/contracts/src/generated/
 packages/contracts/openapi.json
+docs/benchmarks/artifacts/*.json
+infra/helm/agentrail/templates/
 playwright-report/
 test-results/

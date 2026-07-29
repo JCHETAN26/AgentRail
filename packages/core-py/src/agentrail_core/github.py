@@ -125,7 +125,12 @@ class RecordingCheckRunPublisher:
 
 
 def annotations_from_violations(
-    violations: list[dict[str, Any]], *, path: str
+    violations: list[dict[str, Any]],
+    *,
+    path: str,
+    details_url: str | None = None,
+    tribunal_summary: str | None = None,
+    trajectory_links: tuple[str, ...] = (),
 ) -> tuple[dict[str, Any], ...]:
     """Turn gate violations into inline notes on a pull request.
 
@@ -134,14 +139,26 @@ def annotations_from_violations(
     line of the diff. Pointing it at an arbitrary source line would be a guess
     dressed up as precision.
     """
-    return tuple(
-        {
-            "path": path,
-            "start_line": 1,
-            "end_line": 1,
-            "annotation_level": "failure",
-            "title": str(violation.get("kind", "release_rule")),
-            "message": str(violation.get("message", "A release rule was not met.")),
-        }
-        for violation in violations
-    )
+    annotations: list[dict[str, Any]] = []
+    for violation in violations:
+        message = str(violation.get("message", "A release rule was not met."))
+        extras: list[str] = []
+        if details_url is not None:
+            extras.append(f"Run evidence: {details_url}")
+        if trajectory_links:
+            extras.append("Failed trajectories: " + ", ".join(trajectory_links[:3]))
+        if violation.get("kind") == "require_tribunal_approval" and tribunal_summary:
+            extras.append(f"Tribunal verdict: {tribunal_summary}")
+        if extras:
+            message = f"{message}\n\n" + "\n".join(extras)
+        annotations.append(
+            {
+                "path": path,
+                "start_line": 1,
+                "end_line": 1,
+                "annotation_level": "failure",
+                "title": str(violation.get("kind", "release_rule")),
+                "message": message,
+            }
+        )
+    return tuple(annotations)

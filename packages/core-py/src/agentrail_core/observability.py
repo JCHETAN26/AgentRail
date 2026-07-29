@@ -80,6 +80,30 @@ def evaluate_run_slo(
     )
 
 
+def render_prometheus_metrics(
+    *,
+    service: str,
+    version: str,
+    readiness: dict[str, bool] | None = None,
+) -> str:
+    """Render a minimal Prometheus-compatible process snapshot."""
+    lines = [
+        "# HELP agentrail_build_info Build and service metadata.",
+        "# TYPE agentrail_build_info gauge",
+        f'agentrail_build_info{{service="{_label(service)}",version="{_label(version)}"}} 1',
+        "# HELP agentrail_dependency_ready Dependency readiness by dependency name.",
+        "# TYPE agentrail_dependency_ready gauge",
+    ]
+    for dependency, ready in sorted((readiness or {}).items()):
+        value = 1 if ready else 0
+        lines.append(
+            f'agentrail_dependency_ready{{service="{_label(service)}",'
+            f'dependency="{_label(dependency)}"}} {value}'
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _number(value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return 0.0
@@ -90,3 +114,7 @@ def _integer(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return 0
     return int(value)
+
+
+def _label(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")

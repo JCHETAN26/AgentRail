@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agentrail.name" . }}-config
+  labels:
+    {{- include "agentrail.labels" . | nindent 4 }}
+data:
+  AGENTRAIL_ENVIRONMENT: {{ .Values.global.environment | quote }}
+  AGENTRAIL_CORS_ALLOW_ORIGINS: {{ .Values.config.corsAllowOrigins | quote }}
+  AGENTRAIL_RECORDED_MODEL_FALLBACK: {{ .Values.config.recordedModelFallback | quote }}
+  AGENTRAIL_DEMO_QUOTA_RUNS_PER_DAY: {{ .Values.config.demoQuotaRunsPerDay | quote }}
+  AGENTRAIL_DEMO_QUOTA_ITEMS_PER_RUN: {{ .Values.config.demoQuotaItemsPerRun | quote }}

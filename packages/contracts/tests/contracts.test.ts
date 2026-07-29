@@ -91,6 +91,7 @@ describe('the OpenAPI document', () => {
       '/api/v1/trajectories/{trajectory_id}/steps',
       '/api/v1/tribunal-sessions/{tribunal_session_id}/replays',
       '/healthz',
+      '/metrics',
       '/readyz',
     ]);
   });

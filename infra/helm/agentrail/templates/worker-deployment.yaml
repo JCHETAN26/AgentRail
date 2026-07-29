@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentrail.name" . }}-worker
+  labels:
+    {{- include "agentrail.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "agentrail.name" . }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "agentrail.labels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: worker
+          image: {{ include "agentrail.image" (merge (dict "service" "agentrail-worker") .) }}
+          imagePullPolicy: {{ .Values.global.pullPolicy }}
+          command: ["agentrail-worker"]
+          ports:
+            - name: health
+              containerPort: {{ .Values.worker.healthPort }}
+          env:
+            - name: AGENTRAIL_SANDBOX_BASE_URL
+              value: http://{{ include "agentrail.name" . }}-sandbox:{{ .Values.sandbox.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "agentrail.name" . }}-config
+            - secretRef:
+                name: {{ include "agentrail.name" . }}-secrets
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            {{- include "agentrail.securityContext" . | nindent 12 }}

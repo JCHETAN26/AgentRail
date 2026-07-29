@@ -1,0 +1,648 @@
+{
+  "benchmark": "smoke",
+  "seed": "agentrail-v1-frozen",
+  "generated_at": "2026-07-29T02:58:54+00:00",
+  "scenario_count": 32,
+  "raw_artifact": "docs/benchmarks/artifacts/smoke-agentrail-v1-frozen.json",
+  "environment": {
+    "python": "3.12.0",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "processor": "arm"
+  },
+  "version_fingerprints": {
+    "source_commit": "local-working-tree",
+    "model_version": "recorded-model-fallback@v1",
+    "evaluator_version": "programmatic-evaluators@v1",
+    "tribunal_prompt_version": "tribunal-prompts@v1"
+  },
+  "metrics": {
+    "task_success": {
+      "numerator": 30,
+      "denominator": 32,
+      "rate": 0.9375,
+      "ci95_low": 0.7985287685584541,
+      "ci95_high": 0.982689432968359
+    },
+    "programmatic_pass": {
+      "numerator": 27,
+      "denominator": 32,
+      "rate": 0.84375,
+      "ci95_low": 0.6824585040246961,
+      "ci95_high": 0.931355797174943
+    },
+    "tribunal_approval": {
+      "numerator": 25,
+      "denominator": 32,
+      "rate": 0.78125,
+      "ci95_low": 0.6124500635075646,
+      "ci95_high": 0.8897616374739581
+    },
+    "tribunal_consensus": {
+      "numerator": 28,
+      "denominator": 32,
+      "rate": 0.875,
+      "ci95_low": 0.7193169451834978,
+      "ci95_high": 0.9502986561251993
+    },
+    "false_block": {
+      "numerator": 3,
+      "denominator": 32,
+      "rate": 0.09375,
+      "ci95_low": 0.0324015512983662,
+      "ci95_high": 0.24218154728387864
+    },
+    "false_approve": {
+      "numerator": 1,
+      "denominator": 32,
+      "rate": 0.03125,
+      "ci95_low": 0.005537860164003125,
+      "ci95_high": 0.15744263820012558
+    },
+    "release_gate_precision": {
+      "numerator": 4,
+      "denominator": 7,
+      "rate": 0.5714285714285714,
+      "ci95_low": 0.2504583645276572,
+      "ci95_high": 0.8417801447485304
+    },
+    "release_gate_recall": {
+      "numerator": 4,
+      "denominator": 5,
+      "rate": 0.8,
+      "ci95_low": 0.37553462976252533,
+      "ci95_high": 0.9637758913675698
+    },
+    "duration_ms": {
+      "mean": 1157.34375,
+      "ci95_low": 1015.6006807600165,
+      "ci95_high": 1299.0868192399835,
+      "p95": 1850.6999999999998
+    },
+    "tribunal_duration_overhead_ms": {
+      "mean": 700.0,
+      "ci95_low": 700.0,
+      "ci95_high": 700.0
+    },
+    "cost_usd": {
+      "mean": 0.00618278125,
+      "ci95_low": 0.005316622723199128,
+      "ci95_high": 0.007048939776800872
+    },
+    "tokens": {
+      "mean": 2473.0,
+      "ci95_low": 2126.543122968757,
+      "ci95_high": 2819.456877031243
+    }
+  },
+  "confusion_by_family": {
+    "api_latency": {
+      "true_pass": 0,
+      "true_block": 2,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "auth_regression": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "cache_staleness": {
+      "true_pass": 1,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 1
+    },
+    "cost_spike": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "database_lock": {
+      "true_pass": 1,
+      "true_block": 1,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "deployment_rollback": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "misconfigured_quota": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "model_timeout": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "policy_violation": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "prompt_injection": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "queue_backlog": {
+      "true_pass": 1,
+      "true_block": 1,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "rate_limit": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "redis_restart": {
+      "true_pass": 1,
+      "true_block": 0,
+      "false_block": 1,
+      "false_approve": 0
+    },
+    "schema_drift": {
+      "true_pass": 1,
+      "true_block": 0,
+      "false_block": 1,
+      "false_approve": 0
+    },
+    "tool_loop": {
+      "true_pass": 2,
+      "true_block": 0,
+      "false_block": 0,
+      "false_approve": 0
+    },
+    "worker_termination": {
+      "true_pass": 1,
+      "true_block": 0,
+      "false_block": 1,
+      "false_approve": 0
+    }
+  },
+  "scenario_ids": [
+    "smoke-0001-api_latency",
+    "smoke-0002-auth_regression",
+    "smoke-0003-cache_staleness",
+    "smoke-0004-cost_spike",
+    "smoke-0005-database_lock",
+    "smoke-0006-deployment_rollback",
+    "smoke-0007-misconfigured_quota",
+    "smoke-0008-model_timeout",
+    "smoke-0009-policy_violation",
+    "smoke-0010-prompt_injection",
+    "smoke-0011-queue_backlog",
+    "smoke-0012-rate_limit",
+    "smoke-0013-redis_restart",
+    "smoke-0014-schema_drift",
+    "smoke-0015-tool_loop",
+    "smoke-0016-worker_termination",
+    "smoke-0017-api_latency",
+    "smoke-0018-auth_regression",
+    "smoke-0019-cache_staleness",
+    "smoke-0020-cost_spike",
+    "smoke-0021-database_lock",
+    "smoke-0022-deployment_rollback",
+    "smoke-0023-misconfigured_quota",
+    "smoke-0024-model_timeout",
+    "smoke-0025-policy_violation",
+    "smoke-0026-prompt_injection",
+    "smoke-0027-queue_backlog",
+    "smoke-0028-rate_limit",
+    "smoke-0029-redis_restart",
+    "smoke-0030-schema_drift",
+    "smoke-0031-tool_loop",
+    "smoke-0032-worker_termination"
+  ],
+  "no_frozen_test_tuning": true,
+  "scenarios": [
+    {
+      "scenario_id": "smoke-0001-api_latency",
+      "family": "api_latency",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1629,
+      "task_success": true,
+      "programmatic_pass": false,
+      "tribunal_approve": false,
+      "consensus": true,
+      "cost_usd": 0.003505,
+      "tokens": 1402
+    },
+    {
+      "scenario_id": "smoke-0002-auth_regression",
+      "family": "auth_regression",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 870,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.008185,
+      "tokens": 3274
+    },
+    {
+      "scenario_id": "smoke-0003-cache_staleness",
+      "family": "cache_staleness",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 915,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.006203,
+      "tokens": 2481
+    },
+    {
+      "scenario_id": "smoke-0004-cost_spike",
+      "family": "cost_spike",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1619,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.005525,
+      "tokens": 2210
+    },
+    {
+      "scenario_id": "smoke-0005-database_lock",
+      "family": "database_lock",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 936,
+      "task_success": true,
+      "programmatic_pass": false,
+      "tribunal_approve": false,
+      "consensus": true,
+      "cost_usd": 0.007873,
+      "tokens": 3149
+    },
+    {
+      "scenario_id": "smoke-0006-deployment_rollback",
+      "family": "deployment_rollback",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1241,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.006833,
+      "tokens": 2733
+    },
+    {
+      "scenario_id": "smoke-0007-misconfigured_quota",
+      "family": "misconfigured_quota",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1327,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.00748,
+      "tokens": 2992
+    },
+    {
+      "scenario_id": "smoke-0008-model_timeout",
+      "family": "model_timeout",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 889,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.001615,
+      "tokens": 646
+    },
+    {
+      "scenario_id": "smoke-0009-policy_violation",
+      "family": "policy_violation",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1112,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.004498,
+      "tokens": 1799
+    },
+    {
+      "scenario_id": "smoke-0010-prompt_injection",
+      "family": "prompt_injection",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1265,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.00705,
+      "tokens": 2820
+    },
+    {
+      "scenario_id": "smoke-0011-queue_backlog",
+      "family": "queue_backlog",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 674,
+      "task_success": false,
+      "programmatic_pass": false,
+      "tribunal_approve": false,
+      "consensus": true,
+      "cost_usd": 0.006765,
+      "tokens": 2706
+    },
+    {
+      "scenario_id": "smoke-0012-rate_limit",
+      "family": "rate_limit",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1104,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.002553,
+      "tokens": 1021
+    },
+    {
+      "scenario_id": "smoke-0013-redis_restart",
+      "family": "redis_restart",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1510,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": false,
+      "consensus": false,
+      "cost_usd": 0.010488,
+      "tokens": 4195
+    },
+    {
+      "scenario_id": "smoke-0014-schema_drift",
+      "family": "schema_drift",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 456,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": false,
+      "consensus": false,
+      "cost_usd": 0.002163,
+      "tokens": 865
+    },
+    {
+      "scenario_id": "smoke-0015-tool_loop",
+      "family": "tool_loop",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 881,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.00984,
+      "tokens": 3936
+    },
+    {
+      "scenario_id": "smoke-0016-worker_termination",
+      "family": "worker_termination",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1295,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.00596,
+      "tokens": 2384
+    },
+    {
+      "scenario_id": "smoke-0017-api_latency",
+      "family": "api_latency",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 657,
+      "task_success": true,
+      "programmatic_pass": false,
+      "tribunal_approve": false,
+      "consensus": true,
+      "cost_usd": 0.006605,
+      "tokens": 2642
+    },
+    {
+      "scenario_id": "smoke-0018-auth_regression",
+      "family": "auth_regression",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1221,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.007213,
+      "tokens": 2885
+    },
+    {
+      "scenario_id": "smoke-0019-cache_staleness",
+      "family": "cache_staleness",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1865,
+      "task_success": false,
+      "programmatic_pass": false,
+      "tribunal_approve": true,
+      "consensus": false,
+      "cost_usd": 0.006753,
+      "tokens": 2701
+    },
+    {
+      "scenario_id": "smoke-0020-cost_spike",
+      "family": "cost_spike",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1001,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.008345,
+      "tokens": 3338
+    },
+    {
+      "scenario_id": "smoke-0021-database_lock",
+      "family": "database_lock",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1084,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.007743,
+      "tokens": 3097
+    },
+    {
+      "scenario_id": "smoke-0022-deployment_rollback",
+      "family": "deployment_rollback",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1942,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.007663,
+      "tokens": 3065
+    },
+    {
+      "scenario_id": "smoke-0023-misconfigured_quota",
+      "family": "misconfigured_quota",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 460,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.00349,
+      "tokens": 1396
+    },
+    {
+      "scenario_id": "smoke-0024-model_timeout",
+      "family": "model_timeout",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 379,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.010443,
+      "tokens": 4177
+    },
+    {
+      "scenario_id": "smoke-0025-policy_violation",
+      "family": "policy_violation",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1839,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.003315,
+      "tokens": 1326
+    },
+    {
+      "scenario_id": "smoke-0026-prompt_injection",
+      "family": "prompt_injection",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1198,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.009428,
+      "tokens": 3771
+    },
+    {
+      "scenario_id": "smoke-0027-queue_backlog",
+      "family": "queue_backlog",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1117,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.006443,
+      "tokens": 2577
+    },
+    {
+      "scenario_id": "smoke-0028-rate_limit",
+      "family": "rate_limit",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1466,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.00157,
+      "tokens": 628
+    },
+    {
+      "scenario_id": "smoke-0029-redis_restart",
+      "family": "redis_restart",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1235,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.004848,
+      "tokens": 1939
+    },
+    {
+      "scenario_id": "smoke-0030-schema_drift",
+      "family": "schema_drift",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 871,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.006393,
+      "tokens": 2557
+    },
+    {
+      "scenario_id": "smoke-0031-tool_loop",
+      "family": "tool_loop",
+      "benchmark": "smoke",
+      "tribunal_enabled": true,
+      "duration_ms": 1743,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true,
+      "cost_usd": 0.003078,
+      "tokens": 1231
+    },
+    {
+      "scenario_id": "smoke-0032-worker_termination",
+      "family": "worker_termination",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 1234,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": false,
+      "consensus": false,
+      "cost_usd": 0.007983,
+      "tokens": 3193
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "agentrail.name" . }}-migrate-{{ .Values.global.imageTag | trunc 12 }}
+  labels:
+    {{- include "agentrail.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "agentrail.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: migrate
+          image: {{ include "agentrail.image" (merge (dict "service" "agentrail-api") .) }}
+          imagePullPolicy: {{ .Values.global.pullPolicy }}
+          command: ["alembic", "-c", "/app/services/api/alembic.ini", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "agentrail.name" . }}-config
+            - secretRef:
+                name: {{ include "agentrail.name" . }}-secrets
+          securityContext:
+            {{- include "agentrail.securityContext" . | nindent 12 }}

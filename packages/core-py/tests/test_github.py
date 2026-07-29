@@ -110,5 +110,27 @@ def test_violations_become_annotations_anchored_to_the_policy() -> None:
     assert annotations[0]["title"] == "min_pass_rate"
 
 
+def test_annotations_include_evidence_links_and_tribunal_summary() -> None:
+    annotations = annotations_from_violations(
+        [
+            {
+                "kind": "require_tribunal_approval",
+                "message": "Tribunal verdict 'blocked' is not approved.",
+            }
+        ],
+        path=".agentrail/release-policy.json",
+        details_url="https://agentrail.example/runs/run_123",
+        trajectory_links=("https://agentrail.example/runs/run_123/trajectories/traj_1",),
+        tribunal_summary="blocked - Auditor found an approval bypass.",
+    )
+
+    assert annotations[0]["message"] == (
+        "Tribunal verdict 'blocked' is not approved.\n\n"
+        "Run evidence: https://agentrail.example/runs/run_123\n"
+        "Failed trajectories: https://agentrail.example/runs/run_123/trajectories/traj_1\n"
+        "Tribunal verdict: blocked - Auditor found an approval bypass."
+    )
+
+
 def test_no_violations_produce_no_annotations() -> None:
     assert annotations_from_violations([], path=".agentrail/release-policy.json") == ()

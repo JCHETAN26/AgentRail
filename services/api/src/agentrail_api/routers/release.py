@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, status
 
-from agentrail_api.dependencies import ActorDep, CheckRunPublisherDep, SessionDep
+from agentrail_api.dependencies import ActorDep, CheckRunPublisherDep, SessionDep, SettingsDep
 from agentrail_api.execution import service as execution_service
 from agentrail_api.identity import service as identity_service
 from agentrail_api.release import service
@@ -86,10 +86,17 @@ async def evaluate_gate(
     actor: ActorDep,
     session: SessionDep,
     publisher: CheckRunPublisherDep,
+    settings: SettingsDep,
 ) -> GateEvaluationResponse:
     principal = await execution_service.principal_for_run(session, actor, run_id)
     evaluation = await service.evaluate_run_gate(
-        session, actor, principal, run_id=run_id, request=body, publisher=publisher
+        session,
+        actor,
+        principal,
+        run_id=run_id,
+        request=body,
+        publisher=publisher,
+        web_base_url=settings.web_base_url,
     )
     await session.commit()
     await session.refresh(evaluation)
