@@ -7,6 +7,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { AgentVersionComparison } from '@/components/agent-version-comparison';
 import { ApprovalQueue } from '@/components/approval-queue';
 import { JobLauncher } from '@/components/job-launcher';
+import { TraceExplorer } from '@/components/trace-explorer';
 import { TribunalPanel } from '@/components/tribunal-panel';
 import { ApiError, createOrganisation, getMe, listProjects, signOut } from '@/lib/api';
 
@@ -168,6 +169,7 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
               />
               <AgentVersionComparison projectId={selectedProjectId} />
               <JobLauncher projectId={selectedProjectId} />
+              <TraceExplorer />
               <TribunalPanel />
               <ApprovalQueue projectId={selectedProjectId} role={selectedRole} />
             </>

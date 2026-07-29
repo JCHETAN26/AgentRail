@@ -162,10 +162,10 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] TrajectoryStep schema (node name, input, output, tool calls, latency, tokens)
 - [ ] Event capture hook in LangGraph runtime
 - [x] Automatic redaction of secrets in traces
-- [ ] Timeline visualization (step-by-step execution flow)
-- [ ] Graph state inspector (state at each step)
-- [ ] Tool call inspector (arguments, response, latency)
-- [ ] Evidence viewer (RAG contexts, rationales)
+- [x] Timeline visualization (step-by-step execution flow)
+- [x] Graph state inspector (state at each step)
+- [x] Tool call inspector (arguments, response, latency)
+- [x] Evidence viewer (RAG contexts, rationales)
 - [x] Checkpoint listing per trajectory
 - [x] Tenant isolation in trace storage
 
@@ -191,7 +191,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] Loop/latency/token/cost budget evaluator (did agent stay within budgets?)
 - [x] Evaluator versioning (code + config digest stored per run)
 - [x] Aggregation logic (roll up per-case scores to run-level metrics)
-- [ ] Comparison UI (baseline vs. candidate delta)
+- [x] Comparison UI (baseline vs. candidate delta)
 - [x] Regression filtering (show only worsened metrics)
 - [x] Category breakdown (per incident family metrics)
 
