@@ -164,6 +164,7 @@ async def evaluate_run_gate(
     run_id: str,
     request: EvaluateGateRequest,
     publisher: CheckRunPublisher | None = None,
+    web_base_url: str = "http://localhost:3737",
 ) -> GateEvaluation:
     """Judge a finished run and record the verdict.
 
@@ -296,10 +297,20 @@ async def evaluate_run_gate(
                     CheckConclusion.FAILURE if decision.blocked else CheckConclusion.SUCCESS
                 ),
                 title=decision.summary_line(),
-                summary=_check_summary(decision.as_payload(), policy_record),
+                summary=_check_summary(
+                    decision.as_payload(), policy_record, tribunal=_tribunal_summary(tribunal)
+                ),
+                details_url=_run_details_url(web_base_url, run.id),
                 annotations=annotations_from_violations(
                     [violation.as_payload() for violation in decision.violations],
                     path=POLICY_ANNOTATION_PATH,
+                    details_url=_run_details_url(web_base_url, run.id),
+                    tribunal_summary=_tribunal_summary(tribunal),
+                    trajectory_links=_trajectory_links(
+                        report.regressions,
+                        web_base_url=web_base_url,
+                        run_id=run.id,
+                    ),
                 ),
             )
         )
@@ -422,9 +433,16 @@ async def list_run_gate_evaluations(
     return list(rows.all())
 
 
-def _check_summary(decision: dict[str, Any], policy: ReleasePolicyRecord) -> str:
+def _check_summary(
+    decision: dict[str, Any],
+    policy: ReleasePolicyRecord,
+    *,
+    tribunal: str | None = None,
+) -> str:
     """The body GitHub renders under the check title."""
     lines = [f"Judged against **{policy.name}** v{policy.version}.", ""]
+    if tribunal is not None:
+        lines.extend([f"Tribunal verdict: {tribunal}", ""])
     violations = decision.get("violations") or []
     if not violations:
         lines.append("Every release rule was satisfied.")
@@ -433,6 +451,34 @@ def _check_summary(decision: dict[str, Any], policy: ReleasePolicyRecord) -> str
         lines.append("")
         lines.extend(f"- {violation['message']}" for violation in violations)
     return "\n".join(lines)
+
+
+def _run_details_url(web_base_url: str, run_id: str) -> str:
+    return f"{web_base_url.rstrip('/')}/runs/{run_id}"
+
+
+def _trajectory_links(
+    regressions: list[dict[str, Any]], *, web_base_url: str, run_id: str
+) -> tuple[str, ...]:
+    links: list[str] = []
+    for regression in regressions:
+        trajectory_id = regression.get("trajectory_id") or regression.get("failing_trajectory_id")
+        step_id = regression.get("failing_step_id")
+        if not isinstance(trajectory_id, str):
+            continue
+        link = f"{_run_details_url(web_base_url, run_id)}/trajectories/{trajectory_id}"
+        if isinstance(step_id, str):
+            link = f"{link}#step-{step_id}"
+        links.append(link)
+    return tuple(links)
+
+
+def _tribunal_summary(tribunal: Any | None) -> str | None:
+    if tribunal is None:
+        return None
+    outcome = _enum_value(tribunal.verdict.outcome)
+    reason = str(tribunal.verdict.primary_reason).strip()
+    return f"{outcome}: {reason}" if reason else str(outcome)
 
 
 def _enum_value(value: Any) -> Any:

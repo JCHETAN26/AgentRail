@@ -1,6 +1,6 @@
 """Run SLO evaluation."""
 
-from agentrail_core.observability import SloStatus, evaluate_run_slo
+from agentrail_core.observability import SloStatus, evaluate_run_slo, render_prometheus_metrics
 
 
 def test_run_slo_is_healthy_when_operational_metrics_clear_objectives() -> None:
@@ -32,3 +32,16 @@ def test_run_slo_names_every_violated_objective() -> None:
     assert decision.status == SloStatus.VIOLATED
     assert len(decision.violations) == 5
     assert any("success_rate" in violation for violation in decision.violations)
+
+
+def test_prometheus_metrics_escape_labels_and_report_readiness() -> None:
+    payload = render_prometheus_metrics(
+        service='api"one',
+        version="1\n2",
+        readiness={"postgresql": True, "redis": False},
+    )
+
+    assert 'agentrail_build_info{service="api\\"one",version="1\\n2"} 1' in payload
+    assert 'dependency="postgresql"} 1' in payload
+    assert 'dependency="redis"} 0' in payload
+    assert payload.endswith("\n")

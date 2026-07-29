@@ -1,0 +1,64 @@
+global:
+  imageRegistry: ghcr.io
+  imageNamespace: OWNER/REPO
+  imageTag: GIT_SHA
+  pullPolicy: IfNotPresent
+  environment: staging
+
+config:
+  corsAllowOrigins: '["https://agentrail.example.com"]'
+  recordedModelFallback: 'true'
+  demoQuotaRunsPerDay: '25'
+  demoQuotaItemsPerRun: '50'
+
+secrets:
+  databaseUrl: ''
+  redisUrl: ''
+  minioEndpoint: ''
+  minioAccessKey: ''
+  minioSecretKey: ''
+
+api:
+  replicas: 2
+  port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+worker:
+  replicas: 2
+  healthPort: 8200
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+
+sandbox:
+  replicas: 1
+  port: 8100
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: false
+  className: ''
+  host: agentrail.example.com
+  tlsSecretName: ''

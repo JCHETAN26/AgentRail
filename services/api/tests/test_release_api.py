@@ -468,9 +468,11 @@ class TestPullRequestProvenance:
         assert check["delivered"] is False, "recorded, never delivered — no App client exists"
         assert check["check_run"]["conclusion"] == "failure"
         assert check["check_run"]["head_sha"] == "f" * 40
+        assert check["check_run"]["details_url"].endswith(f"/runs/{run['id']}")
         assert len(check["check_run"]["output"]["annotations"]) == len(
             response.json()["violations"]
         )
+        assert check["check_run"]["output"]["annotations"][0]["message"].count("Run evidence:") == 1
 
 
 class TestRepositoryBindings:

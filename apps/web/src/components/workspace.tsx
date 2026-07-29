@@ -21,6 +21,7 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
   const queryClient = useQueryClient();
   const [organisationId, setOrganisationId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   const me = useQuery<Me>({ queryKey: ['me'], queryFn: getMe, retry: false });
 
@@ -53,6 +54,10 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
     }
   }, [me.error, onSignedOut]);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   if (me.isPending) {
     return (
       <p className="loading" role="status">
@@ -76,6 +81,43 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
 
   return (
     <>
+      <section className="demo-banner" aria-label="Recorded replay mode">
+        <div>
+          <span className="badge badge--mode">Recorded replay mode</span>
+          <strong>Deterministic demo</strong>
+          <span>No paid model keys required.</span>
+        </div>
+        <button
+          className="button button--quiet"
+          type="button"
+          onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? 'Light' : 'Dark'}
+        </button>
+      </section>
+
+      <section className="demo-tour" aria-label="Guided demo tour">
+        <ol>
+          <li>
+            <strong>Freeze</strong>
+            <span>Suite evidence</span>
+          </li>
+          <li>
+            <strong>Inspect</strong>
+            <span>Trace and replay</span>
+          </li>
+          <li>
+            <strong>Debate</strong>
+            <span>Tribunal verdict</span>
+          </li>
+          <li>
+            <strong>Gate</strong>
+            <span>Canary or block</span>
+          </li>
+        </ol>
+      </section>
+
       <section className="identity" data-testid="identity">
         <div>
           <span className="identity__label">Signed in as</span>{' '}

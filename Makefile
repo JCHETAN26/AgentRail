@@ -13,9 +13,10 @@ UV := uv
 PNPM := pnpm
 PY_SRC := packages/core-py/src services/api/src services/worker/src services/cloudops-sandbox/src
 
-.PHONY: help bootstrap dev verify format format-check lint typecheck test integration e2e \
-        build contracts contracts-check migrate migrate-status compose-up compose-up-apps \
-        compose-down compose-logs clean
+.PHONY: help bootstrap dev verify format format-check lint typecheck test test-integration integration e2e \
+        build contracts contracts-check benchmark-smoke benchmark-quality benchmark-failures \
+        benchmark-tribunal benchmark-load benchmark-report migrate migrate-status compose-up \
+        compose-up-apps compose-down compose-logs clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -59,8 +60,28 @@ test: ## Unit tests (integration tests are skipped when dependencies are absent)
 	$(UV) run pytest
 	$(PNPM) run test
 
+benchmark-smoke: ## Generate the deterministic smoke benchmark artifacts
+	$(UV) run python scripts/benchmark.py smoke
+
+benchmark-quality: ## Generate the frozen quality benchmark artifacts
+	$(UV) run python scripts/benchmark.py quality
+
+benchmark-failures: ## Generate failure-injected benchmark artifacts
+	$(UV) run python scripts/benchmark.py failures
+
+benchmark-tribunal: ## Generate tribunal quality benchmark artifacts
+	$(UV) run python scripts/benchmark.py tribunal
+
+benchmark-load: ## Generate offline load benchmark artifacts
+	$(UV) run python scripts/benchmark.py load
+
+benchmark-report: ## Generate all benchmark artifacts plus docs/benchmarks/RESUME_METRICS.md
+	$(UV) run python scripts/benchmark.py report
+
 integration: ## Tests that require real PostgreSQL and Redis (make compose-up first)
 	AGENTRAIL_REQUIRE_INTEGRATION=1 $(UV) run pytest -m integration
+
+test-integration: integration ## Alias kept for build-plan terminology
 
 chaos-duplicate: ## Redeliver a run id to the queue N times (RUN_ID=... [TIMES=3])
 	$(UV) run python scripts/chaos.py duplicate-delivery --run-id $(RUN_ID) --times $(or $(TIMES),3)

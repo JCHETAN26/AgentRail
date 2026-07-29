@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentrail.name" . }}-sandbox
+  labels:
+    {{- include "agentrail.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandbox
+spec:
+  replicas: {{ .Values.sandbox.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "agentrail.name" . }}
+      app.kubernetes.io/component: sandbox
+  template:
+    metadata:
+      labels:
+        {{- include "agentrail.labels" . | nindent 8 }}
+        app.kubernetes.io/component: sandbox
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: sandbox
+          image: {{ include "agentrail.image" (merge (dict "service" "agentrail-cloudops-sandbox") .) }}
+          imagePullPolicy: {{ .Values.global.pullPolicy }}
+          command: ["agentrail-cloudops-sandbox"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.sandbox.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "agentrail.name" . }}-config
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.sandbox.resources | nindent 12 }}
+          securityContext:
+            {{- include "agentrail.securityContext" . | nindent 12 }}

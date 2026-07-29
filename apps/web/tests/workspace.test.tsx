@@ -114,8 +114,24 @@ describe('Workspace', () => {
     renderWithQueryClient(<Workspace onSignedOut={vi.fn()} />);
 
     expect(await screen.findByTestId('identity')).toHaveTextContent('ada@example.com');
+    expect(screen.getByLabelText(/recorded replay mode/i)).toHaveTextContent('No paid model keys');
+    expect(screen.getByLabelText(/guided demo tour/i)).toHaveTextContent('Tribunal verdict');
     expect(await screen.findByTestId('organisation-context')).toHaveTextContent('Ada Labs');
     expect(await screen.findByRole('heading', { name: /run a job/i })).toBeInTheDocument();
+  });
+
+  it('lets the user switch between dark and light mode', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(ME_WITH_ORG))
+      .mockResolvedValue(json({ items: [PROJECT] }));
+
+    renderWithQueryClient(<Workspace onSignedOut={vi.fn()} />);
+    await screen.findByTestId('identity');
+
+    await userEvent.click(screen.getByRole('button', { name: /switch to light mode/i }));
+
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(screen.getByRole('button', { name: /switch to dark mode/i })).toBeInTheDocument();
   });
 
   it('prompts for a first organisation when the user has none', async () => {

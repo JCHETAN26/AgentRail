@@ -1,0 +1,131 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository }}
+
+jobs:
+  images:
+    name: images / ghcr
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - agentrail-api
+          - agentrail-worker
+          - agentrail-cloudops-sandbox
+    outputs:
+      api-image: ${{ steps.refs.outputs.api-image }}
+      worker-image: ${{ steps.refs.outputs.worker-image }}
+      sandbox-image: ${{ steps.refs.outputs.sandbox-image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Build and push immutable image
+        env:
+          SERVICE: ${{ matrix.service }}
+          IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
+        run: |
+          docker buildx build \
+            --file infra/compose/Dockerfile.python \
+            --build-arg SERVICE_PACKAGE="${SERVICE}" \
+            --label org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label org.opencontainers.image.revision="${GITHUB_SHA}" \
+            --label org.opencontainers.image.created="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --tag "${IMAGE}" \
+            --push \
+            .
+
+      - name: Emit image refs
+        id: refs
+        env:
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          echo "api-image=ghcr.io/${REPOSITORY}/agentrail-api:${SHA}" >> "${GITHUB_OUTPUT}"
+          echo "worker-image=ghcr.io/${REPOSITORY}/agentrail-worker:${SHA}" >> "${GITHUB_OUTPUT}"
+          echo "sandbox-image=ghcr.io/${REPOSITORY}/agentrail-cloudops-sandbox:${SHA}" >> "${GITHUB_OUTPUT}"
+
+  staging:
+    name: deploy / staging
+    needs: images
+    if: github.event_name == 'push' || inputs.environment == 'staging'
+    runs-on: ubuntu-24.04
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7
+
+      - name: Render staging release manifest
+        env:
+          API_IMAGE: ${{ needs.images.outputs.api-image }}
+          WORKER_IMAGE: ${{ needs.images.outputs.worker-image }}
+          SANDBOX_IMAGE: ${{ needs.images.outputs.sandbox-image }}
+        run: |
+          mkdir -p artifacts/release
+          {
+            echo "environment=staging"
+            echo "api_image=${API_IMAGE}"
+            echo "worker_image=${WORKER_IMAGE}"
+            echo "sandbox_image=${SANDBOX_IMAGE}"
+            echo "source_sha=${GITHUB_SHA}"
+          } > artifacts/release/staging.env
+
+      - name: Smoke test manifest
+        run: test -s artifacts/release/staging.env
+
+  production:
+    name: deploy / production
+    needs: images
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7
+
+      - name: Render production release manifest
+        env:
+          API_IMAGE: ${{ needs.images.outputs.api-image }}
+          WORKER_IMAGE: ${{ needs.images.outputs.worker-image }}
+          SANDBOX_IMAGE: ${{ needs.images.outputs.sandbox-image }}
+        run: |
+          mkdir -p artifacts/release
+          {
+            echo "environment=production"
+            echo "api_image=${API_IMAGE}"
+            echo "worker_image=${WORKER_IMAGE}"
+            echo "sandbox_image=${SANDBOX_IMAGE}"
+            echo "source_sha=${GITHUB_SHA}"
+          } > artifacts/release/production.env
+
+      - name: Smoke test manifest
+        run: test -s artifacts/release/production.env

@@ -22,6 +22,15 @@ class TestLiveness:
             "version": "0.1.0",
         }
 
+    async def test_metrics_is_prometheus_text(self, offline_client: httpx.AsyncClient) -> None:
+        response = await offline_client.get("/metrics")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/plain")
+        assert 'agentrail_build_info{service="agentrail-api-tests",version="0.1.0"} 1' in (
+            response.text
+        )
+
 
 class TestReadiness:
     @pytest.mark.integration

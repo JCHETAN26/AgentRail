@@ -10491,6 +10491,27 @@
         ]
       }
     },
+    "/metrics": {
+      "get": {
+        "operationId": "metrics",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Prometheus metrics",
+        "tags": [
+          "health"
+        ]
+      }
+    },
     "/readyz": {
       "get": {
         "operationId": "readyz",
