@@ -5,7 +5,7 @@ description = "AgentRail platform API"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "agentrail-core",
-    "alembic==1.14.1",
+    "alembic==1.18.5",
     # EmailStr in the identity contracts requires this at runtime.
     "email-validator==2.2.0",
     "fastapi==0.140.13",
