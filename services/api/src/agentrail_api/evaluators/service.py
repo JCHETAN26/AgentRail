@@ -39,9 +39,9 @@ async def get_baseline_report(
     evaluator set or thresholds are not comparable, so we report no baseline
     rather than subtracting unlike numbers.
     """
+    authorize(principal, Permission.RUN_READ, organisation_id=principal.organisation_id)
     if report.baseline_agent_version_id is None:
         return None
-    authorize(principal, Permission.RUN_READ, organisation_id=principal.organisation_id)
     baseline: ComparisonReport | None = await session.scalar(
         select(ComparisonReport)
         .join(Project, Project.id == ComparisonReport.project_id)
@@ -50,7 +50,8 @@ async def get_baseline_report(
             Project.organisation_id == principal.organisation_id,
             ComparisonReport.candidate_agent_version_id == report.baseline_agent_version_id,
             ComparisonReport.suite_digest == report.suite_digest,
-            ComparisonReport.run_id != report.run_id,
+            # Identifiers are ULIDs, so this is "recorded before this report"
+            # and it excludes the report itself.
             ComparisonReport.id < report.id,
         )
         .order_by(ComparisonReport.id.desc())
