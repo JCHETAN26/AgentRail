@@ -91,6 +91,8 @@ class ApiKeyResponse(BaseModel):
     expires_at: datetime | None = None
     revoked_at: datetime | None = None
     last_used_at: datetime | None = None
+    last_anomaly_at: datetime | None = None
+    anomaly_count: int = 0
 
 
 class CreatedApiKeyResponse(BaseModel):
@@ -125,6 +127,7 @@ class AuditEventResponse(BaseModel):
     action: str
     target_type: str | None
     target_id: str | None
+    context: dict[str, object]
     correlation_id: str | None
     created_at: datetime
 

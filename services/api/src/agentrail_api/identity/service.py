@@ -431,6 +431,10 @@ async def rotate_api_key(
     record.key_id = generated.key_id
     record.secret_hash = generated.secret_hash
     record.last_used_at = None
+    record.last_used_ip_hash = None
+    record.last_used_user_agent_hash = None
+    record.last_anomaly_at = None
+    record.anomaly_count = 0
     await session.flush()
 
     await record_audit(

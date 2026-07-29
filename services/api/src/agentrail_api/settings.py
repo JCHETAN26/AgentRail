@@ -31,6 +31,15 @@ class ApiSettings(DatabaseSettings, QueueSettings):
     #: Audit events older than this may be pruned by an organisation admin.
     audit_event_retention_days: int = Field(default=365, ge=1, le=3650)
 
+    #: A successful API-key request after this many idle days is audited as an
+    #: anomaly. The key is not blocked; operators get durable evidence instead.
+    api_key_inactivity_anomaly_days: int = Field(default=30, ge=1, le=3650)
+    #: Secret used to HMAC API-key client fingerprints before persistence.
+    #: Local/CI environments use a deterministic development key; deployed
+    #: environments must provide a real secret so DB readers cannot enumerate
+    #: likely IP addresses or user-agent strings.
+    api_key_fingerprint_secret: str | None = None
+
     # --- Authentication ----------------------------------------------------
     #: Where the console lives. Sign-in redirects back here.
     web_base_url: str = "http://localhost:3737"
@@ -69,6 +78,12 @@ class ApiSettings(DatabaseSettings, QueueSettings):
     def github_oauth_configured(self) -> bool:
         return bool(self.github_oauth_client_id and self.github_oauth_secret)
 
+    @property
+    def api_key_fingerprint_secret_value(self) -> str:
+        if self.api_key_fingerprint_secret:
+            return self.api_key_fingerprint_secret
+        return f"agentrail-local-api-key-fingerprint:{self.environment.value}"
+
     @model_validator(mode="after")
     def _deployed_environments_need_real_auth(self) -> ApiSettings:
         """Fail fast rather than silently exposing passwordless sign-in.
@@ -81,6 +96,11 @@ class ApiSettings(DatabaseSettings, QueueSettings):
             raise ValueError(
                 "AGENTRAIL_GITHUB_OAUTH_CLIENT_ID and AGENTRAIL_GITHUB_OAUTH_SECRET are "
                 f"required when AGENTRAIL_ENVIRONMENT is {self.environment.value}."
+            )
+        if self.environment.is_deployed and not self.api_key_fingerprint_secret:
+            raise ValueError(
+                "AGENTRAIL_API_KEY_FINGERPRINT_SECRET is required when "
+                f"AGENTRAIL_ENVIRONMENT is {self.environment.value}."
             )
         return self
 

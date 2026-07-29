@@ -13,6 +13,7 @@ by :func:`agentrail_core.identity.roles.authorize` and never here.
 
 from __future__ import annotations
 
+import hmac
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -24,6 +25,7 @@ from agentrail_core.db import set_tenant_context
 from agentrail_core.errors import ForbiddenError, UnauthenticatedError
 from agentrail_core.identity import (
     ApiKey,
+    AuditEvent,
     Membership,
     Organisation,
     Permission,
@@ -44,6 +46,7 @@ from agentrail_core.ids import new_sortable_id
 SESSION_COOKIE_NAME = "agentrail_session"
 BEARER_PREFIX = "bearer "
 LEGACY_ORGANISATION_ID = "01KYC7S3G00000000000000000"
+_FINGERPRINT_HASH_PREFIX = "agentrail-api-key-fingerprint-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,13 +177,22 @@ async def _actor_from_session_token(session: AsyncSession, token: str) -> Actor 
     return Actor(user=user)
 
 
-async def _actor_from_api_key(session: AsyncSession, token: str) -> Actor | None:
+async def _actor_from_api_key(
+    session: AsyncSession,
+    token: str,
+    *,
+    client_host: str | None,
+    user_agent: str | None,
+    inactivity_anomaly_days: int,
+    fingerprint_secret: str,
+    correlation_id: str | None,
+) -> Actor | None:
     parsed = parse_api_key(token)
     if parsed is None:
         return None
     key_id, secret = parsed
 
-    record = await session.scalar(select(ApiKey).where(ApiKey.key_id == key_id))
+    record = await session.scalar(select(ApiKey).where(ApiKey.key_id == key_id).with_for_update())
     if record is None:
         return None
     # Verify the secret before checking status, so a revoked key and an unknown
@@ -193,13 +205,30 @@ async def _actor_from_api_key(session: AsyncSession, token: str) -> Actor | None
     if record.expires_at is not None and record.expires_at <= now:
         return None
 
-    record.last_used_at = now
+    await _record_api_key_usage(
+        session,
+        record,
+        now=now,
+        client_host=client_host,
+        user_agent=user_agent,
+        inactivity_anomaly_days=inactivity_anomaly_days,
+        fingerprint_secret=fingerprint_secret,
+        correlation_id=correlation_id,
+    )
     await session.commit()
     return Actor(api_key=record)
 
 
 async def authenticate(
-    session: AsyncSession, *, cookie_token: str | None, authorization: str | None
+    session: AsyncSession,
+    *,
+    cookie_token: str | None,
+    authorization: str | None,
+    client_host: str | None = None,
+    user_agent: str | None = None,
+    inactivity_anomaly_days: int = 30,
+    fingerprint_secret: str | None = None,
+    correlation_id: str | None = None,
 ) -> Actor:
     """Resolve a credential to an :class:`Actor`, or raise.
 
@@ -207,7 +236,15 @@ async def authenticate(
     credential is never silently overridden by a stray browser cookie.
     """
     if authorization and authorization.lower().startswith(BEARER_PREFIX):
-        actor = await _actor_from_api_key(session, authorization[len(BEARER_PREFIX) :].strip())
+        actor = await _actor_from_api_key(
+            session,
+            authorization[len(BEARER_PREFIX) :].strip(),
+            client_host=client_host,
+            user_agent=user_agent,
+            inactivity_anomaly_days=inactivity_anomaly_days,
+            fingerprint_secret=fingerprint_secret or _default_fingerprint_secret(),
+            correlation_id=correlation_id,
+        )
         if actor is not None:
             return actor
         raise UnauthenticatedError("The API key is invalid, expired or revoked.")
@@ -219,6 +256,118 @@ async def authenticate(
         raise UnauthenticatedError("Your session has expired. Sign in again.")
 
     raise UnauthenticatedError("Authentication is required.")
+
+
+async def _record_api_key_usage(
+    session: AsyncSession,
+    record: ApiKey,
+    *,
+    now: datetime,
+    client_host: str | None,
+    user_agent: str | None,
+    inactivity_anomaly_days: int,
+    fingerprint_secret: str,
+    correlation_id: str | None,
+) -> None:
+    previous_last_used_at = record.last_used_at
+    previous_ip_hash = record.last_used_ip_hash
+    previous_user_agent_hash = record.last_used_user_agent_hash
+    current_ip_hash = _fingerprint_hash(client_host, secret=fingerprint_secret)
+    current_user_agent_hash = _fingerprint_hash(user_agent, secret=fingerprint_secret)
+
+    if previous_last_used_at is None:
+        _add_api_key_usage_audit_event(
+            session,
+            record,
+            action="api_key.first_used",
+            context={
+                "key_id": record.key_id,
+                "client_ip_hash": current_ip_hash,
+                "user_agent_hash": current_user_agent_hash,
+            },
+            correlation_id=correlation_id,
+        )
+
+    anomaly_reasons: list[str] = []
+    if previous_last_used_at is not None and previous_last_used_at <= now - timedelta(
+        days=inactivity_anomaly_days
+    ):
+        anomaly_reasons.append("inactive_key_reused")
+    if (
+        previous_ip_hash is not None
+        and current_ip_hash is not None
+        and previous_ip_hash != current_ip_hash
+    ):
+        anomaly_reasons.append("client_ip_changed")
+    if (
+        previous_user_agent_hash is not None
+        and current_user_agent_hash is not None
+        and previous_user_agent_hash != current_user_agent_hash
+    ):
+        anomaly_reasons.append("user_agent_changed")
+
+    if anomaly_reasons:
+        record.last_anomaly_at = now
+        record.anomaly_count += 1
+        _add_api_key_usage_audit_event(
+            session,
+            record,
+            action="api_key.anomaly_detected",
+            context={
+                "key_id": record.key_id,
+                "reasons": anomaly_reasons,
+                "previous_last_used_at": (
+                    previous_last_used_at.isoformat() if previous_last_used_at else None
+                ),
+                "client_ip_hash": current_ip_hash,
+                "user_agent_hash": current_user_agent_hash,
+                "inactivity_threshold_days": inactivity_anomaly_days,
+            },
+            correlation_id=correlation_id,
+        )
+
+    record.last_used_at = now
+    if current_ip_hash is not None:
+        record.last_used_ip_hash = current_ip_hash
+    if current_user_agent_hash is not None:
+        record.last_used_user_agent_hash = current_user_agent_hash
+
+
+def _fingerprint_hash(value: str | None, *, secret: str) -> str | None:
+    if value is None or not value.strip():
+        return None
+    return hmac.digest(
+        secret.encode(),
+        f"{_FINGERPRINT_HASH_PREFIX}:{value.strip()}".encode(),
+        "sha256",
+    ).hex()
+
+
+def _default_fingerprint_secret() -> str:
+    return "agentrail-local-api-key-fingerprint:default"
+
+
+def _add_api_key_usage_audit_event(
+    session: AsyncSession,
+    record: ApiKey,
+    *,
+    action: str,
+    context: dict[str, object],
+    correlation_id: str | None,
+) -> None:
+    session.add(
+        AuditEvent(
+            id=new_sortable_id(),
+            organisation_id=record.organisation_id,
+            actor_type="api_key",
+            actor_id=record.id,
+            action=action,
+            target_type="api_key",
+            target_id=record.id,
+            context={key: value for key, value in context.items() if value is not None},
+            correlation_id=correlation_id,
+        )
+    )
 
 
 def _scopes_from_strings(values: list[str]) -> frozenset[Permission] | None:

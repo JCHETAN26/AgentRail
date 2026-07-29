@@ -64,6 +64,9 @@ All notable changes to AgentRail are recorded here. The format follows
   strings from run/comparison evidence and prompt overrides before model prompts are assembled.
 - API keys can now be rotated in place; rotation returns the replacement token once, invalidates the
   previous bearer token immediately and records a redacted audit event.
+- API-key authentication now records first-use and suspicious-use telemetry with deployment-secret
+  HMAC client fingerprints, auditing inactive-key reuse and client fingerprint changes without
+  storing raw IP addresses or user-agent strings.
 
 ### Added — Phase 14: observability, SLOs and operations
 

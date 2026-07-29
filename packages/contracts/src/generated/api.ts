@@ -1045,6 +1045,11 @@ export interface components {
          */
         ApiKeyResponse: {
             /**
+             * Anomaly Count
+             * @default 0
+             */
+            anomaly_count: number;
+            /**
              * Created At
              * Format: date-time
              */
@@ -1058,6 +1063,8 @@ export interface components {
              * @description Public identifier. Not a credential.
              */
             key_id: string;
+            /** Last Anomaly At */
+            last_anomaly_at?: string | null;
             /** Last Used At */
             last_used_at?: string | null;
             /** Name */
@@ -1129,6 +1136,8 @@ export interface components {
             actor_id: string | null;
             /** Actor Type */
             actor_type: string;
+            /** Context */
+            context: Record<string, never>;
             /** Correlation Id */
             correlation_id: string | null;
             /**

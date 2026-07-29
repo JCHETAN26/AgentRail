@@ -8,7 +8,7 @@ import httpx
 import pytest
 from api_test_support import Tenant, sign_in
 from fastapi import FastAPI
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentrail_api.app import attach_infrastructure, create_app
@@ -124,6 +124,7 @@ class TestDevProviderAvailability:
             environment="production",
             github_oauth_client_id="id",
             github_oauth_secret="secret",
+            api_key_fingerprint_secret="fingerprint-secret",
         )
 
         assert settings.dev_auth_enabled is False
@@ -141,6 +142,7 @@ class TestDevProviderAvailability:
             environment="production",
             github_oauth_client_id="id",
             github_oauth_secret="secret",
+            api_key_fingerprint_secret="fingerprint-secret",
         )
         app = create_app(settings)
         attach_infrastructure(app, engine=db_engine, redis_client=redis_client)  # type: ignore[arg-type]
@@ -184,6 +186,208 @@ class TestApiKeys:
             )
         assert key is not None
         assert key.last_used_at is not None
+
+    async def test_first_api_key_use_is_audited_without_raw_fingerprint_data(
+        self,
+        integration_app: FastAPI,
+        tenant: Tenant,
+    ) -> None:
+        created = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys",
+            json={"name": "first-use", "role": "developer"},
+        )
+        token = created.json()["token"]
+
+        transport = httpx.ASGITransport(app=integration_app, client=("203.0.113.10", 443))
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://api",
+            headers={"authorization": f"Bearer {token}", "user-agent": "agentrail-ci/first"},
+        ) as client:
+            response = await client.get("/api/v1/auth/me")
+
+        events = await tenant.client.get(
+            f"/api/v1/organisations/{tenant.organisation_id}/audit-events"
+        )
+
+        assert response.status_code == 200
+        assert "api_key.first_used" in [event["action"] for event in events.json()["items"]]
+        assert "203.0.113.10" not in events.text
+        assert "agentrail-ci/first" not in events.text
+
+    async def test_api_key_client_fingerprint_change_is_audited_as_anomaly(
+        self,
+        integration_app: FastAPI,
+        session_factory: async_sessionmaker[AsyncSession],
+        tenant: Tenant,
+    ) -> None:
+        created = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys",
+            json={"name": "fingerprint", "role": "developer"},
+        )
+        token = created.json()["token"]
+        key_id = created.json()["key"]["id"]
+        transport = httpx.ASGITransport(app=integration_app, client=("203.0.113.10", 443))
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://api",
+            headers={"authorization": f"Bearer {token}", "user-agent": "agentrail-ci/one"},
+        ) as client:
+            assert (await client.get("/api/v1/auth/me")).status_code == 200
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://api",
+            headers={"authorization": f"Bearer {token}", "user-agent": "agentrail-ci/two"},
+        ) as client:
+            changed = await client.get("/api/v1/auth/me")
+
+        events = await tenant.client.get(
+            f"/api/v1/organisations/{tenant.organisation_id}/audit-events"
+        )
+        anomaly_events = [
+            event
+            for event in events.json()["items"]
+            if event["action"] == "api_key.anomaly_detected"
+        ]
+        async with session_factory() as session:
+            key = await session.get(ApiKey, key_id)
+            anomaly_event = await session.scalar(
+                select(AuditEvent)
+                .where(
+                    AuditEvent.organisation_id == tenant.organisation_id,
+                    AuditEvent.action == "api_key.anomaly_detected",
+                )
+                .order_by(AuditEvent.id.desc())
+            )
+
+        assert changed.status_code == 200
+        assert anomaly_events
+        assert anomaly_events[0]["context"]["reasons"] == ["user_agent_changed"]
+        assert anomaly_event is not None
+        assert anomaly_event.context["reasons"] == ["user_agent_changed"]
+        assert "agentrail-ci/one" not in events.text
+        assert "agentrail-ci/two" not in events.text
+        assert key is not None
+        assert key.anomaly_count == 1
+        assert key.last_anomaly_at is not None
+
+    async def test_inactive_api_key_reuse_is_audited_as_anomaly(
+        self,
+        integration_app: FastAPI,
+        session_factory: async_sessionmaker[AsyncSession],
+        tenant: Tenant,
+    ) -> None:
+        original_settings = integration_app.state.settings
+        integration_app.state.settings = original_settings.model_copy(
+            update={"api_key_inactivity_anomaly_days": 7}
+        )
+        created = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys",
+            json={"name": "inactive", "role": "developer"},
+        )
+        token = created.json()["token"]
+        key_id = created.json()["key"]["id"]
+        try:
+            async with session_factory() as session:
+                key = await session.get(ApiKey, key_id)
+                assert key is not None
+                key.last_used_at = datetime.now(UTC) - timedelta(days=10)
+                await session.commit()
+
+            transport = httpx.ASGITransport(app=integration_app, client=("203.0.113.20", 443))
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://api",
+                headers={"authorization": f"Bearer {token}", "user-agent": "agentrail-ci/stable"},
+            ) as client:
+                response = await client.get("/api/v1/auth/me")
+        finally:
+            integration_app.state.settings = original_settings
+
+        events = await tenant.client.get(
+            f"/api/v1/organisations/{tenant.organisation_id}/audit-events"
+        )
+        anomaly_events = [
+            event
+            for event in events.json()["items"]
+            if event["action"] == "api_key.anomaly_detected"
+        ]
+        async with session_factory() as session:
+            anomaly_event = await session.scalar(
+                select(AuditEvent)
+                .where(
+                    AuditEvent.organisation_id == tenant.organisation_id,
+                    AuditEvent.action == "api_key.anomaly_detected",
+                )
+                .order_by(AuditEvent.id.desc())
+            )
+
+        assert response.status_code == 200
+        assert anomaly_events
+        assert "inactive_key_reused" in anomaly_events[0]["context"]["reasons"]
+        assert anomaly_event is not None
+        assert "inactive_key_reused" in anomaly_event.context["reasons"]
+
+    async def test_rotation_resets_api_key_fingerprint_anomaly_state(
+        self,
+        integration_app: FastAPI,
+        session_factory: async_sessionmaker[AsyncSession],
+        tenant: Tenant,
+    ) -> None:
+        created = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys",
+            json={"name": "rotated-fingerprint", "role": "developer"},
+        )
+        old_token = created.json()["token"]
+        key_id = created.json()["key"]["id"]
+        transport = httpx.ASGITransport(app=integration_app, client=("203.0.113.30", 443))
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://api",
+            headers={"authorization": f"Bearer {old_token}", "user-agent": "agentrail-ci/one"},
+        ) as client:
+            assert (await client.get("/api/v1/auth/me")).status_code == 200
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://api",
+            headers={"authorization": f"Bearer {old_token}", "user-agent": "agentrail-ci/two"},
+        ) as client:
+            assert (await client.get("/api/v1/auth/me")).status_code == 200
+
+        async with session_factory() as session:
+            anomaly_count_before = await session.scalar(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.organisation_id == tenant.organisation_id,
+                    AuditEvent.action == "api_key.anomaly_detected",
+                )
+            )
+        rotated = await tenant.client.post(
+            f"/api/v1/organisations/{tenant.organisation_id}/api-keys/{key_id}/rotate"
+        )
+        new_token = rotated.json()["token"]
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://api",
+            headers={"authorization": f"Bearer {new_token}", "user-agent": "agentrail-ci/three"},
+        ) as client:
+            assert (await client.get("/api/v1/auth/me")).status_code == 200
+
+        async with session_factory() as session:
+            key = await session.get(ApiKey, key_id)
+            anomaly_count_after = await session.scalar(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.organisation_id == tenant.organisation_id,
+                    AuditEvent.action == "api_key.anomaly_detected",
+                )
+            )
+
+        assert key is not None
+        assert key.last_used_at is not None
+        assert key.last_used_user_agent_hash is not None
+        assert key.last_anomaly_at is None
+        assert key.anomaly_count == 0
+        assert anomaly_count_after == anomaly_count_before
 
     async def test_the_token_is_returned_once_and_never_listed(self, tenant: Tenant) -> None:
         created = await tenant.client.post(
