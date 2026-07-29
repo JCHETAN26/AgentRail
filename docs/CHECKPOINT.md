@@ -375,6 +375,8 @@ grant write access to use the gate.
 - Added API-key first-use and anomaly telemetry. Successful API-key authentication stores
   deployment-secret HMAC client fingerprints, audits first use, and audits inactive-key reuse or
   client fingerprint changes without storing raw IP addresses or user-agent strings.
+- Added dataset upload envelope validation before record parsing: dataset-specific byte ceiling,
+  basename-only source filenames, filename/type consistency and active-content marker rejection.
 - Added a PostgreSQL-backed monthly evaluation-item quota ledger per organisation, charged
   atomically during run creation so idempotent replays and failed transactions cannot double-spend.
 - Added admin-triggered audit retention pruning for expired organisation audit events, scoped by
