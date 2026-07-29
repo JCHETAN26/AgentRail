@@ -101,7 +101,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 ## Tests
 
-- [ ] Unit tests: versions are immutable after creation
+- [x] Unit tests: versions are immutable after creation
 - [x] Unit tests: digest changes when any field changes
 - [ ] Integration tests: adapter interface compliance
 

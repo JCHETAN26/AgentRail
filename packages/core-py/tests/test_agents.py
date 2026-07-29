@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy.orm.attributes import set_committed_value
 
 from agentrail_core.agents import (
+    AgentVersion,
     ApprovalPolicy,
     DeterministicAdapter,
     FrameworkAdapter,
@@ -12,6 +14,7 @@ from agentrail_core.agents import (
     RecordedAdapter,
     SideEffectClass,
     ToolContractError,
+    agent_version_changed_fields,
     canonical_tool_contracts,
     parse_tool_contracts,
 )
@@ -80,3 +83,35 @@ def test_adapter_protocol_and_builtin_adapters_validate_contracts() -> None:
     for adapter in (DeterministicAdapter(), RecordedAdapter(), LangGraphAdapter()):
         assert isinstance(adapter, FrameworkAdapter)
         adapter.validate_version(Version())  # type: ignore[arg-type]
+
+
+def test_agent_version_changed_fields_detects_immutable_payload_mutations() -> None:
+    version = AgentVersion(
+        id="01ARZ3NDEKTSV4RRFFQ69G5FV1",
+        agent_id="01ARZ3NDEKTSV4RRFFQ69G5FAG",
+        version=1,
+        content_digest="a" * 64,
+        graph_spec={},
+        prompt_bundle={"system": "original"},
+        model_config={},
+        tool_contracts=[],
+        policy_bundle={},
+        source_commit="abc1234",
+    )
+    for field in (
+        "id",
+        "agent_id",
+        "version",
+        "content_digest",
+        "graph_spec",
+        "prompt_bundle",
+        "model_config",
+        "tool_contracts",
+        "policy_bundle",
+        "source_commit",
+    ):
+        set_committed_value(version, field, getattr(version, field))
+
+    version.prompt_bundle = {"system": "mutated"}
+
+    assert agent_version_changed_fields(version) == ["prompt_bundle"]
