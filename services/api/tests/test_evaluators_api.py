@@ -25,8 +25,13 @@ async def create_run(
     *,
     name: str = "Comparison Candidate",
     baseline_agent_version_id: str | None = None,
+    suite: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    suite = await create_frozen_suite(tenant, count=1)
+    # Suite fixtures name their dataset after their shape, so a test that needs
+    # two runs in one project must build the suite once and share it. Baseline
+    # and candidate belong on the same suite anyway.
+    if suite is None:
+        suite = await create_frozen_suite(tenant, count=1)
     candidate = await create_agent_version(tenant, name)
     body: dict[str, object] = {
         "evaluation_suite_id": suite["id"],
@@ -112,10 +117,12 @@ class TestEvaluatorApi:
     async def test_comparison_reports_baseline_to_candidate_deltas(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
     ) -> None:
-        baseline_run = await create_run(tenant, name="Comparison Baseline")
+        suite = await create_frozen_suite(tenant, count=1)
+        baseline_run = await create_run(tenant, name="Comparison Baseline", suite=suite)
         await attach_comparison(session_factory, baseline_run, pass_rate=1.0)
         candidate_run = await create_run(
             tenant,
+            suite=suite,
             baseline_agent_version_id=str(baseline_run["candidate_agent_version_id"]),
         )
         await attach_comparison(session_factory, candidate_run, pass_rate=0.25)
@@ -140,10 +147,12 @@ class TestEvaluatorApi:
     async def test_comparison_omits_baseline_when_suite_digest_differs(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
     ) -> None:
-        baseline_run = await create_run(tenant, name="Comparison Baseline")
+        suite = await create_frozen_suite(tenant, count=1)
+        baseline_run = await create_run(tenant, name="Comparison Baseline", suite=suite)
         await attach_comparison(session_factory, baseline_run, suite_digest="1" * 64)
         candidate_run = await create_run(
             tenant,
+            suite=suite,
             baseline_agent_version_id=str(baseline_run["candidate_agent_version_id"]),
         )
         await attach_comparison(session_factory, candidate_run, suite_digest="2" * 64)
