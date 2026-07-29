@@ -11,6 +11,8 @@
  */
 
 import type {
+  AgentDefinitionListResponse,
+  AgentVersionListResponse,
   ApiKey,
   Approval,
   ApprovalListResponse,
@@ -174,6 +176,20 @@ export async function createApiKey(
 
 export async function listApiKeys(organisationId: string): Promise<{ items: ApiKey[] }> {
   return request<{ items: ApiKey[] }>(`/api/v1/organisations/${organisationId}/api-keys`);
+}
+
+// --- Agent Registry ---------------------------------------------------------
+
+export async function listProjectAgents(projectId: string): Promise<AgentDefinitionListResponse> {
+  return request<AgentDefinitionListResponse>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/agents`,
+  );
+}
+
+export async function listAgentVersions(agentId: string): Promise<AgentVersionListResponse> {
+  return request<AgentVersionListResponse>(
+    `/api/v1/agents/${encodeURIComponent(agentId)}/versions`,
+  );
 }
 
 // --- Jobs -------------------------------------------------------------------

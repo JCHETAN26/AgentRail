@@ -4,6 +4,7 @@ import type { Me, Organisation, Project } from '@agentrail/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 
+import { AgentVersionComparison } from '@/components/agent-version-comparison';
 import { ApprovalQueue } from '@/components/approval-queue';
 import { JobLauncher } from '@/components/job-launcher';
 import { TribunalPanel } from '@/components/tribunal-panel';
@@ -165,6 +166,7 @@ export function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
                 selected={selectedProjectId}
                 onSelect={setProjectId}
               />
+              <AgentVersionComparison projectId={selectedProjectId} />
               <JobLauncher projectId={selectedProjectId} />
               <TribunalPanel />
               <ApprovalQueue projectId={selectedProjectId} role={selectedRole} />

@@ -339,6 +339,69 @@ code {
   color: var(--text);
 }
 
+/* --- Agent registry ------------------------------------------------------ */
+
+.version-compare {
+  margin-bottom: 1rem;
+}
+
+.version-compare__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.version-compare__header h2 {
+  margin-bottom: 0.25rem;
+}
+
+.version-compare__controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.version-compare__controls .form__label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.version-compare__diff {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.version-compare__field {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.version-compare__field header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.version-compare__payloads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.version-compare__payloads span {
+  display: block;
+  margin-top: 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 /* --- Demo shell ---------------------------------------------------------- */
 
 .demo-banner {
@@ -674,6 +737,11 @@ code {
   }
 
   .tribunal__lookup-row {
+    grid-template-columns: 1fr;
+  }
+
+  .version-compare__controls,
+  .version-compare__payloads {
     grid-template-columns: 1fr;
   }
 
