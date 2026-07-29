@@ -97,7 +97,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] PolicyBundle model (immutable rules)
 - [x] Framework adapter interface (LangGraph adapter, deterministic adapter, recorded adapter)
 - [x] Version digest computation (SHA-256 of serialized config)
-- [ ] Version comparison UI (diff viewer for prompt changes)
+- [x] Version comparison UI (diff viewer for prompt changes)
 
 ## Tests
 
