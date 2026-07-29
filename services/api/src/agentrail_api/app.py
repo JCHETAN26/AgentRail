@@ -115,6 +115,11 @@ def _use_route_names_as_operation_ids(app: FastAPI) -> None:
             route.operation_id = route.name
 
 
+def _operation_id_from_endpoint(route: APIRoute) -> str:
+    """Keep generated client method names stable across FastAPI releases."""
+    return route.endpoint.__name__
+
+
 def create_app(settings: ApiSettings | None = None) -> FastAPI:
     resolved = settings or api_settings()
 
@@ -125,6 +130,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         lifespan=lifespan,
         docs_url="/docs",
         openapi_url="/openapi.json",
+        generate_unique_id_function=_operation_id_from_endpoint,
         middleware=[
             Middleware(
                 CORSMiddleware,

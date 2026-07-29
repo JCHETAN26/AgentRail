@@ -49,8 +49,10 @@ codeql (python)
 Checks to add in later phases: `agent-quality / smoke-gate` (Phase 17).
 
 The required `containers / scan` matrix also uploads `container-security-*` artifacts for each
-Python service image. Each artifact bundle includes a Python package SBOM, Docker image inspect JSON
-and provenance JSON tied to the exact repository, ref, commit SHA and workflow run.
+Python service image. The matrix runs Trivy against each built image and fails on fixed
+high/critical OS or library vulnerabilities. Each artifact bundle includes a Python package SBOM,
+Docker image inspect JSON and provenance JSON tied to the exact repository, ref, commit SHA and
+workflow run.
 
 ## Deviations from the build plan, and why
 

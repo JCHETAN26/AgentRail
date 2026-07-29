@@ -242,7 +242,7 @@ jobs:
           for marker in forbidden:
               if marker in dockerfile:
                   raise SystemExit(f"unversioned base image is forbidden: {marker}")
-          required = ("FROM python:3.12.8-slim-bookworm", "FROM ghcr.io/astral-sh/uv:0.11.32")
+          required = ("FROM python:3.12.13-slim-bookworm", "FROM ghcr.io/astral-sh/uv:0.11.32")
           for marker in required:
               if marker not in dockerfile:
                   raise SystemExit(f"expected pinned base image is missing: {marker}")
@@ -267,6 +267,16 @@ jobs:
           user="$(docker run --rm --entrypoint id ${{ matrix.service }}:ci -u)"
           echo "uid=$user"
           test "$user" != "0"
+
+      - name: Scan image vulnerabilities
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ matrix.service }}:ci
+          format: table
+          severity: CRITICAL,HIGH
+          vuln-type: os,library
+          ignore-unfixed: true
+          exit-code: '1'
 
       - name: Generate SBOM and provenance
         env:
