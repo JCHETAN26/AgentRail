@@ -38,6 +38,10 @@ import { CORRELATION_HEADER, IDEMPOTENCY_HEADER } from '@agentrail/contracts';
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'http://localhost:8000';
 
+export function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
 /**
  * A failed API call, carrying the correlation id so a user can quote it and an
  * engineer can find the exact request in the logs.
@@ -88,7 +92,7 @@ function isProblemDetail(value: unknown): value is ProblemDetail {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(apiUrl(path), {
       ...init,
       // Sends the HttpOnly session cookie cross-origin.
       credentials: 'include',

@@ -9,11 +9,13 @@ from typing import Any
 
 import pytest
 from api_test_support import Tenant
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentrail_api.routers.integrations import _KNOWN_EVENTS, _known
+from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.evaluators import ComparisonReport
-from agentrail_core.execution import EvaluationRun, EvaluationRunState
+from agentrail_core.execution import EvaluationRun, EvaluationRunState, RunItem
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.tribunal import (
     TribunalSession,
@@ -120,6 +122,42 @@ async def attach_tribunal(
         )
         session.add_all([tribunal, verdict])
         await session.commit()
+
+
+async def attach_conditional_approval(
+    session_factory: async_sessionmaker[AsyncSession],
+    run: dict[str, Any],
+    *,
+    state: ApprovalState,
+) -> str:
+    approval_id = new_sortable_id()
+    idempotency_key = hashlib.sha256(f"{run['id']}:{state.value}".encode()).hexdigest()
+    async with session_factory() as session:
+        item = await session.scalar(
+            select(RunItem).where(RunItem.run_id == str(run["id"])).limit(1)
+        )
+        assert item is not None
+        approval = ApprovalRequest(
+            id=approval_id,
+            project_id=str(run["project_id"]),
+            run_id=str(run["id"]),
+            run_item_id=item.id,
+            trajectory_id=None,
+            idempotency_key=idempotency_key,
+            tool="tribunal_conditional_release",
+            risk_level="HIGH_RISK_WRITE",
+            state=state,
+            requested_arguments={"action": "approve_conditional_release"},
+        )
+        session.add(approval)
+        db_run = await session.get(EvaluationRun, str(run["id"]))
+        assert db_run is not None
+        db_run.summary = {
+            **db_run.summary,
+            "tribunal_conditional_approval_id": approval_id,
+        }
+        await session.commit()
+    return approval_id
 
 
 async def bind_to_pull_request(
@@ -326,6 +364,52 @@ class TestTheGate:
 
         assert response.status_code == 200
         assert response.json()["outcome"] == "passed"
+
+    async def test_required_tribunal_approval_blocks_pending_conditional_verdict(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_report(session_factory, run, pass_rate=0.98, regressions=0)
+        await attach_tribunal(session_factory, run, outcome=TribunalVerdictOutcome.CONDITIONAL)
+        await attach_conditional_approval(session_factory, run, state=ApprovalState.PENDING)
+        policy = await create_policy(
+            tenant,
+            "Tribunal required",
+            {**LENIENT_POLICY, "require_tribunal_approval": True},
+        )
+
+        response = await tenant.client.post(
+            f"/api/v1/evaluation-runs/{run['id']}/gate",
+            json={"release_policy_id": policy["id"]},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["outcome"] == "blocked"
+        assert body["violations"][0]["kind"] == "require_tribunal_approval"
+        assert "human review" in body["violations"][0]["message"]
+
+    async def test_required_tribunal_approval_allows_approved_conditional_verdict(
+        self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]
+    ) -> None:
+        run = await create_run(tenant)
+        await attach_report(session_factory, run, pass_rate=0.98, regressions=0)
+        await attach_tribunal(session_factory, run, outcome=TribunalVerdictOutcome.CONDITIONAL)
+        await attach_conditional_approval(session_factory, run, state=ApprovalState.APPROVED)
+        policy = await create_policy(
+            tenant,
+            "Tribunal required",
+            {**LENIENT_POLICY, "require_tribunal_approval": True},
+        )
+
+        response = await tenant.client.post(
+            f"/api/v1/evaluation-runs/{run['id']}/gate",
+            json={"release_policy_id": policy["id"]},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["outcome"] == "passed"
+        assert response.json()["violations"] == []
 
     async def test_gating_the_same_run_twice_returns_one_recorded_verdict(
         self, tenant: Tenant, session_factory: async_sessionmaker[AsyncSession]

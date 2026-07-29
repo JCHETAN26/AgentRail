@@ -12,6 +12,7 @@ import { useId, useState, type FormEvent } from 'react';
 
 import {
   ApiError,
+  apiUrl,
   createTribunalReplay,
   createTribunalSession,
   getTribunalSession,
@@ -381,7 +382,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function trajectoryStepHref(link: EvidenceStepLink): string {
   const params = link.stepType ? `?step_type=${encodeURIComponent(link.stepType)}` : '';
-  return `/api/v1/trajectories/${encodeURIComponent(link.trajectoryId)}/steps${params}#${encodeURIComponent(link.stepId)}`;
+  return apiUrl(
+    `/api/v1/trajectories/${encodeURIComponent(link.trajectoryId)}/steps${params}#${encodeURIComponent(link.stepId)}`,
+  );
 }
 
 function RoleFindings({

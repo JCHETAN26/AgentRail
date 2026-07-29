@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.datasets import Dataset, DatasetVersion, EvaluationSuite
 from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import EvaluationRun, EvaluationRunState, RunItem, RunItemState
@@ -126,9 +127,10 @@ def test_tribunal_gate_forces_blocked_runs_to_failed() -> None:
         is EvaluationRunState.PASSED
     )
     assert (
-        _aggregate_run_state(failed_count=1, tribunal_outcome="approved")
-        is EvaluationRunState.FAILED
+        _aggregate_run_state(failed_count=1, tribunal_outcome="conditional")
+        is EvaluationRunState.PASSED
     )
+    assert _aggregate_run_state(failed_count=1, tribunal_outcome=None) is EvaluationRunState.FAILED
 
 
 def test_tribunal_gate_summary_marks_conditional_as_approval_required() -> None:
@@ -350,10 +352,18 @@ class TestEvaluationRunRunner:
             tribunal = await session.scalar(
                 select(TribunalSession).where(TribunalSession.run_id == run_id)
             )
+            approval = await session.scalar(
+                select(ApprovalRequest).where(ApprovalRequest.run_id == run_id)
+            )
         assert run is not None
         assert tribunal is not None
+        assert approval is not None
         assert tribunal.outcome == "conditional"
         assert run.state == EvaluationRunState.PASSED
+        assert str(approval.state) == ApprovalState.PENDING.value
+        assert approval.tool == "tribunal_conditional_release"
+        assert run.summary["tribunal_conditional_approval_id"] == approval.id
+        assert run.summary["tribunal_conditional_approval_state"] == "PENDING"
         assert run.summary["tribunal_gate"]["effect"] == "passed_with_warnings"
         assert run.summary["tribunal_gate"]["requires_human_approval"] is True
 

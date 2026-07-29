@@ -133,19 +133,44 @@ def test_required_tribunal_approval_blocks_when_verdict_is_absent() -> None:
     assert "absent" in decision.violations[0].message
 
 
-@pytest.mark.parametrize("outcome", ["blocked", "conditional"])
-def test_required_tribunal_approval_blocks_non_approved_verdicts(outcome: str) -> None:
+def test_required_tribunal_approval_blocks_blocked_verdicts() -> None:
     decision = evaluate_gate(
         ReleasePolicy(require_tribunal_approval=True),
         summary=PASSING_SUMMARY,
         evaluator_metrics=EVALUATORS,
         category_metrics=CATEGORIES,
-        tribunal={"outcome": outcome},
+        tribunal={"outcome": "blocked"},
     )
 
     assert decision.blocked is True
     assert decision.violations[0].subject == "tribunal"
-    assert outcome in decision.violations[0].message
+    assert "blocked" in decision.violations[0].message
+
+
+def test_required_tribunal_approval_blocks_pending_conditional_verdicts() -> None:
+    decision = evaluate_gate(
+        ReleasePolicy(require_tribunal_approval=True),
+        summary=PASSING_SUMMARY,
+        evaluator_metrics=EVALUATORS,
+        category_metrics=CATEGORIES,
+        tribunal={"outcome": "conditional", "conditional_approval_state": "PENDING"},
+    )
+
+    assert decision.blocked is True
+    assert decision.violations[0].subject == "tribunal"
+    assert "human review" in decision.violations[0].message
+
+
+def test_required_tribunal_approval_passes_conditional_verdict_after_human_approval() -> None:
+    decision = evaluate_gate(
+        ReleasePolicy(require_tribunal_approval=True),
+        summary=PASSING_SUMMARY,
+        evaluator_metrics=EVALUATORS,
+        category_metrics=CATEGORIES,
+        tribunal={"outcome": "conditional", "conditional_approval_state": "APPROVED"},
+    )
+
+    assert decision.outcome is GateOutcome.PASSED
 
 
 def test_required_tribunal_approval_passes_with_approved_verdict() -> None:

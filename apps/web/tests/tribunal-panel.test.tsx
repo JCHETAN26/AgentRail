@@ -170,7 +170,7 @@ describe('TribunalPanel', () => {
     expect(screen.getByLabelText(/finding evidence links/i)).toHaveTextContent('item 3 - step 5');
     expect(screen.getByRole('link', { name: /item 3 - step 5/i })).toHaveAttribute(
       'href',
-      '/api/v1/trajectories/01ARZ3NDEKTSV4RRFFQ69G5TR/steps?step_type=final_result#01ARZ3NDEKTSV4RRFFQ69G5ST',
+      'http://localhost:8000/api/v1/trajectories/01ARZ3NDEKTSV4RRFFQ69G5TR/steps?step_type=final_result#01ARZ3NDEKTSV4RRFFQ69G5ST',
     );
     expect(vi.mocked(fetch).mock.calls[0]![1]?.method).toBe('POST');
   });
