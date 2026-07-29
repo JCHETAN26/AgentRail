@@ -26,7 +26,7 @@ const TRIBUNAL = {
   id: '01ARZ3NDEKTSV4RRFFQ69G5FAT',
   project_id: '01ARZ3NDEKTSV4RRFFQ69G5FAX',
   run_id: RUN_ID,
-  state: 'completed',
+  state: 'PUBLISHED',
   outcome: 'blocked',
   summary: { agent_count: 6, finding_count: 2, blocker_count: 1 },
   created_by: null,
@@ -40,6 +40,35 @@ const TRIBUNAL = {
     evidence: {},
     created_at: '2026-07-28T00:00:00Z',
   },
+  rounds: [
+    {
+      id: '01ARZ3NDEKTSV4RRFFQ69G5RB1',
+      sequence: 1,
+      round: 'evidence',
+      state: 'TRIBUNAL_EVIDENCE',
+      summary: { finding_count: 2, argument_count: 0 },
+      started_at: '2026-07-28T00:00:00Z',
+      completed_at: '2026-07-28T00:00:00Z',
+    },
+    {
+      id: '01ARZ3NDEKTSV4RRFFQ69G5RB2',
+      sequence: 2,
+      round: 'debate',
+      state: 'TRIBUNAL_DEBATE',
+      summary: { finding_count: 0, argument_count: 0 },
+      started_at: '2026-07-28T00:00:00Z',
+      completed_at: '2026-07-28T00:00:00Z',
+    },
+    {
+      id: '01ARZ3NDEKTSV4RRFFQ69G5RB3',
+      sequence: 3,
+      round: 'verdict',
+      state: 'TRIBUNAL_VERDICT',
+      summary: { finding_count: 0, argument_count: 1, outcome: 'blocked' },
+      started_at: '2026-07-28T00:00:00Z',
+      completed_at: '2026-07-28T00:00:00Z',
+    },
+  ],
   findings: [
     {
       id: '01ARZ3NDEKTSV4RRFFQ69G5FA1',
@@ -125,6 +154,7 @@ describe('TribunalPanel', () => {
     expect(screen.getByTestId('tribunal-result')).toHaveTextContent(
       'Comparison evidence is missing.',
     );
+    expect(screen.getByLabelText(/tribunal state machine/i)).toHaveTextContent('TRIBUNAL_VERDICT');
     expect(vi.mocked(fetch).mock.calls[0]![1]?.method).toBe('POST');
   });
 

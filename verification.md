@@ -208,13 +208,13 @@ Use this checklist to track progress. Check an item only when it is implemented,
 ## Tribunal Architecture
 
 - [x] TribunalSession model (linked to EvaluationRun, config, state)
-- [ ] TribunalRound model (EVIDENCE | DEBATE | VERDICT)
+- [x] TribunalRound model (EVIDENCE | DEBATE | VERDICT)
 - [x] Blackboard schema:
   - findings[]: agent, type (safety|accuracy|cost|drift|policy), severity (info|warning|critical|blocker), evidence, confidence
   - arguments[]: agent, position (for|against|neutral), target_finding_id, evidence
   - verdict: status (approved|blocked|conditional), primary_reason, dissent, required_actions[], confidence
 - [x] PostgreSQL schema for tribunal_sessions, tribunal_findings, tribunal_arguments, tribunal_verdicts
-- [ ] Tribunal state machine: TRIBUNAL_QUEUED → TRIBUNAL_EVIDENCE → TRIBUNAL_DEBATE → TRIBUNAL_VERDICT → PUBLISHED
+- [x] Tribunal state machine: TRIBUNAL_QUEUED → TRIBUNAL_EVIDENCE → TRIBUNAL_DEBATE → TRIBUNAL_VERDICT → PUBLISHED
 
 ## Specialist Agents (LangGraph Nodes)
 

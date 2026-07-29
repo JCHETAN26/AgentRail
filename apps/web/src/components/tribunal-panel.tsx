@@ -166,6 +166,15 @@ function TribunalResult({ tribunal }: { tribunal: TribunalSession }) {
         </div>
       </dl>
 
+      <ol className="tribunal__rounds" aria-label="Tribunal state machine">
+        {tribunal.rounds.map((round) => (
+          <li key={round.id}>
+            <strong>{round.round}</strong>
+            <span className="tribunal__meta">{round.state}</span>
+          </li>
+        ))}
+      </ol>
+
       <div className="tribunal__roles">
         {ROLES.map((role) => (
           <RoleFindings key={role} role={role} findings={findingsByRole.get(role) ?? []} />

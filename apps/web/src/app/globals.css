@@ -588,6 +588,25 @@ code {
   margin-top: 1rem;
 }
 
+.tribunal__rounds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tribunal__rounds li {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.65rem;
+}
+
+.tribunal__rounds strong {
+  display: block;
+}
+
 .tribunal__role {
   border: 1px solid var(--border);
   border-radius: 0.5rem;
@@ -740,6 +759,7 @@ code {
     grid-template-columns: 1fr;
   }
 
+  .tribunal__rounds,
   .version-compare__controls,
   .version-compare__payloads {
     grid-template-columns: 1fr;

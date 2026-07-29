@@ -4283,6 +4283,55 @@
         "title": "TribunalRound",
         "type": "string"
       },
+      "TribunalRoundResponse": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "round": {
+            "$ref": "#/components/schemas/TribunalRound"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TribunalSessionState"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "sequence",
+          "round",
+          "state",
+          "started_at",
+          "completed_at"
+        ],
+        "title": "TribunalRoundResponse",
+        "type": "object"
+      },
       "TribunalSessionResponse": {
         "properties": {
           "arguments": {
@@ -4338,6 +4387,13 @@
             "title": "Project Id",
             "type": "string"
           },
+          "rounds": {
+            "items": {
+              "$ref": "#/components/schemas/TribunalRoundResponse"
+            },
+            "title": "Rounds",
+            "type": "array"
+          },
           "run_id": {
             "title": "Run Id",
             "type": "string"
@@ -4363,6 +4419,7 @@
           "created_at",
           "completed_at",
           "verdict",
+          "rounds",
           "findings",
           "arguments",
           "blackboard"
@@ -4372,7 +4429,11 @@
       },
       "TribunalSessionState": {
         "enum": [
-          "completed"
+          "TRIBUNAL_QUEUED",
+          "TRIBUNAL_EVIDENCE",
+          "TRIBUNAL_DEBATE",
+          "TRIBUNAL_VERDICT",
+          "PUBLISHED"
         ],
         "title": "TribunalSessionState",
         "type": "string"

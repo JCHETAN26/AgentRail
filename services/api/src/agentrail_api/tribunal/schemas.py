@@ -56,6 +56,18 @@ class TribunalArgumentResponse(BaseModel):
     created_at: datetime
 
 
+class TribunalRoundResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    sequence: int
+    round: TribunalRound
+    state: TribunalSessionState
+    summary: dict[str, Any] = Field(default_factory=dict)
+    started_at: datetime
+    completed_at: datetime | None
+
+
 class TribunalVerdictResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,6 +92,7 @@ class TribunalSessionResponse(BaseModel):
     created_at: datetime
     completed_at: datetime
     verdict: TribunalVerdictResponse
+    rounds: list[TribunalRoundResponse]
     findings: list[TribunalFindingResponse]
     arguments: list[TribunalArgumentResponse]
     blackboard: list[TribunalBlackboardEntryResponse]

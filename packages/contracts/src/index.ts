@@ -73,6 +73,7 @@ export type TribunalSession = Schemas['TribunalSessionResponse'];
 export type TribunalVerdict = Schemas['TribunalVerdictResponse'];
 export type TribunalFinding = Schemas['TribunalFindingResponse'];
 export type TribunalArgument = Schemas['TribunalArgumentResponse'];
+export type TribunalRoundRecord = Schemas['TribunalRoundResponse'];
 export type TribunalBlackboardEntry = Schemas['TribunalBlackboardEntryResponse'];
 export type TribunalAgentRole = Schemas['TribunalAgentRole'];
 export type TribunalVerdictOutcome = Schemas['TribunalVerdictOutcome'];
