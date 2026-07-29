@@ -346,18 +346,24 @@ def render_markdown(report: BenchmarkReport) -> str:
 
 def render_resume_metrics(reports: list[BenchmarkReport]) -> str:
     total_scenarios = sum(report.scenario_count for report in reports)
+    intro = (
+        "These numbers are generated from deterministic frozen synthetic scenarios, not tuned "
+        + "against the implementation after the fact. Each row links to its raw JSON artifact."
+    )
+    table_header = (
+        "| Benchmark | Scenarios | Task success | Tribunal consensus | False block | "
+        + "False approve | Gate precision | Gate recall | Raw artifact |"
+    )
     lines = [
         "# AgentRail Resume Metrics",
         "",
-        "These numbers are generated from deterministic frozen synthetic scenarios, not tuned "
-        "against the implementation after the fact. Each row links to its raw JSON artifact.",
+        intro,
         "",
         f"- Total frozen scenarios: `{total_scenarios}`",
         "- Deterministic seed: `agentrail-v1-frozen`",
         "- Paid model-provider credentials required: `false`",
         "",
-        "| Benchmark | Scenarios | Task success | Tribunal consensus | False block | "
-        "False approve | Gate precision | Gate recall | Raw artifact |",
+        table_header,
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for report in reports:
@@ -367,13 +373,17 @@ def render_resume_metrics(reports: list[BenchmarkReport]) -> str:
         false_approve = report.metrics["false_approve"]
         precision = report.metrics["release_gate_precision"]
         recall = report.metrics["release_gate_recall"]
+        artifact_link = f"[{report.raw_artifact}](/{report.raw_artifact})"
         lines.append(
             f"| {report.benchmark} | {report.scenario_count} | {task_success['rate']:.3f} | "
             f"{consensus['rate']:.3f} | {false_block['rate']:.3f} | "
             f"{false_approve['rate']:.3f} | {precision['rate']:.3f} | "
-            f"{recall['rate']:.3f} | [{report.raw_artifact}](/"
-            f"{report.raw_artifact}) |"
+            f"{recall['rate']:.3f} | {artifact_link} |"
         )
+    footer = (
+        "The benchmark generator records scenario ids, benchmark seed, runtime metadata, "
+        + "confidence intervals, per-family confusion matrices, and raw per-scenario rows."
+    )
     lines.extend(
         [
             "",
@@ -383,8 +393,7 @@ def render_resume_metrics(reports: list[BenchmarkReport]) -> str:
             "make benchmark-report",
             "```",
             "",
-            "The benchmark generator records scenario ids, benchmark seed, runtime metadata, "
-            "confidence intervals, per-family confusion matrices, and raw per-scenario rows.",
+            footer,
             "",
         ]
     )
