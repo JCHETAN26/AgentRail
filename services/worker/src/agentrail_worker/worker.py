@@ -120,6 +120,10 @@ class Worker:
                 continue  # Idle timeout; re-check the stop flag.
             queue_key, identifier = work
 
+            if self._stop.is_set():
+                await self._restore_work(queue_key, identifier)
+                return
+
             if queue_key == self._settings.job_queue_key:
                 job_outcome = await self._runner.process(identifier)
                 if job_outcome is JobOutcome.MISSING:
@@ -138,6 +142,17 @@ class Worker:
             return None
         queue_key, identifier = result
         return str(queue_key), str(identifier)
+
+    async def _restore_work(self, queue_key: str, identifier: str) -> None:
+        await self._redis.lpush(queue_key, identifier)  # type: ignore[misc]
+        logger.info(
+            "worker_shutdown_restored_unclaimed_work",
+            extra={
+                "worker_id": self._settings.worker_id,
+                "queue_key": queue_key,
+                "identifier": identifier,
+            },
+        )
 
     async def _recovery_loop(self) -> None:
         """Re-publish jobs stranded in PENDING.

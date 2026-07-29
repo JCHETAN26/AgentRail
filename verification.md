@@ -83,7 +83,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 - [x] Unit tests for every tool contract
 - [x] Integration tests: duplicate idempotency_key returns original result
-- [ ] Integration tests: forbidden tools are rejected
+- [x] Integration tests: forbidden tools are rejected
 
 ---
 
@@ -143,7 +143,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] Retry budgets (max attempts, backoff strategy)
 - [ ] PostgreSQL checkpointer for LangGraph (durable checkpoints)
 - [x] SSE progress streaming to dashboard
-- [ ] Graceful worker shutdown (finish in-flight, reject new)
+- [x] Graceful worker shutdown (finish in-flight, reject new)
 
 ## Tests
 
