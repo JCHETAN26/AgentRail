@@ -142,6 +142,28 @@ class TestConsumeLoop:
         assert job is not None
         assert job.state == JobState.COMPLETED
 
+    async def test_shutdown_rejects_new_work_that_arrives_after_stop(
+        self,
+        worker_settings: WorkerSettings,
+        session_factory: async_sessionmaker[AsyncSession],
+        redis_client: redis.Redis,
+        make_job: JobFactory,
+    ) -> None:
+        job_id = await make_job()
+        worker = Worker(worker_settings)
+        run_task = asyncio.create_task(worker.run())
+
+        worker.request_stop()
+        await publish_job(redis_client, worker_settings.job_queue_key, job_id)
+        await asyncio.wait_for(run_task, timeout=POLL_TIMEOUT)
+
+        async with session_factory() as session:
+            job = await session.get(Job, job_id)
+        assert job is not None
+        assert job.state == JobState.PENDING
+        assert job.worker_id is None
+        assert await queue_depth(redis_client, worker_settings.job_queue_key) == 1
+
     async def test_a_message_for_a_missing_job_is_dropped_without_stalling_the_loop(
         self,
         worker_settings: WorkerSettings,
