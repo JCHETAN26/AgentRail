@@ -15,6 +15,8 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.settings import DatabaseSettings
 from agentrail_worker.langgraph_executor import (
+    GraphSpecError,
+    LangGraphExecutor,
     ToolInvocation,
     ToolResult,
     build_graph,
@@ -131,3 +133,44 @@ class TestDurableCheckpoints:
         assert first.values["partition"] == "p0"
         assert second.values["item_index"] == 2
         assert second.values["partition"] == "p1"
+
+
+class TestExecutorResume:
+    async def test_execute_resumes_instead_of_re_running(self, conn_string: str) -> None:
+        """The production path, not a hand-rolled equivalent.
+
+        `LangGraphExecutor.execute` used to hand `initial` to `astream` every
+        time. On a retried item — same thread id, committed checkpoints — that
+        is a fresh invocation from START, so every tool node ran again and was
+        charged again.
+        """
+        executor = LangGraphExecutor(database_url=conn_string)
+        thread_id = f"item-{new_sortable_id()}"
+        first, second = CountingGateway(), CountingGateway()
+
+        original = await executor.execute(
+            graph_spec=SPEC, gateway=first, thread_id=thread_id, item_index=7, partition="p0"
+        )
+        replay = await executor.execute(
+            graph_spec=SPEC, gateway=second, thread_id=thread_id, item_index=7, partition="p0"
+        )
+
+        assert len(first.calls) == 1
+        assert original.resumed is False
+        assert original.passed is True
+        # The retry resumed a finished thread: nothing left to do, nothing re-run.
+        assert second.calls == []
+        assert replay.resumed is True
+
+    async def test_a_reserved_node_name_is_a_graph_spec_error(self, conn_string: str) -> None:
+        executor = LangGraphExecutor(database_url=conn_string)
+
+        # Not a ValueError escaping to the consume loop and killing the worker.
+        with pytest.raises(GraphSpecError):
+            await executor.execute(
+                graph_spec={"nodes": [{"name": "__start__"}]},
+                gateway=CountingGateway(),
+                thread_id=f"item-{new_sortable_id()}",
+                item_index=0,
+                partition="p0",
+            )

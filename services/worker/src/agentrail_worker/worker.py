@@ -67,6 +67,9 @@ class Worker:
             openai_api_key=settings.openai_api_key,
             openai_base_url=settings.openai_base_url,
             tribunal_model_timeout_seconds=settings.tribunal_model_timeout_seconds,
+            # LangGraph's checkpointer talks to the same database, through its
+            # own connection rather than our SQLAlchemy engine.
+            database_url=str(settings.database_url),
         )
 
     def request_stop(self) -> None:

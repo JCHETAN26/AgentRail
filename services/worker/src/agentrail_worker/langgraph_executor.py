@@ -42,6 +42,10 @@ DEFAULT_NODE = "agent"
 #: Graph specs may not nominate arbitrary Python; only these node kinds exist.
 _SUPPORTED_NODE_KINDS = frozenset({"tool_call", "evidence", "decision"})
 
+#: LangGraph's own graph sentinels. A spec naming one of these is valid JSON but
+#: makes ``add_node`` raise ValueError, which is not the error the runner catches.
+_RESERVED_NODE_NAMES = frozenset({START, END, "__start__", "__end__"})
+
 
 class GraphSpecError(ValueError):
     """The agent version's ``graph_spec`` cannot be compiled into a graph."""
@@ -110,6 +114,8 @@ class ExecutionOutcome:
     final_state: dict[str, Any] = field(default_factory=dict)
     passed: bool = False
     thread_id: str = ""
+    #: True when this run continued a thread that already had checkpoints.
+    resumed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,11 +161,16 @@ def parse_graph_spec(spec: Any) -> list[GraphNode]:
         name = raw.get("name") or f"node_{index}"
         if not isinstance(name, str) or not name.strip():
             raise GraphSpecError(f"graph_spec.nodes[{index}].name must be a non-empty string")
+        if name in _RESERVED_NODE_NAMES:
+            raise GraphSpecError(f"graph_spec.nodes[{index}].name is reserved by LangGraph: {name}")
         if name in seen:
             raise GraphSpecError(f"duplicate node name: {name}")
         seen.add(name)
         kind = raw.get("kind", "decision")
-        if kind not in _SUPPORTED_NODE_KINDS:
+        # Tenant JSON can hold a list or object here, which is unhashable and
+        # would raise TypeError from the set membership below instead of the
+        # GraphSpecError this function promises.
+        if not isinstance(kind, str) or kind not in _SUPPORTED_NODE_KINDS:
             supported = ", ".join(sorted(_SUPPORTED_NODE_KINDS))
             raise GraphSpecError(
                 f"graph_spec.nodes[{index}].kind must be one of: {supported}; got {kind!r}"
@@ -251,20 +262,35 @@ class LangGraphExecutor:
         thread_id: str,
         item_index: int,
         partition: str,
+        sink: list[CapturedEvent] | None = None,
     ) -> ExecutionOutcome:
+        """Run the graph.
+
+        ``sink`` receives each captured event as it happens. A platform halt
+        (policy denial, exhausted budget, approval pause) unwinds the graph by
+        exception, so a caller that wants the transitions recorded before the
+        halt has to be handed them as they occur rather than in the return value.
+        """
         nodes = parse_graph_spec(graph_spec)
         async with AsyncPostgresSaver.from_conn_string(self._conn_string) as checkpointer:
             # Idempotent; LangGraph creates its own checkpoint tables. Kept here
             # rather than in an Alembic revision because the schema belongs to
             # LangGraph and moves with the dependency, not with our migrations.
             await checkpointer.setup()
-            compiled = build_graph(nodes, gateway).compile(checkpointer=checkpointer)
+            try:
+                compiled = build_graph(nodes, gateway).compile(checkpointer=checkpointer)
+            except ValueError as invalid:
+                # LangGraph rejects some topologies only at construction time.
+                # The runner settles an item on GraphSpecError; anything else
+                # escapes to the consume loop and takes the worker down.
+                raise GraphSpecError(str(invalid)) from invalid
             return await self._stream(
                 compiled,
                 nodes=nodes,
                 thread_id=thread_id,
                 item_index=item_index,
                 partition=partition,
+                sink=sink,
             )
 
     async def _stream(
@@ -275,6 +301,7 @@ class LangGraphExecutor:
         thread_id: str,
         item_index: int,
         partition: str,
+        sink: list[CapturedEvent] | None = None,
     ) -> ExecutionOutcome:
         kinds = {node.name: node.kind for node in nodes}
         config = {"configurable": {"thread_id": thread_id}}
@@ -288,20 +315,33 @@ class LangGraphExecutor:
         outcome = ExecutionOutcome(thread_id=thread_id)
         merged: dict[str, Any] = dict(initial)
 
+        # A retried item reuses its thread id. LangGraph treats *any* non-None
+        # input on an existing thread as a fresh invocation from START, which
+        # would re-run already-committed tool nodes and charge their budgets a
+        # second time. Resuming means handing it None and letting the saved
+        # `next` tasks continue.
+        snapshot = await compiled.aget_state(config)
+        resuming = snapshot is not None and snapshot.created_at is not None
+        if resuming:
+            merged = dict(snapshot.values)
+            outcome.resumed = True
+
         # `updates` yields one payload per node as it completes: the event
         # capture hook. `values` would only ever give the accumulated state and
         # would lose which node produced what.
-        async for update in compiled.astream(initial, config=config, stream_mode="updates"):
+        stream_input = None if resuming else initial
+        async for update in compiled.astream(stream_input, config=config, stream_mode="updates"):
             for node_name, node_state in update.items():
                 if isinstance(node_state, dict):
                     merged.update(node_state)
-                outcome.events.append(
-                    CapturedEvent(
-                        node=node_name,
-                        kind=kinds.get(node_name, "decision"),
-                        state=dict(merged),
-                    )
+                event = CapturedEvent(
+                    node=node_name,
+                    kind=kinds.get(node_name, "decision"),
+                    state=dict(merged),
                 )
+                outcome.events.append(event)
+                if sink is not None:
+                    sink.append(event)
         outcome.final_state = merged
         outcome.passed = bool(merged.get("passed", False))
         logger.info(

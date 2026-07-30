@@ -65,6 +65,13 @@ from agentrail_core.tribunal import (
     tribunal_enabled,
     validate_tribunal_config,
 )
+from agentrail_worker.langgraph_executor import (
+    CapturedEvent,
+    GraphSpecError,
+    LangGraphExecutor,
+    ToolInvocation,
+    ToolResult,
+)
 
 logger = get_logger(__name__)
 _TRIBUNAL_CONDITIONAL_APPROVAL_TOOL = "tribunal_conditional_release"
@@ -292,6 +299,8 @@ _FAULT_STEP_BASE = 50
 #: CloudOps remediation tool it stands in for, so the ledger reads the way it
 #: will once a real agent runtime is choosing the tool.
 _REMEDIATION_TOOL = "restart_service"
+#: model_config.provider value that selects the LangGraph execution path.
+_LANGGRAPH_PROVIDER = "langgraph"
 
 #: Its own band again, above the fault steps, for the same reason: attempts
 #: share a trajectory, and an item can park for approval more than once.
@@ -315,6 +324,106 @@ class ClaimedRun:
     item_count: int
 
 
+class _HaltedByPlatform(Exception):
+    """Policy, budget or approval stopped the graph. The item is already settled."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class _RunnerToolGateway:
+    """The ToolGateway a LangGraph run calls instead of touching a tool.
+
+    Every guarantee the recorded path enforces inline is enforced here, in the
+    same order and for the same reason: charge the budget, ask policy, then
+    apply the effect through the idempotent ledger. The effect reaches the world
+    before any fault can kill the attempt, so a retry finds the ledger row and
+    declines to act a second time.
+
+    A graph cannot opt out of this, because it has no other way to call a tool.
+    """
+
+    def __init__(
+        self,
+        runner: EvaluationRunRunner,
+        session: AsyncSession,
+        *,
+        run: EvaluationRun,
+        item: RunItem,
+        trajectory: Trajectory,
+        attempt: int,
+        ledger: BudgetLedger,
+    ) -> None:
+        self._runner = runner
+        self._session = session
+        self._run = run
+        self._item = item
+        self._trajectory = trajectory
+        self._attempt = attempt
+        self.ledger = ledger
+        #: Step 1 is the graph-state step the runner writes before streaming.
+        self._step_index = 1
+        self.applied: list[dict[str, Any]] = []
+
+    async def invoke(self, invocation: ToolInvocation) -> ToolResult:
+        self._step_index += 1
+        step_index = self._step_index
+        try:
+            self.ledger = self.ledger.charge(BudgetKind.TOOL_CALLS, 1)
+            self.ledger = self.ledger.charge(BudgetKind.LOOP_ITERATIONS, 1)
+        except BudgetExceededError as exceeded:
+            await self._runner._fail_item(
+                self._session,
+                item=self._item,
+                trajectory=self._trajectory,
+                attempt=self._attempt,
+                retryable=False,
+                error_code="budget_exhausted",
+                error_message=str(exceeded),
+                fault_payload=None,
+                budget_state=exceeded.ledger.as_payload(),
+                title=f"Budget exhausted: {exceeded.kind.value}",
+            )
+            raise _HaltedByPlatform("budget_exhausted") from exceeded
+
+        gate = await self._runner._policy_gate(
+            self._session,
+            run=self._run,
+            item=self._item,
+            trajectory=self._trajectory,
+            attempt=self._attempt,
+            arguments=dict(invocation.arguments),
+            budget_state=self.ledger.as_payload(),
+            tool=invocation.tool,
+            step_index=step_index,
+        )
+        if gate.halted:
+            raise _HaltedByPlatform("policy_gate")
+
+        record, was_applied = await apply_side_effect_once(
+            self._session,
+            project_id=self._run.project_id,
+            run_id=self._run.id,
+            run_item_id=self._item.id,
+            step_index=step_index,
+            tool=invocation.tool,
+            arguments=gate.arguments,
+            attempt=self._attempt,
+            result={"status": "ok", "tool": invocation.tool},
+            required_approval=gate.required_approval,
+            approval_id=gate.approval_id,
+        )
+        output: dict[str, Any] = {
+            "status": "ok",
+            "side_effect_applied": was_applied,
+            "idempotent_replay": not was_applied,
+            "applied_on_attempt": record.applied_on_attempt,
+        }
+        self.applied.append({"tool": invocation.tool, "step_index": step_index, **output})
+        return ToolResult(tool=invocation.tool, output=output, latency_ms=0)
+
+
 class EvaluationRunRunner:
     def __init__(
         self,
@@ -325,6 +434,7 @@ class EvaluationRunRunner:
         openai_api_key: str | None = None,
         openai_base_url: str = "https://api.openai.com/v1",
         tribunal_model_timeout_seconds: float = 60.0,
+        database_url: str | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._worker_id = worker_id
@@ -332,6 +442,12 @@ class EvaluationRunRunner:
         self._openai_api_key = openai_api_key
         self._openai_base_url = openai_base_url
         self._tribunal_model_timeout_seconds = tribunal_model_timeout_seconds
+        # Absent without a database URL. An agent version that asks for
+        # LangGraph then fails its own item rather than the worker, so a
+        # misconfigured deployment cannot take down runs that do not use it.
+        self._langgraph = (
+            LangGraphExecutor(database_url=database_url) if database_url is not None else None
+        )
 
     async def process(self, run_id: str) -> RunOutcome:
         claimed = await self._claim_run(run_id)
@@ -478,7 +594,25 @@ class EvaluationRunRunner:
             if claim.rowcount != 1:
                 await session.rollback()
                 return
-            await self._execute_recorded_item(session, run=run, item=item)
+            if await self._uses_langgraph(session, run=run):
+                await self._execute_langgraph_item(session, run=run, item=item)
+            else:
+                await self._execute_recorded_item(session, run=run, item=item)
+
+    async def _uses_langgraph(self, session: AsyncSession, *, run: EvaluationRun) -> bool:
+        """Whether this run's candidate version asks to execute under LangGraph.
+
+        Recorded is the default and stays the default: only a version that names
+        the langgraph provider takes the new path, so existing runs, CI and the
+        frozen benchmark are unaffected.
+        """
+        if self._langgraph is None:
+            return False
+        version = await session.get(AgentVersion, run.candidate_agent_version_id)
+        if version is None:
+            return False
+        provider = version.model_config.get("provider")
+        return isinstance(provider, str) and provider == _LANGGRAPH_PROVIDER
 
     async def _execute_recorded_item(
         self, session: AsyncSession, *, run: EvaluationRun, item: RunItem
@@ -732,6 +866,210 @@ class EvaluationRunRunner:
         )
         await session.commit()
 
+    async def _execute_langgraph_item(
+        self, session: AsyncSession, *, run: EvaluationRun, item: RunItem
+    ) -> None:
+        """Execute one item by running the agent version's graph under LangGraph.
+
+        The platform guarantees live above the graph, not inside it: the item is
+        already claimed, the gateway owns budgets/policy/idempotency, and this
+        method owns the trajectory and the item's terminal state. The graph only
+        decides what to attempt.
+        """
+        version = await session.get(AgentVersion, run.candidate_agent_version_id)
+        trajectory = await self._create_trajectory(session, item=item, run=run)
+        graph_step = await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=1,
+            step_type=TrajectoryStepType.GRAPH_STATE,
+            title="Load graph state",
+            input_payload={"item_index": item.item_index, "partition": item.partition},
+            output_payload={
+                "node": "langgraph",
+                "state": "ready",
+                "candidate_agent_version_id": run.candidate_agent_version_id,
+            },
+            checkpoint={"stage": "graph_state", "node": "langgraph"},
+        )
+        await self._append_checkpoint(
+            session,
+            trajectory_id=trajectory.id,
+            step_id=graph_step.id,
+            checkpoint_index=0,
+            label="graph-state-ready",
+            state=graph_step.checkpoint,
+        )
+        await session.execute(
+            update(RunItem)
+            .where(RunItem.id == item.id, RunItem.state == RunItemState.EXECUTING)
+            .values(
+                state=RunItemState.EVALUATING,
+                checkpoint={
+                    "stage": "evaluating",
+                    "item_index": item.item_index,
+                    "trajectory_id": trajectory.id,
+                },
+                updated_at=func.now(),
+                version=RunItem.version + 1,
+            )
+        )
+
+        attempt = max(item.attempt_count, 1)
+        ledger = BudgetLedger.restore(
+            await self._budget_limits(session, run=run), item.budget_state
+        )
+        gateway = _RunnerToolGateway(
+            self,
+            session,
+            run=run,
+            item=item,
+            trajectory=trajectory,
+            attempt=attempt,
+            ledger=ledger,
+        )
+
+        assert self._langgraph is not None, "dispatch checked this"
+        # A halt unwinds the graph by exception, so events are collected as they
+        # happen. Otherwise a denied third tool call would erase the trace of the
+        # two that already ran, which is the opposite of what a reviewer needs.
+        captured: list[CapturedEvent] = []
+        try:
+            outcome = await self._langgraph.execute(
+                graph_spec=version.graph_spec if version is not None else {},
+                gateway=gateway,
+                # One thread per run item, so two items in a run never share
+                # graph state and a resumed item finds its own.
+                thread_id=f"run-item-{item.id}",
+                item_index=item.item_index,
+                partition=item.partition,
+                sink=captured,
+            )
+        except _HaltedByPlatform:
+            # The gateway already parked or failed the item and recorded why.
+            # Whatever ran before the halt still belongs in the trace.
+            await self._record_captured_events(
+                session, trajectory=trajectory, events=captured, start_index=1
+            )
+            await session.commit()
+            return
+        except GraphSpecError as invalid:
+            # A version whose graph cannot compile fails its item rather than
+            # the worker, exactly as an unexecutable fault profile does.
+            await self._fail_item(
+                session,
+                item=item,
+                trajectory=trajectory,
+                attempt=attempt,
+                retryable=False,
+                error_code="graph_spec_invalid",
+                error_message=str(invalid),
+                fault_payload=None,
+                budget_state=gateway.ledger.as_payload(),
+                title="Unexecutable graph spec",
+            )
+            await session.commit()
+            return
+
+        step_index = await self._record_captured_events(
+            session, trajectory=trajectory, events=outcome.events, start_index=1
+        )
+        final_step = await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=step_index + 1,
+            step_type=TrajectoryStepType.FINAL_RESULT,
+            title="LangGraph final result",
+            input_payload={"thread_id": outcome.thread_id},
+            output_payload={"passed": outcome.passed, "mode": "langgraph"},
+            evidence={"graph_state": outcome.final_state},
+            checkpoint={"stage": "final_result", "passed": outcome.passed},
+        )
+        await self._append_checkpoint(
+            session,
+            trajectory_id=trajectory.id,
+            step_id=final_step.id,
+            checkpoint_index=1,
+            label="item-completed",
+            state=final_step.checkpoint,
+        )
+
+        trajectory.state = TrajectoryState.COMPLETED
+        trajectory.summary = {
+            "step_count": step_index + 1,
+            "checkpoint_count": 2,
+            "result": "passed" if outcome.passed else "failed",
+            "failing_step_id": None,
+        }
+        trajectory.graph_state = outcome.final_state
+        trajectory.final_checkpoint = final_step.checkpoint
+        trajectory.completed_at = datetime.now(UTC)
+        trajectory.updated_at = trajectory.completed_at
+        await session.execute(
+            update(RunItem)
+            .where(RunItem.id == item.id, RunItem.state == RunItemState.EVALUATING)
+            .values(
+                state=RunItemState.COMPLETED if outcome.passed else RunItemState.FAILED_TERMINAL,
+                result={
+                    "passed": outcome.passed,
+                    "mode": "langgraph",
+                    "trajectory_id": trajectory.id,
+                    "tool_calls": gateway.applied,
+                },
+                checkpoint={
+                    "stage": "completed",
+                    "item_index": item.item_index,
+                    "trajectory_id": trajectory.id,
+                },
+                injected_fault=None,
+                budget_state=gateway.ledger.as_payload(),
+                lease_expires_at=None,
+                completed_at=func.now(),
+                updated_at=func.now(),
+                version=RunItem.version + 1,
+            )
+        )
+        await session.commit()
+
+    async def _record_captured_events(
+        self,
+        session: AsyncSession,
+        *,
+        trajectory: Trajectory,
+        events: list[CapturedEvent],
+        start_index: int,
+    ) -> int:
+        """Turn each captured node transition into one trajectory step.
+
+        This is what makes per-step graph state real for LangGraph runs: the
+        state stored is the state *as of that node*, not one end-of-run snapshot
+        repeated on every row.
+        """
+        step_index = start_index
+        for event in events:
+            step_index += 1
+            step_type = (
+                TrajectoryStepType.TOOL_CALL
+                if event.kind == "tool_call"
+                else TrajectoryStepType.EVIDENCE
+                if event.kind == "evidence"
+                else TrajectoryStepType.GRAPH_STATE
+            )
+            await self._append_step(
+                session,
+                trajectory_id=trajectory.id,
+                step_index=step_index,
+                step_type=step_type,
+                title=f"{event.node} ({event.kind})",
+                input_payload={"node": event.node},
+                output_payload={"kind": event.kind},
+                checkpoint=event.state,
+                evidence={"items": event.state.get("evidence", [])}
+                if event.kind == "evidence"
+                else None,
+            )
+        return step_index
+
     async def _policy_gate(
         self,
         session: AsyncSession,
@@ -742,14 +1080,20 @@ class EvaluationRunRunner:
         attempt: int,
         arguments: dict[str, Any],
         budget_state: dict[str, Any],
+        tool: str = _REMEDIATION_TOOL,
+        step_index: int = 2,
     ) -> PolicyGate:
         """Decide whether this tool call may proceed, and on what arguments.
 
         Returns a gate that either lets the caller continue or has already
         parked or failed the item. Nothing here applies an effect.
+
+        ``tool`` and ``step_index`` default to the recorded path's single
+        remediation call. A graph-driven run passes its own, so the approval
+        key stays unique per intended effect rather than per item.
         """
         bundle = await self._policy_bundle(session, run=run)
-        verdict, risk = decide(bundle, tool=_REMEDIATION_TOOL)
+        verdict, risk = decide(bundle, tool=tool)
 
         if verdict is PolicyDecision.ALLOW:
             return PolicyGate(arguments=arguments)
@@ -762,10 +1106,10 @@ class EvaluationRunRunner:
                 attempt=attempt,
                 retryable=False,
                 error_code="policy_denied",
-                error_message=f"Policy prohibits {_REMEDIATION_TOOL}.",
+                error_message=f"Policy prohibits {tool}.",
                 fault_payload=None,
                 budget_state=budget_state,
-                title=f"Policy denied: {_REMEDIATION_TOOL}",
+                title=f"Policy denied: {tool}",
             )
             return PolicyGate(arguments=arguments, halted=True)
 
@@ -773,7 +1117,7 @@ class EvaluationRunRunner:
         # question is asked once per intended effect rather than once per
         # attempt — a retried or redelivered item finds its own request here.
         key = side_effect_key(
-            run_item_id=item.id, step_index=2, tool=_REMEDIATION_TOOL, arguments=arguments
+            run_item_id=item.id, step_index=step_index, tool=tool, arguments=arguments
         )
         approval = await self._approval_for(
             session,
@@ -783,6 +1127,7 @@ class EvaluationRunRunner:
             key=key,
             risk=risk,
             arguments=arguments,
+            tool=tool,
         )
 
         # The column is a plain string with a check constraint, as every other
@@ -839,6 +1184,7 @@ class EvaluationRunRunner:
         key: str,
         risk: ToolRiskLevel,
         arguments: dict[str, Any],
+        tool: str = _REMEDIATION_TOOL,
     ) -> ApprovalRequest:
         """Find this effect's approval request, creating it the first time.
 
@@ -861,7 +1207,7 @@ class EvaluationRunRunner:
             run_item_id=item.id,
             trajectory_id=trajectory.id,
             idempotency_key=key,
-            tool=_REMEDIATION_TOOL,
+            tool=tool,
             risk_level=risk.value,
             state=ApprovalState.PENDING,
             requested_arguments=redacted_arguments,

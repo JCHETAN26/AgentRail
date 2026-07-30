@@ -160,7 +160,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 - [x] Trajectory schema (run_id, steps, timestamps, state snapshots)
 - [x] TrajectoryStep schema (node name, input, output, tool calls, latency, tokens)
-- [ ] Event capture hook in LangGraph runtime
+- [x] Event capture hook in LangGraph runtime
 - [x] Automatic redaction of secrets in traces
 - [x] Timeline visualization (step-by-step execution flow)
 - [x] Graph state inspector (state at each step)

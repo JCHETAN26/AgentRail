@@ -105,6 +105,13 @@ class TestGraphSpecParsing:
             ({"nodes": [{"name": "a", "kind": "evidence", "tool": "x"}]}, "must not name a tool"),
             ({"nodes": [{"name": "a"}, {"name": "a"}]}, "duplicate node name"),
             ({"nodes": [{"name": "a", "arguments": []}]}, "arguments must be an object"),
+            # Unhashable kinds would raise TypeError from the set membership
+            # test rather than the GraphSpecError this promises.
+            ({"nodes": [{"name": "a", "kind": []}]}, "kind must be one of"),
+            ({"nodes": [{"name": "a", "kind": {}}]}, "kind must be one of"),
+            # LangGraph's own sentinels are valid JSON but illegal node names.
+            ({"nodes": [{"name": "__start__"}]}, "reserved by LangGraph"),
+            ({"nodes": [{"name": "__end__"}]}, "reserved by LangGraph"),
         ],
     )
     def test_unusable_specs_are_rejected(self, spec: object, message: str) -> None:
@@ -209,3 +216,92 @@ class TestCheckpointerConnString:
             checkpointer_conn_string("postgresql://u:p@localhost:5433/db")
             == "postgresql://u:p@localhost:5433/db"
         )
+
+
+class TestResumeSemantics:
+    async def test_a_completed_thread_is_not_re_run(self) -> None:
+        """The bug this guards: re-submitting input restarts the graph.
+
+        LangGraph treats any non-None input on an existing thread as a fresh
+        invocation from START. A retried item reuses its thread id, so passing
+        the initial state again would call every tool node a second time and
+        charge its budget again.
+        """
+        gateway = RecordingGateway()
+        nodes = parse_graph_spec(
+            {"nodes": [{"name": "act", "kind": "tool_call", "tool": "restart_service"}]}
+        )
+        saver = InMemorySaver()
+        compiled = build_graph(nodes, gateway).compile(checkpointer=saver)
+        config = {"configurable": {"thread_id": "retry-me"}}
+        await compiled.ainvoke(
+            {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []},
+            config=config,
+        )
+        assert len(gateway.calls) == 1
+
+        # What execute() now does on a thread that already has checkpoints.
+        snapshot = await compiled.aget_state(config)
+        assert snapshot.created_at is not None
+        await compiled.ainvoke(None, config=config)
+
+        assert len(gateway.calls) == 1
+
+    async def test_resubmitting_input_would_repeat_the_tool_call(self) -> None:
+        # The counter-example, asserted so the reason for the None is explicit
+        # rather than folklore: this is what the old code did.
+        gateway = RecordingGateway()
+        nodes = parse_graph_spec(
+            {"nodes": [{"name": "act", "kind": "tool_call", "tool": "restart_service"}]}
+        )
+        compiled = build_graph(nodes, gateway).compile(checkpointer=InMemorySaver())
+        config = {"configurable": {"thread_id": "retry-me"}}
+        initial = {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []}
+
+        await compiled.ainvoke(initial, config=config)
+        await compiled.ainvoke(initial, config=config)
+
+        assert len(gateway.calls) == 2
+
+
+class TestEventSink:
+    async def test_the_sink_receives_events_before_a_failure(self) -> None:
+        """A halt unwinds by exception, so the sink is the only way to keep the trace."""
+        calls = {"n": 0}
+
+        class FailsOnSecond:
+            async def invoke(self, invocation: ToolInvocation) -> ToolResult:
+                calls["n"] += 1
+                if calls["n"] == 2:
+                    raise RuntimeError("policy denied")
+                return ToolResult(tool=invocation.tool, output={"status": "ok"})
+
+        nodes = parse_graph_spec(
+            {
+                "nodes": [
+                    {"name": "first", "kind": "tool_call", "tool": "restart_service"},
+                    {"name": "second", "kind": "tool_call", "tool": "scale_service"},
+                ]
+            }
+        )
+        compiled = build_graph(nodes, FailsOnSecond()).compile(checkpointer=InMemorySaver())
+        sink: list[CapturedEvent] = []
+        kinds = {node.name: node.kind for node in nodes}
+
+        with pytest.raises(RuntimeError, match="policy denied"):
+            async for update in compiled.astream(
+                {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []},
+                config={"configurable": {"thread_id": "halt"}},
+                stream_mode="updates",
+            ):
+                for node_name, node_state in update.items():
+                    sink.append(
+                        CapturedEvent(
+                            node=node_name,
+                            kind=kinds.get(node_name, "decision"),
+                            state=dict(node_state) if isinstance(node_state, dict) else {},
+                        )
+                    )
+
+        # The first node's transition survives the second node's failure.
+        assert [event.node for event in sink] == ["first"]
