@@ -930,6 +930,10 @@ class EvaluationRunRunner:
         )
 
         assert self._langgraph is not None, "dispatch checked this"
+        # A halt unwinds the graph by exception, so events are collected as they
+        # happen. Otherwise a denied third tool call would erase the trace of the
+        # two that already ran, which is the opposite of what a reviewer needs.
+        captured: list[CapturedEvent] = []
         try:
             outcome = await self._langgraph.execute(
                 graph_spec=version.graph_spec if version is not None else {},
@@ -939,9 +943,14 @@ class EvaluationRunRunner:
                 thread_id=f"run-item-{item.id}",
                 item_index=item.item_index,
                 partition=item.partition,
+                sink=captured,
             )
         except _HaltedByPlatform:
             # The gateway already parked or failed the item and recorded why.
+            # Whatever ran before the halt still belongs in the trace.
+            await self._record_captured_events(
+                session, trajectory=trajectory, events=captured, start_index=1
+            )
             await session.commit()
             return
         except GraphSpecError as invalid:
