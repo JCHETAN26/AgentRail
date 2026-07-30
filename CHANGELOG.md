@@ -19,7 +19,12 @@ All notable changes to AgentRail are recorded here. The format follows
 - The policy gate and approval requests are now parameterised by tool, so a graph calling something
   other than `restart_service` is judged against the right rule and a reviewer sees the real tool
   name in the approval queue.
-- An agent version whose `graph_spec` cannot compile fails its own item rather than the worker.
+- An agent version whose `graph_spec` cannot compile fails its own item rather than the worker, and
+  node names reserved by LangGraph are rejected during parsing rather than escaping as a `ValueError`
+  that would end the worker process.
+- A retried item resumes its LangGraph thread instead of re-submitting input. LangGraph treats any
+  non-`None` input on an existing thread as a fresh invocation from `START`, so the previous
+  behaviour re-ran completed tool nodes and charged their budgets a second time.
 
 - LangGraph is now a real dependency of `services/worker` and executes agent graphs. It was
   previously named throughout the build plan but absent from the code, with `LangGraphAdapter`
