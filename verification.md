@@ -20,7 +20,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 ## Repository & Tooling
 
-- [ ] Monorepo scaffolded with pnpm workspaces (apps/web, services/api, services/worker, services/tribunal, services/cloudops-sandbox, packages/\*)
+- [x] Monorepo scaffolded with pnpm workspaces (apps/web, services/api, services/worker, services/cloudops-sandbox, packages/\*). The Tribunal ships as an `agentrail-core` module with API routes rather than `services/tribunal` — see [ADR 0008](docs/adr/0008-tribunal-ships-as-a-module-not-a-service.md).
 - [x] Root Makefile with targets: verify, lint, type-check, test, test-integration, benchmark-\*
 - [ ] Strict linting configured (ESLint + Prettier for TS, ruff + black for Python)
 - [x] Type checking configured (tsc --noEmit for TS, mypy for Python)
@@ -31,7 +31,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [ ] Docker Compose local infra (Postgres 16, Redis, MinIO, Redpanda/Kafka)
 - [x] Health and readiness endpoints for all services
 - [x] OpenTelemetry correlation ID propagation wired
-- [ ] ADR template and first 3 ADRs written (repo structure, auth strategy, why LangGraph)
+- [x] ADR template and first 3 ADRs written (repo structure, auth strategy, why LangGraph)
 - [x] docs/CHECKPOINT.md and docs/BRANCH_PROTECTION.md created
 
 ---
@@ -141,7 +141,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] Worker lease semantics (timeout, renewal, expiry)
 - [x] Cancellation support (cancel propagation to workers)
 - [x] Retry budgets (max attempts, backoff strategy)
-- [ ] PostgreSQL checkpointer for LangGraph (durable checkpoints)
+- [x] PostgreSQL checkpointer for LangGraph (durable checkpoints)
 - [x] SSE progress streaming to dashboard
 - [x] Graceful worker shutdown (finish in-flight, reject new)
 

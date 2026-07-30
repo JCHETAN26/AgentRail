@@ -7,6 +7,11 @@ dependencies = [
     "agentrail-core",
     "fastapi==0.140.13",
     "httpx==0.28.1",
+    # LangGraph lives here and not in agentrail-core on purpose: the domain must
+    # not depend on an agent framework, so the runtime adapter is the only place
+    # that imports it. See docs/adr/0007-langgraph-as-an-execution-adapter.md.
+    "langgraph==1.2.10",
+    "langgraph-checkpoint-postgres==3.1.0",
     "uvicorn[standard]==0.51.0",
 ]
 
