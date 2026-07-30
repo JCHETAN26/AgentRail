@@ -66,6 +66,7 @@ from agentrail_core.tribunal import (
     validate_tribunal_config,
 )
 from agentrail_worker.langgraph_executor import (
+    ApprovalPending,
     CapturedEvent,
     GraphSpecError,
     LangGraphExecutor,
@@ -316,6 +317,9 @@ class PolicyGate:
     halted: bool = False
     required_approval: bool = False
     approval_id: str | None = None
+    #: Set only when the halt is a pending human decision, which is the one
+    #: halt a later attempt can resume from rather than restart.
+    parked_approval_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -398,6 +402,11 @@ class _RunnerToolGateway:
             tool=invocation.tool,
             step_index=step_index,
         )
+        if gate.parked_approval_id is not None:
+            # A pending decision is not a failure. Raising ApprovalPending lets
+            # the node checkpoint an interrupt, so the human's answer resumes
+            # this exact node instead of replaying the graph from the start.
+            raise ApprovalPending(gate.parked_approval_id, invocation.tool)
         if gate.halted:
             raise _HaltedByPlatform("policy_gate")
 
@@ -974,6 +983,21 @@ class EvaluationRunRunner:
         step_index = await self._record_captured_events(
             session, trajectory=trajectory, events=outcome.events, start_index=1
         )
+        if outcome.interrupted_on is not None:
+            # The gateway already parked the item and recorded the approval.
+            # The graph is checkpointed mid-flight; the next attempt resumes it.
+            await self._append_step(
+                session,
+                trajectory_id=trajectory.id,
+                step_index=step_index + 1,
+                step_type=TrajectoryStepType.CHECKPOINT,
+                title="Awaiting approval",
+                input_payload={"thread_id": outcome.thread_id},
+                output_payload=outcome.interrupted_on,
+                checkpoint={"stage": "awaiting_approval", **outcome.interrupted_on},
+            )
+            await session.commit()
+            return
         final_step = await self._append_step(
             session,
             trajectory_id=trajectory.id,
@@ -1155,7 +1179,7 @@ class EvaluationRunRunner:
                 approval=approval,
                 budget_state=budget_state,
             )
-            return PolicyGate(arguments=arguments, halted=True)
+            return PolicyGate(arguments=arguments, halted=True, parked_approval_id=approval.id)
 
         # REJECTED or WITHDRAWN. Both are terminal for the approval and there is
         # no edge back to PENDING, so a delayed delivery arriving after the

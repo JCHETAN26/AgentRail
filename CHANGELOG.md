@@ -8,6 +8,11 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ### Added — LangGraph execution runtime
 
+- A high-risk tool call awaiting a human decision now pauses the graph through LangGraph's
+  `interrupt` rather than unwinding it. The pause is a checkpoint naming the approval, so when a
+  reviewer decides, the worker resumes that exact node with `Command(resume=...)` instead of
+  replaying the graph from the start — the approved effect is applied once, by the node that asked.
+
 - The worker now dispatches on the candidate agent version's declared provider: a version whose
   `model_config.provider` is `langgraph` executes under LangGraph, and everything else keeps the
   recorded path, which remains the default.
