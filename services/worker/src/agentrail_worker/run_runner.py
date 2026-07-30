@@ -953,12 +953,19 @@ class EvaluationRunRunner:
                 item_index=item.item_index,
                 partition=item.partition,
                 sink=captured,
+                # Releases a saved approval interrupt. Must be non-None; the
+                # node ignores the value and re-reads the approval from the
+                # database, which is the authority on the decision.
+                resume_value={"released": True, "attempt": attempt},
             )
         except _HaltedByPlatform:
             # The gateway already parked or failed the item and recorded why.
             # Whatever ran before the halt still belongs in the trace.
             await self._record_captured_events(
-                session, trajectory=trajectory, events=captured, start_index=1
+                session,
+                trajectory=trajectory,
+                events=captured,
+                start_index=await self._last_step_index(session, trajectory=trajectory),
             )
             await session.commit()
             return
@@ -981,7 +988,10 @@ class EvaluationRunRunner:
             return
 
         step_index = await self._record_captured_events(
-            session, trajectory=trajectory, events=outcome.events, start_index=1
+            session,
+            trajectory=trajectory,
+            events=outcome.events,
+            start_index=await self._last_step_index(session, trajectory=trajectory),
         )
         if outcome.interrupted_on is not None:
             # The gateway already parked the item and recorded the approval.
@@ -1054,6 +1064,22 @@ class EvaluationRunRunner:
             )
         )
         await session.commit()
+
+    async def _last_step_index(self, session: AsyncSession, *, trajectory: Trajectory) -> int:
+        """The highest step index already recorded for this trajectory.
+
+        A resumed item appends to a trajectory that already holds rows —
+        the pre-approval transitions and the awaiting-approval checkpoint.
+        Restarting the numbering would collide with them on the
+        (trajectory_id, step_index) unique constraint and lose the approved
+        tool transition from the audit trail.
+        """
+        highest = await session.scalar(
+            select(func.max(TrajectoryStep.step_index)).where(
+                TrajectoryStep.trajectory_id == trajectory.id
+            )
+        )
+        return int(highest) if highest is not None else 1
 
     async def _record_captured_events(
         self,

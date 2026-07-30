@@ -269,6 +269,12 @@ def _make_node_fn(node: GraphNode, gateway: ToolGateway) -> NodeFn:
     return run_node
 
 
+#: Handed to ``Command`` when releasing an interrupt. ``interrupt()`` returns
+#: this, and it must not be None: None is LangGraph's "no resume payload"
+#: sentinel, which leaves the saved interrupt in place and the item stuck.
+DEFAULT_RESUME_VALUE: dict[str, Any] = {"released": True}
+
+
 def _interrupt_payload(value: Any) -> dict[str, Any]:
     """Normalise LangGraph's interrupt payload into a plain dict.
 
@@ -385,7 +391,11 @@ class LangGraphExecutor:
         if resuming:
             # An interrupted thread has pending tasks; a merely-restarted one
             # does not. Command carries the resume value interrupt() returns.
-            stream_input = Command(resume=resume_value) if snapshot.next else None
+            stream_input = (
+                Command(resume=resume_value if resume_value is not None else DEFAULT_RESUME_VALUE)
+                if snapshot.next
+                else None
+            )
         async for update in compiled.astream(stream_input, config=config, stream_mode="updates"):
             for node_name, node_state in update.items():
                 if node_name == "__interrupt__":

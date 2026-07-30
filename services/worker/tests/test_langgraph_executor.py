@@ -14,6 +14,7 @@ from langgraph.types import Command
 
 from agentrail_worker.langgraph_executor import (
     DEFAULT_NODE,
+    DEFAULT_RESUME_VALUE,
     AgentState,
     ApprovalPending,
     CapturedEvent,
@@ -394,3 +395,38 @@ class TestApprovalInterrupt:
         assert payload["approval_id"] == "approval-1"
         assert payload["tool"] == "restart_service"
         assert payload["node"] == "act"
+
+
+class TestResumeValueIsNeverNone:
+    async def test_the_default_resume_value_releases_an_interrupt(self) -> None:
+        """The production path passes no explicit value; the default must work.
+
+        The previous test suite only ever resumed with an explicit decision
+        dict, which is not what the worker does. `Command(resume=None)` is
+        LangGraph's "no payload" sentinel and leaves the interrupt in place,
+        so an approved item would sit stuck forever.
+        """
+        gateway = ApprovalGateway()
+        nodes = parse_graph_spec(
+            {"nodes": [{"name": "act", "kind": "tool_call", "tool": "restart_service"}]}
+        )
+        compiled = build_graph(nodes, gateway).compile(checkpointer=InMemorySaver())
+        config = {"configurable": {"thread_id": "default-resume"}}
+        await compiled.ainvoke(
+            {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []},
+            config=config,
+        )
+        assert (await compiled.aget_state(config)).next == ("act",)
+
+        gateway.approved = True
+        final = await compiled.ainvoke(Command(resume=DEFAULT_RESUME_VALUE), config=config)
+
+        # Released: the paused node ran to completion and nothing is pending.
+        assert (await compiled.aget_state(config)).next == ()
+        assert len(final["tool_results"]) == 1
+        assert "__interrupt__" not in final
+
+    def test_the_default_is_not_none(self) -> None:
+        # The whole point. A None here is silently inert.
+        assert DEFAULT_RESUME_VALUE is not None
+        assert DEFAULT_RESUME_VALUE != {}
