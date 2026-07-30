@@ -322,7 +322,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] Tool risk levels: READ_ONLY, LOW_RISK_WRITE, HIGH_RISK_WRITE, PROHIBITED
 - [x] Pre-execution policy interception (tool call blocked before execution)
 - [x] Rule pattern matching (tool name, target pattern, argument conditions)
-- [ ] Escalation chains (block after N attempts)
+- [x] Escalation chains (block after N attempts)
 - [x] **Tribunal verdicts as policy inputs**:
   - blocked = policy violation
   - conditional = requires human review
@@ -336,7 +336,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] Integration tests: high-risk tool cannot execute without approval
 - [x] Integration tests: delayed event cannot bypass rejection
 - [x] Integration tests: tribunal blocked always blocks execution
-- [ ] E2E tests: full approve → resume → complete flow
+- [x] E2E tests: full approve → resume → complete flow
 
 ---
 

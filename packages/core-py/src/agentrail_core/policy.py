@@ -39,6 +39,11 @@ class PolicyDecision(StrEnum):
     ALLOW = "allow"
     REQUIRE_APPROVAL = "require_approval"
     DENY = "deny"
+    #: The approval chain ran out of patience. Distinct from DENY because the
+    #: tool is not prohibited — the same call would have been approvable on an
+    #: earlier attempt, and an operator reading the audit trail needs to know
+    #: which of the two stopped it.
+    ESCALATE = "escalate"
 
 
 class PolicyBundleError(ValueError):
@@ -60,18 +65,28 @@ class PolicyBundle:
     default_risk: ToolRiskLevel = ToolRiskLevel.HIGH_RISK_WRITE
     #: The level at or above which a human must approve. Below it, allow.
     require_approval_at: ToolRiskLevel = ToolRiskLevel.HIGH_RISK_WRITE
+    #: How many attempts may ask for approval before the chain escalates and
+    #: blocks instead. ``None`` disables escalation, which is the default: a
+    #: platform that silently stops asking is worse than one that keeps asking.
+    escalate_after_attempts: int | None = None
 
     def risk_of(self, tool: str) -> ToolRiskLevel:
         return self.tool_risks.get(tool, self.default_risk)
 
 
-def decide(bundle: PolicyBundle, *, tool: str) -> tuple[PolicyDecision, ToolRiskLevel]:
+def decide(
+    bundle: PolicyBundle, *, tool: str, attempt: int = 1
+) -> tuple[PolicyDecision, ToolRiskLevel]:
     """Return the verdict for one tool and the risk level it was judged at.
 
     The level travels with the verdict because every caller that acts on the
     decision also has to record *why* — in an approval request, an audit event
     or a trajectory step — and recomputing it separately invites the two to
     drift apart.
+
+    ``attempt`` is 1-based and drives the escalation chain. It defaults to the
+    first attempt so a caller with no retry concept reaches the same verdict it
+    always did.
     """
     risk = bundle.risk_of(tool)
     if risk == ToolRiskLevel.PROHIBITED:
@@ -79,6 +94,11 @@ def decide(bundle: PolicyBundle, *, tool: str) -> tuple[PolicyDecision, ToolRisk
         # having a level above "needs approval".
         return PolicyDecision.DENY, risk
     if _SEVERITY[risk] >= _SEVERITY[bundle.require_approval_at]:
+        limit = bundle.escalate_after_attempts
+        if limit is not None and attempt > limit:
+            # Asking again would put the same question to the same reviewer for
+            # the same effect. Escalate instead of looping.
+            return PolicyDecision.ESCALATE, risk
         return PolicyDecision.REQUIRE_APPROVAL, risk
     return PolicyDecision.ALLOW, risk
 
@@ -118,11 +138,28 @@ def parse_policy_bundle(raw: dict[str, Any] | None) -> PolicyBundle:
         # inert policy is worse than a rejected one.
         raise PolicyBundleError("require_approval_at cannot be PROHIBITED")
 
+    escalate_after_attempts = _escalation_limit(raw.get("escalate_after_attempts"))
+
     return PolicyBundle(
         tool_risks=tool_risks,
         default_risk=default_risk,
         require_approval_at=require_approval_at,
+        escalate_after_attempts=escalate_after_attempts,
     )
+
+
+def _escalation_limit(value: Any) -> int | None:
+    if value is None:
+        return None
+    # bool is an int subclass, and `escalate_after_attempts: true` is a
+    # configuration mistake rather than a limit of one.
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise PolicyBundleError("escalate_after_attempts must be a positive integer")
+    if value < 1:
+        # Zero would escalate before the first attempt could ever ask, making
+        # every approvable tool permanently blocked with no way to notice.
+        raise PolicyBundleError("escalate_after_attempts must be at least 1")
+    return value
 
 
 def _level(value: Any, field_name: str) -> ToolRiskLevel:

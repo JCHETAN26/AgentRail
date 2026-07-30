@@ -1143,10 +1143,31 @@ class EvaluationRunRunner:
         key stays unique per intended effect rather than per item.
         """
         bundle = await self._policy_bundle(session, run=run)
-        verdict, risk = decide(bundle, tool=tool)
+        verdict, risk = decide(bundle, tool=tool, attempt=attempt)
 
         if verdict is PolicyDecision.ALLOW:
             return PolicyGate(arguments=arguments)
+
+        if verdict is PolicyDecision.ESCALATE:
+            # The chain gave up asking. Terminal, and deliberately distinct from
+            # a denial: this call was approvable earlier, and an operator
+            # reading the trail has to be able to tell those apart.
+            await self._fail_item(
+                session,
+                item=item,
+                trajectory=trajectory,
+                attempt=attempt,
+                retryable=False,
+                error_code="approval_escalated",
+                error_message=(
+                    f"Approval for {tool} escalated after "
+                    f"{bundle.escalate_after_attempts} attempt(s)."
+                ),
+                fault_payload=None,
+                budget_state=budget_state,
+                title=f"Approval escalated: {tool}",
+            )
+            return PolicyGate(arguments=arguments, halted=True)
 
         if verdict is PolicyDecision.DENY:
             await self._fail_item(
