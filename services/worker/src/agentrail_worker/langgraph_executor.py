@@ -31,6 +31,7 @@ from typing import Any, Protocol, TypedDict
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
 
 from agentrail_core.logging import get_logger
 
@@ -49,6 +50,21 @@ _RESERVED_NODE_NAMES = frozenset({START, END, "__start__", "__end__"})
 
 class GraphSpecError(ValueError):
     """The agent version's ``graph_spec`` cannot be compiled into a graph."""
+
+
+class ApprovalPending(Exception):
+    """A high-risk tool call is waiting on a human decision.
+
+    Raised by the gateway, caught by the node, and turned into a LangGraph
+    ``interrupt`` so the pause becomes a checkpoint rather than an abandoned
+    graph. The distinction matters: a denial is terminal, but this is the one
+    halt a later attempt is meant to continue from.
+    """
+
+    def __init__(self, approval_id: str, tool: str) -> None:
+        super().__init__(f"approval {approval_id} pending for {tool}")
+        self.approval_id = approval_id
+        self.tool = tool
 
 
 class AgentState(TypedDict, total=False):
@@ -116,6 +132,8 @@ class ExecutionOutcome:
     thread_id: str = ""
     #: True when this run continued a thread that already had checkpoints.
     resumed: bool = False
+    #: Set when the graph stopped at an interrupt instead of reaching the end.
+    interrupted_on: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,9 +237,23 @@ def _make_node_fn(node: GraphNode, gateway: ToolGateway) -> NodeFn:
         if node.kind == "tool_call":
             # `tool` is guaranteed present for tool_call nodes by parse_graph_spec.
             assert node.tool is not None
-            result = await gateway.invoke(
-                ToolInvocation(tool=node.tool, arguments=dict(node.arguments))
-            )
+            invocation = ToolInvocation(tool=node.tool, arguments=dict(node.arguments))
+            try:
+                result = await gateway.invoke(invocation)
+            except ApprovalPending as pending:
+                # interrupt() checkpoints the graph here and stops. On resume it
+                # returns instead of raising, and the retry below finds the
+                # approval decided — so the human's answer is applied at the
+                # exact node that asked, not by replaying the graph.
+                interrupt(
+                    {
+                        "kind": "approval_required",
+                        "approval_id": pending.approval_id,
+                        "tool": pending.tool,
+                        "node": node.name,
+                    }
+                )
+                result = await gateway.invoke(invocation)
             results = list(state.get("tool_results", ()))
             results.append(
                 {"tool": result.tool, "output": result.output, "latency_ms": result.latency_ms}
@@ -235,6 +267,29 @@ def _make_node_fn(node: GraphNode, gateway: ToolGateway) -> NodeFn:
         return {"passed": True}
 
     return run_node
+
+
+#: Handed to ``Command`` when releasing an interrupt. ``interrupt()`` returns
+#: this, and it must not be None: None is LangGraph's "no resume payload"
+#: sentinel, which leaves the saved interrupt in place and the item stuck.
+DEFAULT_RESUME_VALUE: dict[str, Any] = {"released": True}
+
+
+def _interrupt_payload(value: Any) -> dict[str, Any]:
+    """Normalise LangGraph's interrupt payload into a plain dict.
+
+    ``__interrupt__`` carries a tuple of Interrupt objects whose shape is
+    LangGraph's, not ours; only the value we passed to ``interrupt()`` is
+    meaningful here.
+    """
+    if isinstance(value, tuple | list):
+        for entry in value:
+            payload = getattr(entry, "value", None)
+            if isinstance(payload, dict):
+                return payload
+    if isinstance(value, dict):
+        return value
+    return {"kind": "interrupt"}
 
 
 def checkpointer_conn_string(database_url: str) -> str:
@@ -263,6 +318,7 @@ class LangGraphExecutor:
         item_index: int,
         partition: str,
         sink: list[CapturedEvent] | None = None,
+        resume_value: Any = None,
     ) -> ExecutionOutcome:
         """Run the graph.
 
@@ -291,6 +347,7 @@ class LangGraphExecutor:
                 item_index=item_index,
                 partition=partition,
                 sink=sink,
+                resume_value=resume_value,
             )
 
     async def _stream(
@@ -302,6 +359,7 @@ class LangGraphExecutor:
         item_index: int,
         partition: str,
         sink: list[CapturedEvent] | None = None,
+        resume_value: Any = None,
     ) -> ExecutionOutcome:
         kinds = {node.name: node.kind for node in nodes}
         config = {"configurable": {"thread_id": thread_id}}
@@ -329,9 +387,20 @@ class LangGraphExecutor:
         # `updates` yields one payload per node as it completes: the event
         # capture hook. `values` would only ever give the accumulated state and
         # would lose which node produced what.
-        stream_input = None if resuming else initial
+        stream_input: Any = initial
+        if resuming:
+            # An interrupted thread has pending tasks; a merely-restarted one
+            # does not. Command carries the resume value interrupt() returns.
+            stream_input = (
+                Command(resume=resume_value if resume_value is not None else DEFAULT_RESUME_VALUE)
+                if snapshot.next
+                else None
+            )
         async for update in compiled.astream(stream_input, config=config, stream_mode="updates"):
             for node_name, node_state in update.items():
+                if node_name == "__interrupt__":
+                    outcome.interrupted_on = _interrupt_payload(node_state)
+                    continue
                 if isinstance(node_state, dict):
                     merged.update(node_state)
                 event = CapturedEvent(

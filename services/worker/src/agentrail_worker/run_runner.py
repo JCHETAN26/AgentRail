@@ -66,6 +66,7 @@ from agentrail_core.tribunal import (
     validate_tribunal_config,
 )
 from agentrail_worker.langgraph_executor import (
+    ApprovalPending,
     CapturedEvent,
     GraphSpecError,
     LangGraphExecutor,
@@ -316,6 +317,9 @@ class PolicyGate:
     halted: bool = False
     required_approval: bool = False
     approval_id: str | None = None
+    #: Set only when the halt is a pending human decision, which is the one
+    #: halt a later attempt can resume from rather than restart.
+    parked_approval_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -398,6 +402,11 @@ class _RunnerToolGateway:
             tool=invocation.tool,
             step_index=step_index,
         )
+        if gate.parked_approval_id is not None:
+            # A pending decision is not a failure. Raising ApprovalPending lets
+            # the node checkpoint an interrupt, so the human's answer resumes
+            # this exact node instead of replaying the graph from the start.
+            raise ApprovalPending(gate.parked_approval_id, invocation.tool)
         if gate.halted:
             raise _HaltedByPlatform("policy_gate")
 
@@ -944,12 +953,19 @@ class EvaluationRunRunner:
                 item_index=item.item_index,
                 partition=item.partition,
                 sink=captured,
+                # Releases a saved approval interrupt. Must be non-None; the
+                # node ignores the value and re-reads the approval from the
+                # database, which is the authority on the decision.
+                resume_value={"released": True, "attempt": attempt},
             )
         except _HaltedByPlatform:
             # The gateway already parked or failed the item and recorded why.
             # Whatever ran before the halt still belongs in the trace.
             await self._record_captured_events(
-                session, trajectory=trajectory, events=captured, start_index=1
+                session,
+                trajectory=trajectory,
+                events=captured,
+                start_index=await self._last_step_index(session, trajectory=trajectory),
             )
             await session.commit()
             return
@@ -972,8 +988,26 @@ class EvaluationRunRunner:
             return
 
         step_index = await self._record_captured_events(
-            session, trajectory=trajectory, events=outcome.events, start_index=1
+            session,
+            trajectory=trajectory,
+            events=outcome.events,
+            start_index=await self._last_step_index(session, trajectory=trajectory),
         )
+        if outcome.interrupted_on is not None:
+            # The gateway already parked the item and recorded the approval.
+            # The graph is checkpointed mid-flight; the next attempt resumes it.
+            await self._append_step(
+                session,
+                trajectory_id=trajectory.id,
+                step_index=step_index + 1,
+                step_type=TrajectoryStepType.CHECKPOINT,
+                title="Awaiting approval",
+                input_payload={"thread_id": outcome.thread_id},
+                output_payload=outcome.interrupted_on,
+                checkpoint={"stage": "awaiting_approval", **outcome.interrupted_on},
+            )
+            await session.commit()
+            return
         final_step = await self._append_step(
             session,
             trajectory_id=trajectory.id,
@@ -1030,6 +1064,22 @@ class EvaluationRunRunner:
             )
         )
         await session.commit()
+
+    async def _last_step_index(self, session: AsyncSession, *, trajectory: Trajectory) -> int:
+        """The highest step index already recorded for this trajectory.
+
+        A resumed item appends to a trajectory that already holds rows —
+        the pre-approval transitions and the awaiting-approval checkpoint.
+        Restarting the numbering would collide with them on the
+        (trajectory_id, step_index) unique constraint and lose the approved
+        tool transition from the audit trail.
+        """
+        highest = await session.scalar(
+            select(func.max(TrajectoryStep.step_index)).where(
+                TrajectoryStep.trajectory_id == trajectory.id
+            )
+        )
+        return int(highest) if highest is not None else 1
 
     async def _record_captured_events(
         self,
@@ -1155,7 +1205,7 @@ class EvaluationRunRunner:
                 approval=approval,
                 budget_state=budget_state,
             )
-            return PolicyGate(arguments=arguments, halted=True)
+            return PolicyGate(arguments=arguments, halted=True, parked_approval_id=approval.id)
 
         # REJECTED or WITHDRAWN. Both are terminal for the approval and there is
         # no edge back to PENDING, so a delayed delivery arriving after the

@@ -10,15 +10,19 @@ from __future__ import annotations
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
 
 from agentrail_worker.langgraph_executor import (
     DEFAULT_NODE,
+    DEFAULT_RESUME_VALUE,
     AgentState,
+    ApprovalPending,
     CapturedEvent,
     ExecutionOutcome,
     GraphSpecError,
     ToolInvocation,
     ToolResult,
+    _interrupt_payload,
     build_graph,
     checkpointer_conn_string,
     parse_graph_spec,
@@ -305,3 +309,124 @@ class TestEventSink:
 
         # The first node's transition survives the second node's failure.
         assert [event.node for event in sink] == ["first"]
+
+
+class ApprovalGateway:
+    """Requires approval for the first call, then behaves as if a human said yes."""
+
+    def __init__(self) -> None:
+        self.calls: list[ToolInvocation] = []
+        self.approved = False
+
+    async def invoke(self, invocation: ToolInvocation) -> ToolResult:
+        self.calls.append(invocation)
+        if not self.approved:
+            raise ApprovalPending("approval-1", invocation.tool)
+        return ToolResult(tool=invocation.tool, output={"status": "ok"})
+
+
+class TestApprovalInterrupt:
+    async def test_a_pending_approval_checkpoints_instead_of_failing(self) -> None:
+        gateway = ApprovalGateway()
+        nodes = parse_graph_spec(
+            {
+                "nodes": [
+                    {"name": "act", "kind": "tool_call", "tool": "restart_service"},
+                    {"name": "decide", "kind": "decision"},
+                ]
+            }
+        )
+        compiled = build_graph(nodes, gateway).compile(checkpointer=InMemorySaver())
+        config = {"configurable": {"thread_id": "needs-approval"}}
+
+        result = await compiled.ainvoke(
+            {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []},
+            config=config,
+        )
+
+        # An interrupt is not an exception: the graph stopped cleanly and said why.
+        assert "__interrupt__" in result
+        snapshot = await compiled.aget_state(config)
+        # The interrupted node is still pending, so a resume continues from it.
+        assert snapshot.next == ("act",)
+        assert "passed" not in snapshot.values or snapshot.values.get("passed") is not True
+
+    async def test_approving_resumes_the_same_node_not_the_graph(self) -> None:
+        gateway = ApprovalGateway()
+        nodes = parse_graph_spec(
+            {
+                "nodes": [
+                    {"name": "act", "kind": "tool_call", "tool": "restart_service"},
+                    {"name": "decide", "kind": "decision"},
+                ]
+            }
+        )
+        compiled = build_graph(nodes, gateway).compile(checkpointer=InMemorySaver())
+        config = {"configurable": {"thread_id": "needs-approval"}}
+        await compiled.ainvoke(
+            {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []},
+            config=config,
+        )
+
+        # The human decides, then the worker retries the item.
+        gateway.approved = True
+        final = await compiled.ainvoke(Command(resume={"decision": "approved"}), config=config)
+
+        assert final["passed"] is True
+        assert len(final["tool_results"]) == 1
+        snapshot = await compiled.aget_state(config)
+        assert snapshot.next == ()
+
+    async def test_the_interrupt_payload_names_the_approval(self) -> None:
+        gateway = ApprovalGateway()
+        nodes = parse_graph_spec(
+            {"nodes": [{"name": "act", "kind": "tool_call", "tool": "restart_service"}]}
+        )
+        compiled = build_graph(nodes, gateway).compile(checkpointer=InMemorySaver())
+
+        result = await compiled.ainvoke(
+            {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []},
+            config={"configurable": {"thread_id": "payload"}},
+        )
+
+        # A reviewer's queue entry and the paused graph have to name the same
+        # approval, or a human cannot tell which pause their decision releases.
+        payload = _interrupt_payload(result["__interrupt__"])
+        assert payload["approval_id"] == "approval-1"
+        assert payload["tool"] == "restart_service"
+        assert payload["node"] == "act"
+
+
+class TestResumeValueIsNeverNone:
+    async def test_the_default_resume_value_releases_an_interrupt(self) -> None:
+        """The production path passes no explicit value; the default must work.
+
+        The previous test suite only ever resumed with an explicit decision
+        dict, which is not what the worker does. `Command(resume=None)` is
+        LangGraph's "no payload" sentinel and leaves the interrupt in place,
+        so an approved item would sit stuck forever.
+        """
+        gateway = ApprovalGateway()
+        nodes = parse_graph_spec(
+            {"nodes": [{"name": "act", "kind": "tool_call", "tool": "restart_service"}]}
+        )
+        compiled = build_graph(nodes, gateway).compile(checkpointer=InMemorySaver())
+        config = {"configurable": {"thread_id": "default-resume"}}
+        await compiled.ainvoke(
+            {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []},
+            config=config,
+        )
+        assert (await compiled.aget_state(config)).next == ("act",)
+
+        gateway.approved = True
+        final = await compiled.ainvoke(Command(resume=DEFAULT_RESUME_VALUE), config=config)
+
+        # Released: the paused node ran to completion and nothing is pending.
+        assert (await compiled.aget_state(config)).next == ()
+        assert len(final["tool_results"]) == 1
+        assert "__interrupt__" not in final
+
+    def test_the_default_is_not_none(self) -> None:
+        # The whole point. A None here is silently inert.
+        assert DEFAULT_RESUME_VALUE is not None
+        assert DEFAULT_RESUME_VALUE != {}

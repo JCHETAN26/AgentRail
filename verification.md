@@ -326,7 +326,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 - [x] **Tribunal verdicts as policy inputs**:
   - blocked = policy violation
   - conditional = requires human review
-- [ ] LangGraph interrupt for high-risk tool calls
+- [x] LangGraph interrupt for high-risk tool calls
 - [x] Human approval workflow: approve, edit, reject
 - [x] Persistent checkpoint resume after approval decision
 - [x] Audit log for all policy, approval, tribunal, and release decisions
