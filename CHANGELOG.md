@@ -8,9 +8,12 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ### Added — Phase 11: escalation chains
 
-- Policy bundles accept `escalate_after_attempts`. Past that many attempts, a tool that would ask
-  for approval is blocked instead, so a chain cannot put the same question about the same effect to
-  the same reviewer indefinitely.
+- Policy bundles accept `escalate_after_attempts`: the number of separate approval requests one run
+  item may raise before further requests are refused. Item retry counts cannot drive this — a parked
+  item does not retry while a human is deciding, so its attempt counter never advances, and retries
+  caused by something unrelated would escalate a tool whose approval had already been granted.
+- Escalation is consulted only when a _new_ request would be created. An effect that already has a
+  decision is answered by that decision, so nothing a human approved is ever blocked by the chain.
 - Escalation is a distinct verdict from denial. A denied tool was never approvable; an escalated one
   was approvable earlier, and an operator reading the audit trail has to be able to tell which
   stopped the call. Items fail with `approval_escalated` rather than `policy_denied`.

@@ -65,18 +65,17 @@ class PolicyBundle:
     default_risk: ToolRiskLevel = ToolRiskLevel.HIGH_RISK_WRITE
     #: The level at or above which a human must approve. Below it, allow.
     require_approval_at: ToolRiskLevel = ToolRiskLevel.HIGH_RISK_WRITE
-    #: How many attempts may ask for approval before the chain escalates and
-    #: blocks instead. ``None`` disables escalation, which is the default: a
-    #: platform that silently stops asking is worse than one that keeps asking.
+    #: How many separate approval requests one run item may raise before the
+    #: chain escalates and blocks instead. ``None`` disables escalation, which
+    #: is the default: a platform that silently stops asking for approval is
+    #: worse than one that keeps asking.
     escalate_after_attempts: int | None = None
 
     def risk_of(self, tool: str) -> ToolRiskLevel:
         return self.tool_risks.get(tool, self.default_risk)
 
 
-def decide(
-    bundle: PolicyBundle, *, tool: str, attempt: int = 1
-) -> tuple[PolicyDecision, ToolRiskLevel]:
+def decide(bundle: PolicyBundle, *, tool: str) -> tuple[PolicyDecision, ToolRiskLevel]:
     """Return the verdict for one tool and the risk level it was judged at.
 
     The level travels with the verdict because every caller that acts on the
@@ -84,9 +83,9 @@ def decide(
     or a trajectory step — and recomputing it separately invites the two to
     drift apart.
 
-    ``attempt`` is 1-based and drives the escalation chain. It defaults to the
-    first attempt so a caller with no retry concept reaches the same verdict it
-    always did.
+    Escalation is deliberately *not* decided here: it depends on how many times
+    this item has already asked a human, which is a database fact rather than a
+    property of the bundle. See :func:`escalates`.
     """
     risk = bundle.risk_of(tool)
     if risk == ToolRiskLevel.PROHIBITED:
@@ -94,13 +93,24 @@ def decide(
         # having a level above "needs approval".
         return PolicyDecision.DENY, risk
     if _SEVERITY[risk] >= _SEVERITY[bundle.require_approval_at]:
-        limit = bundle.escalate_after_attempts
-        if limit is not None and attempt > limit:
-            # Asking again would put the same question to the same reviewer for
-            # the same effect. Escalate instead of looping.
-            return PolicyDecision.ESCALATE, risk
         return PolicyDecision.REQUIRE_APPROVAL, risk
     return PolicyDecision.ALLOW, risk
+
+
+def escalates(bundle: PolicyBundle, *, prior_asks: int) -> bool:
+    """Whether raising *another* approval request should be refused instead.
+
+    ``prior_asks`` counts the approval requests this run item has already
+    raised. Item retry counts are the wrong measure: a parked item does not
+    retry while a human is deciding, so its attempt counter never advances, and
+    retries caused by something unrelated would escalate a tool whose approval
+    had already been granted.
+
+    Only consulted when a *new* request would be created. An effect that already
+    has a decision is answered by that decision, not by this.
+    """
+    limit = bundle.escalate_after_attempts
+    return limit is not None and prior_asks >= limit
 
 
 def parse_policy_bundle(raw: dict[str, Any] | None) -> PolicyBundle:

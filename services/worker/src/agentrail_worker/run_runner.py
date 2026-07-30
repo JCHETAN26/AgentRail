@@ -45,6 +45,7 @@ from agentrail_core.policy import (
     PolicyDecision,
     ToolRiskLevel,
     decide,
+    escalates,
     parse_policy_bundle,
 )
 from agentrail_core.reliability import BudgetExceededError, BudgetKind, BudgetLedger
@@ -1143,31 +1144,10 @@ class EvaluationRunRunner:
         key stays unique per intended effect rather than per item.
         """
         bundle = await self._policy_bundle(session, run=run)
-        verdict, risk = decide(bundle, tool=tool, attempt=attempt)
+        verdict, risk = decide(bundle, tool=tool)
 
         if verdict is PolicyDecision.ALLOW:
             return PolicyGate(arguments=arguments)
-
-        if verdict is PolicyDecision.ESCALATE:
-            # The chain gave up asking. Terminal, and deliberately distinct from
-            # a denial: this call was approvable earlier, and an operator
-            # reading the trail has to be able to tell those apart.
-            await self._fail_item(
-                session,
-                item=item,
-                trajectory=trajectory,
-                attempt=attempt,
-                retryable=False,
-                error_code="approval_escalated",
-                error_message=(
-                    f"Approval for {tool} escalated after "
-                    f"{bundle.escalate_after_attempts} attempt(s)."
-                ),
-                fault_payload=None,
-                budget_state=budget_state,
-                title=f"Approval escalated: {tool}",
-            )
-            return PolicyGate(arguments=arguments, halted=True)
 
         if verdict is PolicyDecision.DENY:
             await self._fail_item(
@@ -1190,6 +1170,27 @@ class EvaluationRunRunner:
         key = side_effect_key(
             run_item_id=item.id, step_index=step_index, tool=tool, arguments=arguments
         )
+        if await self._would_escalate(session, bundle=bundle, item=item, key=key):
+            # Terminal, and deliberately distinct from a denial: this call was
+            # approvable on an earlier ask, and an operator reading the trail
+            # has to be able to tell those two apart.
+            await self._fail_item(
+                session,
+                item=item,
+                trajectory=trajectory,
+                attempt=attempt,
+                retryable=False,
+                error_code="approval_escalated",
+                error_message=(
+                    f"Approval for {tool} escalated after "
+                    f"{bundle.escalate_after_attempts} request(s) on this item."
+                ),
+                fault_payload=None,
+                budget_state=budget_state,
+                title=f"Approval escalated: {tool}",
+            )
+            return PolicyGate(arguments=arguments, halted=True)
+
         approval = await self._approval_for(
             session,
             run=run,
@@ -1244,6 +1245,29 @@ class EvaluationRunRunner:
             title=f"Approval {state.value.lower()}",
         )
         return PolicyGate(arguments=arguments, halted=True)
+
+    async def _would_escalate(
+        self, session: AsyncSession, *, bundle: PolicyBundle, item: RunItem, key: str
+    ) -> bool:
+        """Whether raising another approval request should be refused.
+
+        Only a *new* request escalates. If this exact effect already has a
+        request, it is answered by its own decision — escalating there would
+        block something a human had already approved.
+        """
+        if bundle.escalate_after_attempts is None:
+            return False
+        existing = await session.scalar(
+            select(ApprovalRequest.id).where(ApprovalRequest.idempotency_key == key)
+        )
+        if existing is not None:
+            return False
+        prior = await session.scalar(
+            select(func.count())
+            .select_from(ApprovalRequest)
+            .where(ApprovalRequest.run_item_id == item.id)
+        )
+        return escalates(bundle, prior_asks=int(prior or 0))
 
     async def _approval_for(
         self,

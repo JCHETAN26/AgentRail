@@ -10,6 +10,7 @@ from agentrail_core.policy import (
     PolicyDecision,
     ToolRiskLevel,
     decide,
+    escalates,
     parse_policy_bundle,
 )
 
@@ -115,11 +116,9 @@ class TestEscalationChain:
         # A platform that silently stops asking is worse than one that keeps
         # asking, so this only engages when a bundle opts in.
         assert bundle.escalate_after_attempts is None
-        for attempt in (1, 2, 50):
-            verdict, _ = decide(bundle, tool="restart_service", attempt=attempt)
-            assert verdict is PolicyDecision.REQUIRE_APPROVAL
+        assert escalates(bundle, prior_asks=99) is False
 
-    def test_the_chain_blocks_after_the_configured_attempts(self) -> None:
+    def test_the_chain_blocks_once_the_limit_is_reached(self) -> None:
         bundle = parse_policy_bundle(
             {
                 "tool_risks": {"restart_service": "HIGH_RISK_WRITE"},
@@ -127,40 +126,39 @@ class TestEscalationChain:
             }
         )
 
-        assert decide(bundle, tool="restart_service", attempt=1)[0] is (
-            PolicyDecision.REQUIRE_APPROVAL
-        )
-        assert decide(bundle, tool="restart_service", attempt=2)[0] is (
-            PolicyDecision.REQUIRE_APPROVAL
-        )
-        # The third attempt would ask the same reviewer the same question about
-        # the same effect.
-        assert decide(bundle, tool="restart_service", attempt=3)[0] is PolicyDecision.ESCALATE
+        # Two asks are allowed; the third would be a new request past the limit.
+        assert escalates(bundle, prior_asks=0) is False
+        assert escalates(bundle, prior_asks=1) is False
+        assert escalates(bundle, prior_asks=2) is True
 
-    def test_escalation_never_promotes_an_allowed_tool(self) -> None:
+    def test_the_verdict_itself_does_not_depend_on_asks(self) -> None:
+        bundle = parse_policy_bundle(
+            {
+                "tool_risks": {"restart_service": "HIGH_RISK_WRITE"},
+                "escalate_after_attempts": 1,
+            }
+        )
+
+        # decide() stays pure: escalation is a database fact about how many
+        # times this item already asked, not a property of the bundle.
+        verdict, _ = decide(bundle, tool="restart_service")
+        assert verdict is PolicyDecision.REQUIRE_APPROVAL
+
+    def test_an_allowed_tool_has_no_chain_to_escalate(self) -> None:
         bundle = parse_policy_bundle(
             {"tool_risks": {"search_logs": "READ_ONLY"}, "escalate_after_attempts": 1}
         )
 
-        # A read-only tool never needed approval, so there is no chain to escalate.
-        assert decide(bundle, tool="search_logs", attempt=99)[0] is PolicyDecision.ALLOW
+        assert decide(bundle, tool="search_logs")[0] is PolicyDecision.ALLOW
 
-    def test_a_prohibited_tool_is_still_denied_not_escalated(self) -> None:
+    def test_a_prohibited_tool_is_still_denied(self) -> None:
         bundle = parse_policy_bundle(
             {"tool_risks": {"drop_database": "PROHIBITED"}, "escalate_after_attempts": 1}
         )
 
         # DENY and ESCALATE are different facts; a prohibited tool was never
         # approvable and must not be reported as a chain that ran out.
-        assert decide(bundle, tool="drop_database", attempt=5)[0] is PolicyDecision.DENY
-
-    def test_attempt_defaults_to_the_first(self) -> None:
-        bundle = parse_policy_bundle(
-            {"tool_risks": {"restart_service": "HIGH_RISK_WRITE"}, "escalate_after_attempts": 1}
-        )
-
-        # Callers with no retry concept must reach the verdict they always did.
-        assert decide(bundle, tool="restart_service")[0] is PolicyDecision.REQUIRE_APPROVAL
+        assert decide(bundle, tool="drop_database")[0] is PolicyDecision.DENY
 
     @pytest.mark.parametrize("value", [0, -1, "2", 2.5, True])
     def test_unusable_limits_are_rejected_at_the_boundary(self, value: object) -> None:
