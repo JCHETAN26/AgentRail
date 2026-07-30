@@ -478,248 +478,259 @@ class EvaluationRunRunner:
             if claim.rowcount != 1:
                 await session.rollback()
                 return
-            trajectory = await self._create_trajectory(session, item=item, run=run)
-            graph_checkpoint = await self._append_step(
-                session,
-                trajectory_id=trajectory.id,
-                step_index=1,
-                step_type=TrajectoryStepType.GRAPH_STATE,
-                title="Load graph state",
-                input_payload={"item_index": item.item_index, "partition": item.partition},
-                output_payload={
-                    "node": "recorded_executor",
-                    "state": "ready",
-                    "candidate_agent_version_id": run.candidate_agent_version_id,
+            await self._execute_recorded_item(session, run=run, item=item)
+
+    async def _execute_recorded_item(
+        self, session: AsyncSession, *, run: EvaluationRun, item: RunItem
+    ) -> None:
+        """Execute one item on the deterministic recorded path.
+
+        Extracted verbatim from ``_execute_item`` so a second execution path
+        can sit beside it. The caller owns claiming the item and committing;
+        everything from trajectory creation onward belongs here.
+        """
+        trajectory = await self._create_trajectory(session, item=item, run=run)
+        graph_checkpoint = await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=1,
+            step_type=TrajectoryStepType.GRAPH_STATE,
+            title="Load graph state",
+            input_payload={"item_index": item.item_index, "partition": item.partition},
+            output_payload={
+                "node": "recorded_executor",
+                "state": "ready",
+                "candidate_agent_version_id": run.candidate_agent_version_id,
+            },
+            checkpoint={"stage": "graph_state", "node": "recorded_executor"},
+        )
+        await self._append_checkpoint(
+            session,
+            trajectory_id=trajectory.id,
+            step_id=graph_checkpoint.id,
+            checkpoint_index=0,
+            label="graph-state-ready",
+            state=graph_checkpoint.checkpoint,
+        )
+        await session.execute(
+            update(RunItem)
+            .where(RunItem.id == item.id, RunItem.state == RunItemState.EXECUTING)
+            .values(
+                state=RunItemState.EVALUATING,
+                checkpoint={
+                    "stage": "evaluating",
+                    "item_index": item.item_index,
+                    "trajectory_id": trajectory.id,
                 },
-                checkpoint={"stage": "graph_state", "node": "recorded_executor"},
+                updated_at=func.now(),
+                version=RunItem.version + 1,
             )
-            await self._append_checkpoint(
+        )
+
+        attempt = max(item.attempt_count, 1)
+        try:
+            profiles = await self._fault_profiles(session, run=run)
+        except FaultProfileError as invalid:
+            # Suite creation rejects these, but a row written before that
+            # validation existed can still reach here. Fail the item, not
+            # the worker: an uncaught raise would leave this item leased and
+            # take the consumer down with every other run behind it.
+            logger.warning(
+                "fault_profile_unexecutable",
+                extra={"run_id": run.id, "item_id": item.id, "reason": invalid.reason},
+            )
+            await self._fail_item(
                 session,
-                trajectory_id=trajectory.id,
-                step_id=graph_checkpoint.id,
-                checkpoint_index=0,
-                label="graph-state-ready",
-                state=graph_checkpoint.checkpoint,
-            )
-            await session.execute(
-                update(RunItem)
-                .where(RunItem.id == item.id, RunItem.state == RunItemState.EXECUTING)
-                .values(
-                    state=RunItemState.EVALUATING,
-                    checkpoint={
-                        "stage": "evaluating",
-                        "item_index": item.item_index,
-                        "trajectory_id": trajectory.id,
-                    },
-                    updated_at=func.now(),
-                    version=RunItem.version + 1,
-                )
-            )
-
-            attempt = max(item.attempt_count, 1)
-            try:
-                profiles = await self._fault_profiles(session, run=run)
-            except FaultProfileError as invalid:
-                # Suite creation rejects these, but a row written before that
-                # validation existed can still reach here. Fail the item, not
-                # the worker: an uncaught raise would leave this item leased and
-                # take the consumer down with every other run behind it.
-                logger.warning(
-                    "fault_profile_unexecutable",
-                    extra={"run_id": run.id, "item_id": item.id, "reason": invalid.reason},
-                )
-                await self._fail_item(
-                    session,
-                    item=item,
-                    trajectory=trajectory,
-                    attempt=attempt,
-                    retryable=False,
-                    error_code="fault_profile_invalid",
-                    error_message=str(invalid),
-                    fault_payload=None,
-                    budget_state={},
-                    title="Unexecutable fault profile",
-                )
-                await session.commit()
-                return
-            fault = plan_fault(profiles, item_index=item.item_index, attempt=attempt)
-            # Budgets are per item, so a retry resumes the previous attempt's
-            # spend rather than starting over with a fresh allowance.
-            ledger = BudgetLedger.restore(
-                await self._budget_limits(session, run=run), item.budget_state
-            )
-
-            arguments = {
-                "service": f"service-{item.item_index}",
-                "api_key": "test-secret-key",
-            }
-            try:
-                ledger = ledger.charge(BudgetKind.TOOL_CALLS, 1)
-                ledger = ledger.charge(BudgetKind.LOOP_ITERATIONS, 1)
-                ledger = ledger.charge(BudgetKind.TOKENS, 1_000)
-            except BudgetExceededError as exceeded:
-                await self._fail_item(
-                    session,
-                    item=item,
-                    trajectory=trajectory,
-                    attempt=attempt,
-                    retryable=False,
-                    error_code="budget_exhausted",
-                    error_message=str(exceeded),
-                    fault_payload=None,
-                    budget_state=exceeded.ledger.as_payload(),
-                    title=f"Budget exhausted: {exceeded.kind.value}",
-                )
-                await session.commit()
-                return
-
-            # Policy runs before anything reaches the world. A denial or an
-            # unanswered approval stops the attempt here, with the effect
-            # unapplied — which is the only ordering that makes the gate real.
-            gate = await self._policy_gate(
-                session,
-                run=run,
                 item=item,
                 trajectory=trajectory,
                 attempt=attempt,
-                arguments=arguments,
-                budget_state=ledger.as_payload(),
-            )
-            if gate.halted:
-                await session.commit()
-                return
-            arguments = gate.arguments
-
-            # The effect reaches the world *before* any injected fault kills the
-            # attempt. That ordering is the whole point: a retry then has to
-            # find the ledger row and decline to act a second time.
-            record, applied = await apply_side_effect_once(
-                session,
-                project_id=run.project_id,
-                run_id=run.id,
-                run_item_id=item.id,
-                step_index=2,
-                tool=_REMEDIATION_TOOL,
-                arguments=arguments,
-                attempt=attempt,
-                result={"status": "ok", "restarted": True},
-                required_approval=gate.required_approval,
-                approval_id=gate.approval_id,
-            )
-            await self._append_step(
-                session,
-                trajectory_id=trajectory.id,
-                step_index=2,
-                step_type=TrajectoryStepType.TOOL_CALL,
-                title="Recorded tool call",
-                input_payload={"tool": _REMEDIATION_TOOL, "arguments": arguments},
-                output_payload={
-                    "status": "ok",
-                    "latency_ms": 0,
-                    "side_effect_applied": applied,
-                    "idempotent_replay": not applied,
-                    "applied_on_attempt": record.applied_on_attempt,
-                },
-                checkpoint={"stage": "tool_call", "tool": _REMEDIATION_TOOL},
-                latency_ms=0,
-            )
-
-            if fault is not None:
-                retryable = fault.retryable and attempt < item.max_attempts
-                await self._fail_item(
-                    session,
-                    item=item,
-                    trajectory=trajectory,
-                    attempt=attempt,
-                    retryable=retryable,
-                    error_code=fault.kind.value,
-                    error_message=f"Injected {fault.family.value} fault {fault.kind.value}.",
-                    fault_payload=fault.as_payload(),
-                    budget_state=ledger.as_payload(),
-                    title=f"Injected fault: {fault.kind.value}",
-                )
-                await session.commit()
-                return
-            await self._append_step(
-                session,
-                trajectory_id=trajectory.id,
-                step_index=3,
-                step_type=TrajectoryStepType.EVIDENCE,
-                title="Collect evidence",
-                input_payload={"source": "recorded_fixture"},
-                output_payload={"evidence": [{"kind": "deterministic", "supports": "passed"}]},
-                evidence={"items": [{"kind": "deterministic", "supports": "passed"}]},
-                checkpoint={"stage": "evidence", "evidence_count": 1},
-            )
-            final_checkpoint = await self._append_step(
-                session,
-                trajectory_id=trajectory.id,
-                step_index=4,
-                step_type=TrajectoryStepType.CHECKPOINT,
-                title="Persist final checkpoint",
-                input_payload={"item_index": item.item_index},
-                output_payload={"checkpoint": "completed"},
-                checkpoint={"stage": "completed", "item_index": item.item_index, "passed": True},
-            )
-            await self._append_checkpoint(
-                session,
-                trajectory_id=trajectory.id,
-                step_id=final_checkpoint.id,
-                checkpoint_index=1,
-                label="item-completed",
-                state=final_checkpoint.checkpoint,
-            )
-            await self._append_step(
-                session,
-                trajectory_id=trajectory.id,
-                step_index=5,
-                step_type=TrajectoryStepType.FINAL_RESULT,
-                title="Recorded final result",
-                input_payload={"threshold": "recorded_success"},
-                output_payload={"passed": True, "mode": "recorded"},
-                evidence={"result_supported_by_step": 3},
-                checkpoint={"stage": "final_result", "passed": True},
-            )
-            trajectory.state = TrajectoryState.COMPLETED
-            trajectory.summary = {
-                "step_count": 6,
-                "checkpoint_count": 2,
-                "result": "passed",
-                "failing_step_id": None,
-            }
-            trajectory.graph_state = {
-                "node": "recorded_executor",
-                "state": "completed",
-                "item_index": item.item_index,
-            }
-            trajectory.final_checkpoint = final_checkpoint.checkpoint
-            trajectory.completed_at = datetime.now(UTC)
-            trajectory.updated_at = trajectory.completed_at
-            await session.execute(
-                update(RunItem)
-                .where(RunItem.id == item.id, RunItem.state == RunItemState.EVALUATING)
-                .values(
-                    state=RunItemState.COMPLETED,
-                    result={
-                        "passed": True,
-                        "mode": "recorded",
-                        "trajectory_id": trajectory.id,
-                        "side_effect_applied_on_attempt": record.applied_on_attempt,
-                    },
-                    checkpoint={
-                        "stage": "completed",
-                        "item_index": item.item_index,
-                        "trajectory_id": trajectory.id,
-                    },
-                    injected_fault=None,
-                    budget_state=ledger.as_payload(),
-                    lease_expires_at=None,
-                    completed_at=func.now(),
-                    updated_at=func.now(),
-                    version=RunItem.version + 1,
-                )
+                retryable=False,
+                error_code="fault_profile_invalid",
+                error_message=str(invalid),
+                fault_payload=None,
+                budget_state={},
+                title="Unexecutable fault profile",
             )
             await session.commit()
+            return
+        fault = plan_fault(profiles, item_index=item.item_index, attempt=attempt)
+        # Budgets are per item, so a retry resumes the previous attempt's
+        # spend rather than starting over with a fresh allowance.
+        ledger = BudgetLedger.restore(
+            await self._budget_limits(session, run=run), item.budget_state
+        )
+
+        arguments = {
+            "service": f"service-{item.item_index}",
+            "api_key": "test-secret-key",
+        }
+        try:
+            ledger = ledger.charge(BudgetKind.TOOL_CALLS, 1)
+            ledger = ledger.charge(BudgetKind.LOOP_ITERATIONS, 1)
+            ledger = ledger.charge(BudgetKind.TOKENS, 1_000)
+        except BudgetExceededError as exceeded:
+            await self._fail_item(
+                session,
+                item=item,
+                trajectory=trajectory,
+                attempt=attempt,
+                retryable=False,
+                error_code="budget_exhausted",
+                error_message=str(exceeded),
+                fault_payload=None,
+                budget_state=exceeded.ledger.as_payload(),
+                title=f"Budget exhausted: {exceeded.kind.value}",
+            )
+            await session.commit()
+            return
+
+        # Policy runs before anything reaches the world. A denial or an
+        # unanswered approval stops the attempt here, with the effect
+        # unapplied — which is the only ordering that makes the gate real.
+        gate = await self._policy_gate(
+            session,
+            run=run,
+            item=item,
+            trajectory=trajectory,
+            attempt=attempt,
+            arguments=arguments,
+            budget_state=ledger.as_payload(),
+        )
+        if gate.halted:
+            await session.commit()
+            return
+        arguments = gate.arguments
+
+        # The effect reaches the world *before* any injected fault kills the
+        # attempt. That ordering is the whole point: a retry then has to
+        # find the ledger row and decline to act a second time.
+        record, applied = await apply_side_effect_once(
+            session,
+            project_id=run.project_id,
+            run_id=run.id,
+            run_item_id=item.id,
+            step_index=2,
+            tool=_REMEDIATION_TOOL,
+            arguments=arguments,
+            attempt=attempt,
+            result={"status": "ok", "restarted": True},
+            required_approval=gate.required_approval,
+            approval_id=gate.approval_id,
+        )
+        await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=2,
+            step_type=TrajectoryStepType.TOOL_CALL,
+            title="Recorded tool call",
+            input_payload={"tool": _REMEDIATION_TOOL, "arguments": arguments},
+            output_payload={
+                "status": "ok",
+                "latency_ms": 0,
+                "side_effect_applied": applied,
+                "idempotent_replay": not applied,
+                "applied_on_attempt": record.applied_on_attempt,
+            },
+            checkpoint={"stage": "tool_call", "tool": _REMEDIATION_TOOL},
+            latency_ms=0,
+        )
+
+        if fault is not None:
+            retryable = fault.retryable and attempt < item.max_attempts
+            await self._fail_item(
+                session,
+                item=item,
+                trajectory=trajectory,
+                attempt=attempt,
+                retryable=retryable,
+                error_code=fault.kind.value,
+                error_message=f"Injected {fault.family.value} fault {fault.kind.value}.",
+                fault_payload=fault.as_payload(),
+                budget_state=ledger.as_payload(),
+                title=f"Injected fault: {fault.kind.value}",
+            )
+            await session.commit()
+            return
+        await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=3,
+            step_type=TrajectoryStepType.EVIDENCE,
+            title="Collect evidence",
+            input_payload={"source": "recorded_fixture"},
+            output_payload={"evidence": [{"kind": "deterministic", "supports": "passed"}]},
+            evidence={"items": [{"kind": "deterministic", "supports": "passed"}]},
+            checkpoint={"stage": "evidence", "evidence_count": 1},
+        )
+        final_checkpoint = await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=4,
+            step_type=TrajectoryStepType.CHECKPOINT,
+            title="Persist final checkpoint",
+            input_payload={"item_index": item.item_index},
+            output_payload={"checkpoint": "completed"},
+            checkpoint={"stage": "completed", "item_index": item.item_index, "passed": True},
+        )
+        await self._append_checkpoint(
+            session,
+            trajectory_id=trajectory.id,
+            step_id=final_checkpoint.id,
+            checkpoint_index=1,
+            label="item-completed",
+            state=final_checkpoint.checkpoint,
+        )
+        await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=5,
+            step_type=TrajectoryStepType.FINAL_RESULT,
+            title="Recorded final result",
+            input_payload={"threshold": "recorded_success"},
+            output_payload={"passed": True, "mode": "recorded"},
+            evidence={"result_supported_by_step": 3},
+            checkpoint={"stage": "final_result", "passed": True},
+        )
+        trajectory.state = TrajectoryState.COMPLETED
+        trajectory.summary = {
+            "step_count": 6,
+            "checkpoint_count": 2,
+            "result": "passed",
+            "failing_step_id": None,
+        }
+        trajectory.graph_state = {
+            "node": "recorded_executor",
+            "state": "completed",
+            "item_index": item.item_index,
+        }
+        trajectory.final_checkpoint = final_checkpoint.checkpoint
+        trajectory.completed_at = datetime.now(UTC)
+        trajectory.updated_at = trajectory.completed_at
+        await session.execute(
+            update(RunItem)
+            .where(RunItem.id == item.id, RunItem.state == RunItemState.EVALUATING)
+            .values(
+                state=RunItemState.COMPLETED,
+                result={
+                    "passed": True,
+                    "mode": "recorded",
+                    "trajectory_id": trajectory.id,
+                    "side_effect_applied_on_attempt": record.applied_on_attempt,
+                },
+                checkpoint={
+                    "stage": "completed",
+                    "item_index": item.item_index,
+                    "trajectory_id": trajectory.id,
+                },
+                injected_fault=None,
+                budget_state=ledger.as_payload(),
+                lease_expires_at=None,
+                completed_at=func.now(),
+                updated_at=func.now(),
+                version=RunItem.version + 1,
+            )
+        )
+        await session.commit()
 
     async def _policy_gate(
         self,
