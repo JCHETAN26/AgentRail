@@ -21,10 +21,6 @@ concurrency:
   group: release-${{ github.ref }}-${{ inputs.environment || 'staging' }}
   cancel-in-progress: false
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAMESPACE: ${{ github.repository }}
-
 jobs:
   images:
     name: images / ghcr
@@ -49,10 +45,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
 
+      # GHCR rejects any tag whose repository part has an uppercase letter, and
+      # `github.repository` preserves the owner/repo casing as registered
+      # ("JCHETAN26/AgentRail"). Lowercase it once here rather than at each use.
+      - name: Resolve the image namespace
+        id: namespace
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "value=$(echo "${REPOSITORY}" | tr '[:upper:]' '[:lower:]')" >> "${GITHUB_OUTPUT}"
+
       - name: Build and push immutable image
         env:
           SERVICE: ${{ matrix.service }}
-          IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
+          IMAGE: ghcr.io/${{ steps.namespace.outputs.value }}/${{ matrix.service }}:${{ github.sha }}
         run: |
           docker buildx build \
             --file infra/compose/Dockerfile.python \
@@ -67,12 +72,12 @@ jobs:
       - name: Emit image refs
         id: refs
         env:
-          REPOSITORY: ${{ github.repository }}
+          NAMESPACE: ${{ steps.namespace.outputs.value }}
           SHA: ${{ github.sha }}
         run: |
-          echo "api-image=ghcr.io/${REPOSITORY}/agentrail-api:${SHA}" >> "${GITHUB_OUTPUT}"
-          echo "worker-image=ghcr.io/${REPOSITORY}/agentrail-worker:${SHA}" >> "${GITHUB_OUTPUT}"
-          echo "sandbox-image=ghcr.io/${REPOSITORY}/agentrail-cloudops-sandbox:${SHA}" >> "${GITHUB_OUTPUT}"
+          echo "api-image=ghcr.io/${NAMESPACE}/agentrail-api:${SHA}" >> "${GITHUB_OUTPUT}"
+          echo "worker-image=ghcr.io/${NAMESPACE}/agentrail-worker:${SHA}" >> "${GITHUB_OUTPUT}"
+          echo "sandbox-image=ghcr.io/${NAMESPACE}/agentrail-cloudops-sandbox:${SHA}" >> "${GITHUB_OUTPUT}"
 
   staging:
     name: deploy / staging
