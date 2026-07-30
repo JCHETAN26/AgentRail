@@ -6,6 +6,26 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — LangGraph execution runtime
+
+- LangGraph is now a real dependency of `services/worker` and executes agent graphs. It was
+  previously named throughout the build plan but absent from the code, with `LangGraphAdapter`
+  serving as a marker class that executed nothing.
+- `agentrail_worker.langgraph_executor` is the only module that imports LangGraph;
+  `agentrail-core` stays framework-free so the domain does not depend on an agent runtime.
+- Durable graph checkpoints through LangGraph's `AsyncPostgresSaver`, keyed by a thread id derived
+  from the run item, so a restarted worker resumes from the last committed checkpoint instead of
+  re-running the item and repeating its side effects.
+- An event capture hook built on `astream(stream_mode="updates")`, yielding one event per node
+  transition with the state that node produced — the per-step graph state the trace explorer needs.
+- Tool calls are inverted through a `ToolGateway` the runner supplies, so a graph cannot bypass the
+  budget ledger, the policy gate or the idempotent side-effect ledger by construction.
+- `graph_spec` is validated rather than coerced: unknown node kinds, tool-call nodes without a tool,
+  non-tool nodes naming a tool, duplicate names and non-object arguments are all rejected.
+- [ADR 0007](docs/adr/0007-langgraph-as-an-execution-adapter.md) records the decision and its costs;
+  [ADR 0008](docs/adr/0008-tribunal-ships-as-a-module-not-a-service.md) records that the Tribunal
+  ships as a domain module rather than `services/tribunal`. An ADR template was added.
+
 ### Added — Phase 8: multi-agent safety tribunal
 
 - Deterministic six-role Tribunal foundation with Prosecutor, Defender, Auditor, Economist,
