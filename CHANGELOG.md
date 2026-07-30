@@ -8,6 +8,19 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ### Added — LangGraph execution runtime
 
+- The worker now dispatches on the candidate agent version's declared provider: a version whose
+  `model_config.provider` is `langgraph` executes under LangGraph, and everything else keeps the
+  recorded path, which remains the default.
+- Captured node transitions become `TrajectoryStep` rows, each carrying the graph state as of that
+  node rather than one end-of-run snapshot repeated on every row.
+- Tool calls from a graph run through a gateway that charges the budget ledger, runs the policy gate
+  and applies the effect through the idempotent side-effect ledger — the same guarantees, in the same
+  order, as the recorded path enforces inline.
+- The policy gate and approval requests are now parameterised by tool, so a graph calling something
+  other than `restart_service` is judged against the right rule and a reviewer sees the real tool
+  name in the approval queue.
+- An agent version whose `graph_spec` cannot compile fails its own item rather than the worker.
+
 - LangGraph is now a real dependency of `services/worker` and executes agent graphs. It was
   previously named throughout the build plan but absent from the code, with `LangGraphAdapter`
   serving as a marker class that executed nothing.

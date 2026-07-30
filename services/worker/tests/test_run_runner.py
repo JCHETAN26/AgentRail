@@ -14,6 +14,7 @@ from agentrail_core.evaluators import ComparisonReport
 from agentrail_core.execution import EvaluationRun, EvaluationRunState, RunItem, RunItemState
 from agentrail_core.identity import AgentDefinition, AgentVersion
 from agentrail_core.ids import new_sortable_id
+from agentrail_core.settings import DatabaseSettings
 from agentrail_core.trajectories import Trajectory, TrajectoryStep, TrajectoryStepType
 from agentrail_core.tribunal import TribunalSession
 from agentrail_worker.run_runner import (
@@ -35,6 +36,8 @@ async def make_run(
     thresholds: dict[str, object] | None = None,
     max_attempts: int = 2,
     policy_bundle: dict[str, object] | None = None,
+    model_config: dict[str, object] | None = None,
+    graph_spec: dict[str, object] | None = None,
 ) -> str:
     agent = AgentDefinition(
         id=new_sortable_id(), project_id=project_id, name="Worker Agent", slug=new_sortable_id()
@@ -44,9 +47,9 @@ async def make_run(
         agent_id=agent.id,
         version=1,
         content_digest="a" * 64,
-        graph_spec={},
+        graph_spec=graph_spec if graph_spec is not None else {},
         prompt_bundle={},
-        model_config={},
+        model_config=model_config if model_config is not None else {},
         tool_contracts=[],
         policy_bundle=policy_bundle
         if policy_bundle is not None
@@ -142,7 +145,10 @@ def test_tribunal_gate_summary_marks_conditional_as_approval_required() -> None:
 
 class TestEvaluationRunRunner:
     async def test_completes_a_100_item_suite(
-        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
     ) -> None:
         run_id = await make_run(session_factory, project_id, item_count=100)
         runner = EvaluationRunRunner(session_factory, worker_id="run-worker", lease_seconds=5)
@@ -173,7 +179,10 @@ class TestEvaluationRunRunner:
         assert tool_step.redacted_input["arguments"]["api_key"] == "[REDACTED]"
 
     async def test_auto_creates_tribunal_when_suite_enables_it(
-        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
     ) -> None:
         run_id = await make_run(
             session_factory,
@@ -368,7 +377,10 @@ class TestEvaluationRunRunner:
         assert run.summary["tribunal_gate"]["requires_human_approval"] is True
 
     async def test_does_not_create_tribunal_by_default(
-        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
     ) -> None:
         run_id = await make_run(session_factory, project_id, item_count=2)
         runner = EvaluationRunRunner(session_factory, worker_id="run-worker", lease_seconds=5)
@@ -385,7 +397,10 @@ class TestEvaluationRunRunner:
         assert tribunal_count == 0
 
     async def test_duplicate_run_delivery_is_harmless(
-        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
     ) -> None:
         run_id = await make_run(session_factory, project_id, item_count=2)
         runner = EvaluationRunRunner(session_factory, worker_id="run-worker", lease_seconds=5)
@@ -397,7 +412,10 @@ class TestEvaluationRunRunner:
         assert (await load_run(session_factory, run_id)).completed_count == 2
 
     async def test_resumes_a_running_run_after_recovery_requeues_it(
-        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
     ) -> None:
         run_id = await make_run(session_factory, project_id, item_count=2)
         async with session_factory() as session:
@@ -413,7 +431,10 @@ class TestEvaluationRunRunner:
         assert (await load_run(session_factory, run_id)).completed_count == 2
 
     async def test_expired_leases_return_to_pending_with_budget(
-        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
     ) -> None:
         run_id = await make_run(session_factory, project_id, item_count=1)
         async with session_factory() as session:
@@ -436,7 +457,10 @@ class TestEvaluationRunRunner:
         assert item.state == RunItemState.PENDING
 
     async def test_finds_stale_nonterminal_runs_for_requeue(
-        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
     ) -> None:
         run_id = await make_run(session_factory, project_id, item_count=1)
         stale_before = datetime.now(UTC) - timedelta(seconds=60)
@@ -452,3 +476,150 @@ class TestEvaluationRunRunner:
         )
 
         assert recovered == [run_id]
+
+
+class TestLangGraphExecution:
+    """The graph path, dispatched by the agent version's declared provider."""
+
+    async def test_recorded_stays_the_default(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        # No provider declared, so an existing version must keep its old path
+        # even on a worker that has LangGraph available.
+        run_id = await make_run(session_factory, project_id, item_count=1)
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="w",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            item = await session.scalar(select(RunItem).where(RunItem.run_id == run_id))
+            assert item is not None
+            assert item.state == RunItemState.COMPLETED
+            assert item.result["mode"] == "recorded"
+
+    async def test_langgraph_provider_records_a_step_per_node(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            model_config={"provider": "langgraph"},
+            graph_spec={
+                "nodes": [
+                    {"name": "act", "kind": "tool_call", "tool": "restart_service"},
+                    {"name": "gather", "kind": "evidence"},
+                    {"name": "decide", "kind": "decision"},
+                ]
+            },
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="w",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            item = await session.scalar(select(RunItem).where(RunItem.run_id == run_id))
+            assert item is not None
+            assert item.state == RunItemState.COMPLETED
+            assert item.result["mode"] == "langgraph"
+            trajectory = await session.scalar(
+                select(Trajectory).where(Trajectory.run_item_id == item.id)
+            )
+            assert trajectory is not None
+            steps = list(
+                (
+                    await session.scalars(
+                        select(TrajectoryStep)
+                        .where(TrajectoryStep.trajectory_id == trajectory.id)
+                        .order_by(TrajectoryStep.step_index)
+                    )
+                ).all()
+            )
+
+        titles = [step.title for step in steps]
+        assert "act (tool_call)" in titles
+        assert "gather (evidence)" in titles
+        assert "decide (decision)" in titles
+
+        # The point of the capture hook: each step carries the state as of that
+        # node, not one end-of-run snapshot copied onto every row.
+        by_title = {step.title: step for step in steps}
+        assert by_title["act (tool_call)"].checkpoint["evidence"] == []
+        assert by_title["gather (evidence)"].checkpoint["evidence"] != []
+
+    async def test_the_graph_cannot_bypass_the_side_effect_ledger(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            model_config={"provider": "langgraph"},
+            graph_spec={"nodes": [{"name": "act", "kind": "tool_call", "tool": "restart_service"}]},
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="w",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            item = await session.scalar(select(RunItem).where(RunItem.run_id == run_id))
+            assert item is not None
+            # A tool call made through the gateway leaves a ledger record, which
+            # is what makes a duplicate delivery harmless.
+            calls = item.result["tool_calls"]
+            assert [call["tool"] for call in calls] == ["restart_service"]
+            assert calls[0]["side_effect_applied"] is True
+
+    async def test_an_uncompilable_graph_fails_the_item_not_the_worker(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            model_config={"provider": "langgraph"},
+            graph_spec={"nodes": [{"name": "act", "kind": "tool_call"}]},  # no tool named
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="w",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+
+        # An unexecutable spec must settle its own item. Raising here would
+        # leave the item leased and take down every run queued behind it.
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            item = await session.scalar(select(RunItem).where(RunItem.run_id == run_id))
+            assert item is not None
+            assert item.state == RunItemState.FAILED_TERMINAL
+            assert item.error_code == "graph_spec_invalid"
