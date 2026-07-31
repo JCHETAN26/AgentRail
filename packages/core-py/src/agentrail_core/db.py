@@ -32,6 +32,13 @@ def create_database_engine(settings: DatabaseSettings) -> AsyncEngine:
 
     A server-side ``statement_timeout`` is set on every connection so that a
     pathological query cannot pin a worker or an API request indefinitely.
+
+    The session timezone is pinned to UTC. ``timestamptz`` values are rendered
+    in the session's zone, so without this the same instant serialises as
+    ``...Z`` when it was just written in-process and ``...-07:00`` when it was
+    read back from PostgreSQL — two representations of one value from one
+    endpoint, depending only on where the row came from. CI runs in UTC and
+    cannot see the difference; a developer outside UTC can.
     """
     return create_async_engine(
         str(settings.database_url),
@@ -40,7 +47,9 @@ def create_database_engine(settings: DatabaseSettings) -> AsyncEngine:
         pool_pre_ping=True,
         future=True,
         connect_args={
-            "options": f"-c statement_timeout={settings.database_statement_timeout_ms}",
+            "options": (
+                f"-c statement_timeout={settings.database_statement_timeout_ms} -c timezone=UTC"
+            ),
             "application_name": settings.service_name,
         },
     )

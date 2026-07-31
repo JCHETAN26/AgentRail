@@ -50,8 +50,12 @@ Show release evidence:
 Close with the engineer path:
 
 ```bash
-make verify
-make benchmark-report
+uv run pytest -q                       # 670 tests, real PostgreSQL and Redis
+uv run python scripts/benchmark.py report
 ```
+
+`make verify` and `make benchmark-report` wrap exactly these. Prefer the direct
+commands on camera: they work without GNU make, which is not present on every
+machine, and they name what is actually being run.
 
 Then show the raw artifact link for one benchmark metric.
