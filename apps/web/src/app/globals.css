@@ -1042,3 +1042,59 @@ code {
     display: grid;
   }
 }
+
+.tribunal__heatmap {
+  margin-top: 1.25rem;
+  overflow-x: auto;
+}
+
+.tribunal__heatmap h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.tribunal__heatmap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.tribunal__heatmap th,
+.tribunal__heatmap td {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tribunal__heatmap thead th,
+.tribunal__heatmap tbody th {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.tribunal__cell {
+  /* The theme foreground, not the background colour: the tint below is kept
+     light enough that normal-text contrast holds in both themes. */
+  color: var(--text);
+  font-weight: 650;
+}
+
+.tribunal__cell--blocker {
+  background: color-mix(in srgb, var(--error) calc(var(--cell-weight, 0.2) * 100%), transparent);
+}
+
+.tribunal__cell--warning {
+  background: color-mix(in srgb, var(--warn) calc(var(--cell-weight, 0.2) * 100%), transparent);
+}
+
+.tribunal__cell--info {
+  background: color-mix(in srgb, var(--ok) calc(var(--cell-weight, 0.2) * 100%), transparent);
+}
+
+.tribunal__cell-empty {
+  color: var(--text-muted);
+}

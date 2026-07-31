@@ -2,13 +2,14 @@
 
 import type {
   TribunalAgentRole,
+  TribunalFindingSeverity,
   TribunalArgument,
   TribunalFinding,
   TribunalReplay,
   TribunalSession,
 } from '@agentrail/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useState, type CSSProperties, type FormEvent } from 'react';
 
 import {
   ApiError,
@@ -28,6 +29,8 @@ const ROLES: readonly TribunalAgentRole[] = [
   'historian',
   'judge',
 ];
+
+const SEVERITIES: readonly TribunalFindingSeverity[] = ['blocker', 'warning', 'info'];
 
 export function TribunalPanel() {
   const queryClient = useQueryClient();
@@ -175,6 +178,8 @@ function TribunalResult({ tribunal }: { tribunal: TribunalSession }) {
           </li>
         ))}
       </ol>
+
+      <SeverityHeatmap findings={tribunal.findings} />
 
       <div className="tribunal__roles">
         {ROLES.map((role) => (
@@ -384,6 +389,76 @@ function trajectoryStepHref(link: EvidenceStepLink): string {
   const params = link.stepType ? `?step_type=${encodeURIComponent(link.stepType)}` : '';
   return apiUrl(
     `/api/v1/trajectories/${encodeURIComponent(link.trajectoryId)}/steps${params}#${encodeURIComponent(link.stepId)}`,
+  );
+}
+
+function SeverityHeatmap({ findings }: { findings: TribunalFinding[] }) {
+  // Rows are the six agents, columns the three severities. Reading across a row
+  // answers "is this agent flagging anything serious"; reading down a column
+  // answers "who is raising the blockers" — which is the question an operator
+  // has when a verdict surprises them.
+  const counts = new Map<string, number>();
+  const subjects = new Map<string, Set<string>>();
+  for (const finding of findings) {
+    const key = `${finding.agent_role}:${finding.severity}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const seen = subjects.get(key) ?? new Set<string>();
+    seen.add(finding.subject);
+    subjects.set(key, seen);
+  }
+  const busiest = Math.max(1, ...counts.values());
+
+  return (
+    <div className="tribunal__heatmap" aria-label="Finding severity heatmap">
+      <h4>Findings by agent and severity</h4>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Agent</th>
+            {SEVERITIES.map((severity) => (
+              <th key={severity} scope="col">
+                {severity}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {ROLES.map((role) => (
+            <tr key={role}>
+              <th scope="row">{role}</th>
+              {SEVERITIES.map((severity) => {
+                const key = `${role}:${severity}`;
+                const count = counts.get(key) ?? 0;
+                const types = [...(subjects.get(key) ?? [])].sort();
+                return (
+                  <td
+                    key={severity}
+                    className={count > 0 ? `tribunal__cell tribunal__cell--${severity}` : undefined}
+                    // Intensity varies the *background* only. Fading the whole
+                    // cell with `opacity` would dim the number along with it,
+                    // leaving the count present in the DOM but hard to read —
+                    // which is the accessibility failure this grid is most
+                    // likely to have. Capped low enough that the theme
+                    // foreground keeps its contrast against the tint.
+                    style={
+                      count > 0
+                        ? ({
+                            '--cell-weight': `${(0.15 + 0.3 * (count / busiest)).toFixed(3)}`,
+                          } as CSSProperties)
+                        : undefined
+                    }
+                    title={types.length > 0 ? types.join(', ') : undefined}
+                    data-testid={`heatmap-${role}-${severity}`}
+                  >
+                    {count === 0 ? <span className="tribunal__cell-empty">—</span> : count}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

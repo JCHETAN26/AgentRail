@@ -6,6 +6,16 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 8: finding severity heatmap
+
+- The Tribunal console shows findings as a grid of agent against severity. Reading across a row
+  answers "is this agent flagging anything serious"; reading down a column answers "who is raising
+  the blockers" — the question an operator has when a verdict surprises them.
+- Every agent keeps its row even when it found nothing, so a silent Prosecutor is distinguishable
+  from one that did not run. That distinction is what makes an injected bias visible.
+- Cell intensity carries the count, but the number is always rendered: colour alone is not an
+  accessible signal, and the subjects behind a cell are available on hover.
+
 ### Added — Phase 8: Tribunal throughput
 
 - A 16-item suite runs end to end through the Tribunal inside a 180-second budget, asserting every
