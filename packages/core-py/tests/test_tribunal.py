@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import httpx
 import pytest
@@ -387,7 +388,7 @@ class TestBiasInjection:
     """
 
     @pytest.mark.asyncio
-    async def test_an_over_flagging_prosecutor_cannot_block_a_clean_run(self) -> None:
+    async def test_an_over_flagging_prosecutor_does_not_block_a_clean_run(self) -> None:
         verdict = await decide_model_backed_tribunal(
             run=RUN,
             comparison=comparison(),
@@ -396,11 +397,49 @@ class TestBiasInjection:
             ),
         )
 
-        # Blocking authority belongs to the Auditor and the deterministic floor.
-        # A Prosecutor that cries wolf would otherwise be able to halt every
-        # release by asserting a catastrophe, which is a denial of service
-        # dressed as caution.
         assert verdict.outcome is TribunalVerdictOutcome.APPROVED
+
+    @pytest.mark.asyncio
+    async def test_the_judge_cannot_read_what_another_role_claimed(self) -> None:
+        """Why the previous test holds, asserted directly.
+
+        The outcome above is not evidence of enforcement in the verdict logic —
+        there is none. A Judge that returned ``blocked`` would be trusted
+        whenever no floor or Auditor blocker exists. What actually stops an
+        over-flagging Prosecutor is the evidence sandbox: the Judge receives
+        every untrusted string as a hash, so it cannot be persuaded by a claim
+        it cannot read.
+
+        This test exists so that a sandbox change made to enable real
+        deliberation fails here rather than silently removing the property.
+        """
+        seen: dict[str, Any] = {}
+
+        class SpyJudge:
+            def __init__(self) -> None:
+                self._inner = RecordedTribunalModelClient()
+
+            async def complete(self, request: TribunalModelRequest) -> TribunalModelResponse:
+                if request.role is TribunalAgentRole.JUDGE:
+                    seen["evidence"] = request.evidence
+                return await self._inner.complete(request)
+
+        await decide_model_backed_tribunal(
+            run=RUN,
+            comparison=comparison(),
+            model_client=BiasedTribunalModelClient(
+                SpyJudge(), bias=TribunalBias.PROSECUTOR_OVER_FLAGS
+            ),
+        )
+
+        rendered = json.dumps(seen["evidence"]).lower()
+        assert "block on principle" not in rendered
+        assert "catastrophe" not in rendered
+        # Scoped to the findings themselves: the deterministic floor's own
+        # summary legitimately carries a `blocker_count`, which is a number the
+        # Judge is meant to see, not a claim another role made.
+        findings = json.dumps(seen["evidence"]["findings"]).lower()
+        assert TribunalFindingSeverity.BLOCKER.value not in findings
 
     @pytest.mark.asyncio
     async def test_an_over_flagging_prosecutor_is_still_recorded(self) -> None:
@@ -412,8 +451,8 @@ class TestBiasInjection:
             ),
         )
 
-        # Overruled is not the same as unheard. The dissent has to survive into
-        # the blackboard or an operator cannot audit why it was discounted.
+        # Overruled is not the same as unheard, and this doubles as proof the
+        # injection applied at all: the honest Prosecutor emits INFO here.
         prosecutor = [
             finding
             for finding in verdict.findings
@@ -432,6 +471,15 @@ class TestBiasInjection:
             ),
         )
 
+        # The bias has to have applied, or this only re-tests the floor. The
+        # recorded Defender's own message differs from the injected one.
+        defender = [
+            finding
+            for finding in verdict.findings
+            if finding.agent_role is TribunalAgentRole.DEFENDER
+        ]
+        assert defender
+        assert defender[0].message == "This Defender sees no problem with anything."
         # Non-reproducible evidence cannot support a release no matter who
         # vouches for it.
         assert verdict.outcome is TribunalVerdictOutcome.BLOCKED
@@ -446,6 +494,13 @@ class TestBiasInjection:
             ),
         )
 
+        defender = [
+            finding
+            for finding in verdict.findings
+            if finding.agent_role is TribunalAgentRole.DEFENDER
+        ]
+        assert defender
+        assert defender[0].message == "This Defender sees no problem with anything."
         assert verdict.outcome is TribunalVerdictOutcome.BLOCKED
 
     @pytest.mark.asyncio
@@ -459,23 +514,42 @@ class TestBiasInjection:
         )
 
         # The Judge is the panel's authority, which is exactly why it must not
-        # be its single point of failure.
+        # be its single point of failure. The dissent records what it wanted.
         assert verdict.outcome is TribunalVerdictOutcome.BLOCKED
         assert verdict.dissent["model_judge_outcome"] == TribunalVerdictOutcome.APPROVED.value
 
     @pytest.mark.asyncio
-    async def test_bias_does_not_change_a_verdict_it_should_not_reach(self) -> None:
-        # A Judge biased toward approval on evidence that was already going to
-        # be approved must not look like the bias "worked".
-        honest = await decide_model_backed_tribunal(
-            run=RUN, comparison=comparison(), model_client=RecordedTribunalModelClient()
-        )
-        biased = await decide_model_backed_tribunal(
-            run=RUN,
-            comparison=comparison(),
-            model_client=BiasedTribunalModelClient(
-                RecordedTribunalModelClient(), bias=TribunalBias.JUDGE_IGNORES_AUDITOR
-            ),
+    async def test_a_judge_blocking_on_its_own_reasoning_is_trusted(self) -> None:
+        """The other half of the picture, documented rather than assumed.
+
+        Nothing downgrades a Judge that blocks. That is deliberate — blocking a
+        clean run is a liveness cost, not a safety failure — but it means the
+        panel's resistance to an over-flagging Prosecutor rests entirely on the
+        Judge being unable to read that Prosecutor's claim.
+        """
+
+        class BlockingJudge:
+            def __init__(self) -> None:
+                self._inner = RecordedTribunalModelClient()
+
+            async def complete(self, request: TribunalModelRequest) -> TribunalModelResponse:
+                response = await self._inner.complete(request)
+                if request.role is not TribunalAgentRole.JUDGE:
+                    return response
+                return TribunalModelResponse(
+                    content={
+                        "outcome": TribunalVerdictOutcome.BLOCKED.value,
+                        "primary_reason": "The Judge was not convinced.",
+                        "dissent": {},
+                    },
+                    provider=response.provider,
+                    model=response.model,
+                    response_id=response.response_id,
+                    usage=response.usage,
+                )
+
+        verdict = await decide_model_backed_tribunal(
+            run=RUN, comparison=comparison(), model_client=BlockingJudge()
         )
 
-        assert honest.outcome is biased.outcome is TribunalVerdictOutcome.APPROVED
+        assert verdict.outcome is TribunalVerdictOutcome.BLOCKED

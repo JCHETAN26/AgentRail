@@ -12,10 +12,14 @@ All notable changes to AgentRail are recorded here. The format follows
   the panel's safety properties can be attacked rather than assumed. Three biases: a Prosecutor that
   flags everything as a blocker, a Defender that finds nothing wrong, and a Judge that approves
   regardless of the audit.
-- Tests prove the properties hold under each: an over-flagging Prosecutor cannot block a clean run
-  (blocking authority belongs to the Auditor and the deterministic floor, so crying wolf is not a
-  denial of service), and neither a silent Defender nor a compliant Judge can approve past missing or
-  non-reproducible evidence.
+- Neither a silent Defender nor a compliant Judge can approve past missing or non-reproducible
+  evidence: the deterministic floor and the Auditor override both.
+- An over-flagging Prosecutor does not block a clean run — but the enforcement is the evidence
+  sandbox, not the verdict logic. The Judge receives every untrusted string as a hash, so it cannot
+  be persuaded by a claim it cannot read. Nothing downgrades a Judge that blocks on its own
+  reasoning, which is deliberate (blocking a clean run is a liveness cost, not a safety failure) and
+  is now asserted directly, so a sandbox change made to enable real deliberation fails a test rather
+  than silently removing the property.
 - An overruled role is still recorded. Discounting a dissent without persisting it would leave an
   operator unable to audit why.
 
