@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -16,7 +17,7 @@ from agentrail_core.identity import AgentDefinition, AgentVersion
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.settings import DatabaseSettings
 from agentrail_core.trajectories import Trajectory, TrajectoryStep, TrajectoryStepType
-from agentrail_core.tribunal import TribunalSession
+from agentrail_core.tribunal import TribunalSession, TribunalVerdictOutcome
 from agentrail_worker.run_runner import (
     EvaluationRunRunner,
     RunOutcome,
@@ -623,3 +624,75 @@ class TestLangGraphExecution:
             assert item is not None
             assert item.state == RunItemState.FAILED_TERMINAL
             assert item.error_code == "graph_spec_invalid"
+
+
+class TestTribunalThroughput:
+    """Phase 8's exit criterion: the full incident suite, judged, inside the budget.
+
+    The number that matters is not this machine's speed but that the Tribunal
+    does not turn a 16-item run into a long one. A panel that takes minutes per
+    run cannot sit in a release gate, so a regression that made it quadratic
+    would be a product failure rather than a slow test.
+    """
+
+    async def test_a_sixteen_item_suite_clears_the_tribunal_within_budget(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=16,
+            thresholds={"tribunal": {"enabled": True}},
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="bench-worker", lease_seconds=30)
+
+        started = time.monotonic()
+        outcome = await runner.process(run_id)
+        elapsed = time.monotonic() - started
+
+        assert outcome is RunOutcome.PASSED
+        async with session_factory() as session:
+            run = await session.get(EvaluationRun, run_id)
+            tribunal = await session.scalar(
+                select(TribunalSession).where(TribunalSession.run_id == run_id)
+            )
+            item_states = list(
+                (await session.scalars(select(RunItem.state).where(RunItem.run_id == run_id))).all()
+            )
+
+        # All sixteen actually ran. A budget met by doing less work is not a
+        # budget met.
+        assert len(item_states) == 16
+        assert all(state == RunItemState.COMPLETED for state in item_states)
+        assert tribunal is not None
+        assert run is not None
+        assert run.summary["tribunal_outcome"] == TribunalVerdictOutcome.APPROVED.value
+        assert tribunal.outcome == TribunalVerdictOutcome.APPROVED.value
+        assert elapsed < 180.0, f"16-item Tribunal run took {elapsed:.1f}s, budget is 180s"
+
+    async def test_the_tribunal_is_created_once_for_the_whole_run(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=16,
+            thresholds={"tribunal": {"enabled": True}},
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="bench-worker", lease_seconds=30)
+
+        await runner.process(run_id)
+        # Re-processing a finished run must not convene a second panel; that is
+        # what would make the cost scale with delivery attempts rather than runs.
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            sessions = list(
+                (
+                    await session.scalars(
+                        select(TribunalSession).where(TribunalSession.run_id == run_id)
+                    )
+                ).all()
+            )
+
+        assert len(sessions) == 1
