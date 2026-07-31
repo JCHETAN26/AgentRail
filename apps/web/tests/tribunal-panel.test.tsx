@@ -260,8 +260,16 @@ describe('TribunalPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: /run tribunal/i }));
 
     const heatmap = await screen.findByLabelText(/finding severity heatmap/i);
-    // Intensity carries magnitude, but the number has to be readable without
-    // perceiving the shade at all.
-    expect(within(heatmap).getByTestId('heatmap-auditor-blocker').textContent?.trim()).toBe('1');
+    const cell = within(heatmap).getByTestId('heatmap-auditor-blocker');
+
+    // Present as text, not only as a shade.
+    expect(cell.textContent?.trim()).toBe('1');
+
+    // And legible. Asserting the text exists was not enough on its own: fading
+    // the cell with `opacity` leaves the number in the DOM while dimming it
+    // along with the background, which is exactly the failure this test is for.
+    // The intensity has to ride on the background alone.
+    expect(cell.style.opacity).toBe('');
+    expect(cell.style.getPropertyValue('--cell-weight')).not.toBe('');
   });
 });

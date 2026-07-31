@@ -9,7 +9,7 @@ import type {
   TribunalSession,
 } from '@agentrail/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useState, type CSSProperties, type FormEvent } from 'react';
 
 import {
   ApiError,
@@ -434,9 +434,19 @@ function SeverityHeatmap({ findings }: { findings: TribunalFinding[] }) {
                   <td
                     key={severity}
                     className={count > 0 ? `tribunal__cell tribunal__cell--${severity}` : undefined}
-                    // Intensity carries the count, but the number is always
-                    // rendered too: colour alone is not an accessible signal.
-                    style={count > 0 ? { opacity: 0.35 + 0.65 * (count / busiest) } : undefined}
+                    // Intensity varies the *background* only. Fading the whole
+                    // cell with `opacity` would dim the number along with it,
+                    // leaving the count present in the DOM but hard to read —
+                    // which is the accessibility failure this grid is most
+                    // likely to have. Capped low enough that the theme
+                    // foreground keeps its contrast against the tint.
+                    style={
+                      count > 0
+                        ? ({
+                            '--cell-weight': `${(0.15 + 0.3 * (count / busiest)).toFixed(3)}`,
+                          } as CSSProperties)
+                        : undefined
+                    }
                     title={types.length > 0 ? types.join(', ') : undefined}
                     data-testid={`heatmap-${role}-${severity}`}
                   >

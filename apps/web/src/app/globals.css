@@ -1077,20 +1077,22 @@ code {
 }
 
 .tribunal__cell {
-  color: var(--bg);
+  /* The theme foreground, not the background colour: the tint below is kept
+     light enough that normal-text contrast holds in both themes. */
+  color: var(--text);
   font-weight: 650;
 }
 
 .tribunal__cell--blocker {
-  background: var(--error);
+  background: color-mix(in srgb, var(--error) calc(var(--cell-weight, 0.2) * 100%), transparent);
 }
 
 .tribunal__cell--warning {
-  background: var(--warn);
+  background: color-mix(in srgb, var(--warn) calc(var(--cell-weight, 0.2) * 100%), transparent);
 }
 
 .tribunal__cell--info {
-  background: var(--ok);
+  background: color-mix(in srgb, var(--ok) calc(var(--cell-weight, 0.2) * 100%), transparent);
 }
 
 .tribunal__cell-empty {
