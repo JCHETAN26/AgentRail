@@ -85,10 +85,19 @@ class AgentState(TypedDict, total=False):
 
 @dataclass(frozen=True, slots=True)
 class ToolInvocation:
-    """A tool the graph wants to call."""
+    """A tool the graph wants to call.
+
+    ``step_index`` comes from the node's position in the graph spec, not from a
+    counter over this process's invocations. The side-effect and approval keys
+    are derived from it, and a resumed run does not re-execute the nodes that
+    already completed — so a per-process counter would give the same effect a
+    different key on resume, raising a second approval request for something a
+    human had already approved.
+    """
 
     tool: str
     arguments: dict[str, Any]
+    step_index: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +153,8 @@ class GraphNode:
     kind: str
     tool: str | None
     arguments: dict[str, Any]
+    #: Position in the graph spec. Stable across runs of the same version.
+    position: int
 
 
 #: LangGraph parameterises StateGraph by state, context, input and output. Only
@@ -167,7 +178,7 @@ def parse_graph_spec(spec: Any) -> list[GraphNode]:
         raise GraphSpecError("graph_spec must be an object")
     raw_nodes = spec.get("nodes")
     if raw_nodes is None:
-        return [GraphNode(name=DEFAULT_NODE, kind="decision", tool=None, arguments={})]
+        return [GraphNode(name=DEFAULT_NODE, kind="decision", tool=None, arguments={}, position=0)]
     if not isinstance(raw_nodes, list) or not raw_nodes:
         raise GraphSpecError("graph_spec.nodes must be a non-empty list when present")
 
@@ -204,7 +215,9 @@ def parse_graph_spec(spec: Any) -> list[GraphNode]:
         arguments = raw.get("arguments", {})
         if not isinstance(arguments, dict):
             raise GraphSpecError(f"graph_spec.nodes[{index}].arguments must be an object")
-        nodes.append(GraphNode(name=name, kind=kind, tool=tool, arguments=arguments))
+        nodes.append(
+            GraphNode(name=name, kind=kind, tool=tool, arguments=arguments, position=index)
+        )
     return nodes
 
 
@@ -237,7 +250,12 @@ def _make_node_fn(node: GraphNode, gateway: ToolGateway) -> NodeFn:
         if node.kind == "tool_call":
             # `tool` is guaranteed present for tool_call nodes by parse_graph_spec.
             assert node.tool is not None
-            invocation = ToolInvocation(tool=node.tool, arguments=dict(node.arguments))
+            invocation = ToolInvocation(
+                tool=node.tool,
+                arguments=dict(node.arguments),
+                # +2 leaves room for the graph-state step the runner writes at 1.
+                step_index=node.position + 2,
+            )
             try:
                 result = await gateway.invoke(invocation)
             except ApprovalPending as pending:

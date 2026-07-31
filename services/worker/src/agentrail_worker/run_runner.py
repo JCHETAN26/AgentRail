@@ -367,13 +367,13 @@ class _RunnerToolGateway:
         self._trajectory = trajectory
         self._attempt = attempt
         self.ledger = ledger
-        #: Step 1 is the graph-state step the runner writes before streaming.
-        self._step_index = 1
         self.applied: list[dict[str, Any]] = []
 
     async def invoke(self, invocation: ToolInvocation) -> ToolResult:
-        self._step_index += 1
-        step_index = self._step_index
+        # The invocation carries its own index, derived from the node's position
+        # in the graph. Counting invocations here instead would shift the key on
+        # resume, because resumed runs skip the nodes that already completed.
+        step_index = invocation.step_index
         try:
             self.ledger = self.ledger.charge(BudgetKind.TOOL_CALLS, 1)
             self.ledger = self.ledger.charge(BudgetKind.LOOP_ITERATIONS, 1)

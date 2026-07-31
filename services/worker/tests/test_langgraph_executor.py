@@ -430,3 +430,49 @@ class TestResumeValueIsNeverNone:
         # The whole point. A None here is silently inert.
         assert DEFAULT_RESUME_VALUE is not None
         assert DEFAULT_RESUME_VALUE != {}
+
+
+class TestStableStepIndices:
+    async def test_a_nodes_step_index_does_not_depend_on_what_ran_before_it(self) -> None:
+        """The approval and side-effect keys are derived from this index.
+
+        A resumed run skips the nodes that already completed, so an index
+        counted over this process's invocations would shift — giving the same
+        effect a different key and raising a second approval request for
+        something a human had already approved.
+        """
+        spec = {
+            "nodes": [
+                {"name": "probe", "kind": "tool_call", "tool": "search_logs"},
+                {"name": "act", "kind": "tool_call", "tool": "restart_service"},
+            ]
+        }
+        full = RecordingGateway()
+        await run_graph(spec, full)
+
+        # Now the same graph where only the second node runs, as on a resume.
+        partial = RecordingGateway()
+        nodes = parse_graph_spec(spec)
+        act_only = [node for node in nodes if node.name == "act"]
+        compiled = build_graph(act_only, partial).compile(checkpointer=InMemorySaver())
+        await compiled.ainvoke(
+            {"item_index": 1, "partition": "p0", "tool_results": [], "evidence": []},
+            config={"configurable": {"thread_id": "resumed"}},
+        )
+
+        act_first_run = next(call for call in full.calls if call.tool == "restart_service")
+        act_resumed = partial.calls[0]
+        assert act_first_run.step_index == act_resumed.step_index
+
+    def test_positions_come_from_the_spec_order(self) -> None:
+        nodes = parse_graph_spec(
+            {
+                "nodes": [
+                    {"name": "a", "kind": "evidence"},
+                    {"name": "b", "kind": "tool_call", "tool": "restart_service"},
+                    {"name": "c", "kind": "decision"},
+                ]
+            }
+        )
+
+        assert [node.position for node in nodes] == [0, 1, 2]
