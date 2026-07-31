@@ -177,6 +177,7 @@ def parse_fault_profiles(raw: list[dict[str, Any]] | None) -> tuple[FaultProfile
     for index, entry in enumerate(raw):
         if not isinstance(entry, dict):
             raise FaultProfileError(index, "must be an object")
+        reject_item_selectors_on_run_level_faults(entry, index)
         raw_kind = entry.get("kind")
         if not isinstance(raw_kind, str):
             raise FaultProfileError(index, f"unknown fault kind {raw_kind!r}")
@@ -213,6 +214,10 @@ def plan_fault(
     two overlapping profiles resolve predictably instead of by set iteration.
     """
     for profile in profiles:
+        if profile.family is FaultFamily.TRIBUNAL:
+            # Run-level: the panel is convened once, during aggregation. Letting
+            # one match here would fail every item before the Tribunal ran.
+            continue
         if profile.matches(item_index=item_index, attempt=attempt):
             return InjectedFault(
                 kind=profile.kind,
@@ -223,6 +228,25 @@ def plan_fault(
                 detail=dict(profile.detail),
             )
     return None
+
+
+#: Selectors that only make sense per item. A run-level fault fires once for the
+#: whole run, so accepting these would let a suite believe it had scoped
+#: something that is not scopeable.
+_ITEM_ONLY_SELECTORS = ("item_indexes", "every_n", "attempts")
+
+
+def reject_item_selectors_on_run_level_faults(raw: dict[str, Any], index: int) -> None:
+    """Refuse per-item selectors on a Tribunal fault profile."""
+    kind = str(raw.get("kind", ""))
+    if not kind.startswith(f"{FaultFamily.TRIBUNAL.value}."):
+        return
+    for selector in _ITEM_ONLY_SELECTORS:
+        if raw.get(selector) is not None:
+            raise FaultProfileError(
+                index,
+                f"{selector} does not apply to a run-level {kind} fault",
+            )
 
 
 def _int_tuple(value: Any, index: int, field_name: str, *, minimum: int) -> tuple[int, ...]:

@@ -32,6 +32,7 @@ from agentrail_core.execution import (
     RunItemState,
 )
 from agentrail_core.faults import (
+    FaultKind,
     FaultProfile,
     FaultProfileError,
     parse_fault_profiles,
@@ -62,7 +63,9 @@ from agentrail_core.tribunal import (
     TRIBUNAL_FAULT_BIASES,
     BiasedTribunalModelClient,
     TribunalBias,
+    TribunalConfigError,
     TribunalMode,
+    TribunalModelTimeout,
     TribunalVerdictOutcome,
     build_tribunal_model_client,
     create_or_get_tribunal_session,
@@ -1656,8 +1659,20 @@ class EvaluationRunRunner:
             if suite is not None and tribunal_enabled(suite.thresholds):
                 tribunal_config = suite.thresholds.get("tribunal")
                 model_client = None
+                bias = _tribunal_bias_for(suite)
                 if tribunal_config is not None:
                     parsed_tribunal_config = validate_tribunal_config({"tribunal": tribunal_config})
+                    deterministic = (
+                        parsed_tribunal_config["mode"] != TribunalMode.MODEL_BACKED.value
+                    )
+                    if deterministic and bias is not None:
+                        # A deterministic panel has no model client to bias.
+                        # Silently running an unbiased panel would report
+                        # coverage the suite does not have.
+                        raise TribunalConfigError(
+                            "A tribunal fault requires thresholds.tribunal.mode = "
+                            "model_backed; the deterministic panel has no model client."
+                        )
                     if parsed_tribunal_config["mode"] == TribunalMode.MODEL_BACKED.value:
                         model_client = build_tribunal_model_client(
                             parsed_tribunal_config,
@@ -1667,16 +1682,42 @@ class EvaluationRunRunner:
                         )
                         # A Tribunal fault declared on the suite has to reach
                         # the panel, or it is a checkbox rather than a fault.
-                        bias = _tribunal_bias_for(suite)
                         if bias is not None:
                             model_client = BiasedTribunalModelClient(model_client, bias=bias)
-                tribunal, _created = await create_or_get_tribunal_session(
-                    session,
-                    run=run,
-                    comparison=comparison,
-                    tribunal_config=tribunal_config,
-                    model_client=model_client,
-                )
+                try:
+                    tribunal, _created = await create_or_get_tribunal_session(
+                        session,
+                        run=run,
+                        comparison=comparison,
+                        tribunal_config=tribunal_config,
+                        model_client=model_client,
+                    )
+                except TribunalModelTimeout as timed_out:
+                    # An unanswered panel must not take the worker down with it.
+                    # Letting this escape rolls back aggregation, leaves the run
+                    # RUNNING, kills the consumer, and then deterministically
+                    # kills the replacement that recovery hands the same run to.
+                    # A Tribunal that cannot render a verdict is a blocked
+                    # release, which is the safe reading of "we do not know".
+                    logger.warning(
+                        "tribunal_model_timeout",
+                        extra={"run_id": run.id, "role": timed_out.role.value},
+                    )
+                    run.summary = {
+                        **(run.summary or {}),
+                        "tribunal_outcome": TribunalVerdictOutcome.BLOCKED.value,
+                        "tribunal_gate": _tribunal_gate_summary(
+                            TribunalVerdictOutcome.BLOCKED.value
+                        ),
+                        "tribunal_error": {
+                            "kind": FaultKind.TRIBUNAL_MODEL_TIMEOUT.value,
+                            "role": timed_out.role.value,
+                        },
+                    }
+                    run.state = EvaluationRunState.FAILED
+                    run.updated_at = datetime.now(UTC)
+                    await session.commit()
+                    return RunOutcome.FAILED
                 tribunal_summary = {
                     "tribunal_session_id": tribunal.session.id,
                     "tribunal_outcome": tribunal.session.outcome.value,

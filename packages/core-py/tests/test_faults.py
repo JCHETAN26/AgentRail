@@ -113,3 +113,42 @@ def test_absent_profiles_produce_no_faults() -> None:
     assert parse_fault_profiles(None) == ()
     assert parse_fault_profiles([]) == ()
     assert plan_fault((), item_index=0, attempt=1) is None
+
+
+class TestRunLevelTribunalFaults:
+    def test_a_tribunal_fault_never_fails_an_item(self) -> None:
+        profiles = parse_fault_profiles([{"kind": "tribunal.judge_ignores_auditor"}])
+
+        # The panel is convened once, during aggregation. If this planned for an
+        # item, every item in the run would be failed before the Tribunal ran —
+        # and the run would report failures the candidate never caused.
+        for item_index in range(4):
+            for attempt in (1, 2, 3):
+                assert plan_fault(profiles, item_index=item_index, attempt=attempt) is None
+
+    def test_ordinary_faults_are_unaffected(self) -> None:
+        profiles = parse_fault_profiles(
+            [{"kind": "tribunal.model_timeout"}, {"kind": "tool.timeout", "attempts": [1]}]
+        )
+
+        # A Tribunal profile sitting first must not shadow the ones after it.
+        planned = plan_fault(profiles, item_index=0, attempt=1)
+        assert planned is not None
+        assert planned.kind is FaultKind.TOOL_TIMEOUT
+
+    @pytest.mark.parametrize("selector", ["item_indexes", "every_n", "attempts"])
+    def test_per_item_selectors_are_refused_on_run_level_faults(self, selector: str) -> None:
+        value: object = [1] if selector in {"item_indexes", "attempts"} else 2
+
+        # Accepting these would let a suite believe it had scoped something that
+        # fires once for the whole run and cannot be scoped.
+        with pytest.raises(FaultProfileError):
+            parse_fault_profiles([{"kind": "tribunal.model_timeout", selector: value}])
+
+    def test_selectors_are_still_allowed_on_item_level_faults(self) -> None:
+        profiles = parse_fault_profiles(
+            [{"kind": "tool.timeout", "item_indexes": [1], "attempts": [1]}]
+        )
+
+        assert plan_fault(profiles, item_index=1, attempt=1) is not None
+        assert plan_fault(profiles, item_index=0, attempt=1) is None
