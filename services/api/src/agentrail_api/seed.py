@@ -20,9 +20,13 @@ Two runs are seeded, because the comparison view is meaningless with one:
 
 Usage::
 
-    uv run agentrail-seed                    # against http://localhost:8000
-    uv run agentrail-seed --api-url ...      # against a deployed environment
+    uv run agentrail-seed                                 # http://localhost:8000
     uv run agentrail-seed --organisation "Demo Labs v2"   # a second, separate org
+
+Local and CI only. Sign-in goes through the dev auth provider, which deployed
+environments disable on purpose, so ``--api-url`` pointed at staging would fail
+on the first request. Seeding a deployed environment needs an OAuth session or a
+scoped API key and is deliberately not attempted here.
 
 Never destructive: each run creates a new organisation rather than touching an
 existing one, so re-seeding cannot damage data someone is demoing from.
@@ -125,6 +129,19 @@ async def seed_demo(
             {"name": "Incident Response"},
         )
 
+        # The demo's release beat also promises a GitHub Check record, and
+        # evaluate_run_gate only publishes one when the run carries repository
+        # provenance and the project has a binding. Without both it persists
+        # check_run=None and the beat has nothing to show.
+        # A repository may be bound to exactly one project, so the name carries
+        # the project id. Re-seeding otherwise collides with the previous run's
+        # binding and the new run is refused as another tenant's provenance.
+        repository = f"cloudops-responder-{project['id'][-8:].lower()}"
+        await seed.post(
+            f"/api/v1/projects/{project['id']}/github-repositories",
+            {"owner": "agentrail-demo", "repository": repository},
+        )
+
         agent = await seed.post(
             f"/api/v1/projects/{project['id']}/agents", {"name": "CloudOps Responder"}
         )
@@ -179,6 +196,10 @@ async def seed_demo(
                 "evaluation_suite_id": suite["id"],
                 "candidate_agent_version_id": candidate_version["id"],
                 "baseline_agent_version_id": baseline_version["id"],
+                "github_owner": "agentrail-demo",
+                "github_repository": repository,
+                "github_head_sha": "0" * 40,
+                "github_pull_number": 1,
             },
         )
         final = await wait_for_run(seed, candidate_run["id"], timeout_seconds=wait_seconds)
@@ -208,6 +229,7 @@ async def seed_demo(
             "candidate_run_state": str(final.get("state", "")),
             "release_policy_id": policy["id"],
             "gate_outcome": str(gate.get("outcome", "")),
+            "check_run": "published" if gate.get("check_run") else "none",
         }
 
 
@@ -306,6 +328,7 @@ def main() -> int:
     print(f"  baseline run      {result['baseline_run_id']}")
     print(f"  candidate run     {result['candidate_run_id']}  [{result['candidate_run_state']}]")
     print(f"  release gate      {result['gate_outcome']}  (policy {result['release_policy_id']})")
+    print(f"  github check      {result['check_run']}")
     print()
     print("Open the console and paste the candidate run id into the trace explorer")
     print("and the Tribunal panel.")

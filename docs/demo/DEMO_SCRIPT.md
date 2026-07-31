@@ -50,12 +50,19 @@ Show release evidence:
 Close with the engineer path:
 
 ```bash
-uv run pytest -q                       # 670 tests, real PostgreSQL and Redis
+uv run ruff format --check services packages && pnpm run format:check
+uv run ruff check services packages && pnpm run lint
+uv run mypy packages/core-py/src services/*/src && pnpm run typecheck
+AGENTRAIL_REQUIRE_INTEGRATION=1 uv run pytest -q && pnpm run test
+uv run python scripts/export_openapi.py && pnpm --filter @agentrail/contracts check
 uv run python scripts/benchmark.py report
 ```
 
-`make verify` and `make benchmark-report` wrap exactly these. Prefer the direct
-commands on camera: they work without GNU make, which is not present on every
-machine, and they name what is actually being run.
+These are what `make verify` and `make benchmark-report` run; use the make
+targets if GNU make is available. Spelled out because make is not present on
+every machine, and because a shortened list would claim more verification than
+it performs. `AGENTRAIL_REQUIRE_INTEGRATION=1` matters: without it the
+integration tests *skip* when PostgreSQL or Redis is absent, and a skipped suite
+reads as a passing one.
 
 Then show the raw artifact link for one benchmark metric.
