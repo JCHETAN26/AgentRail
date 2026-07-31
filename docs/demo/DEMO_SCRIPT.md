@@ -62,7 +62,7 @@ These are what `make verify` and `make benchmark-report` run; use the make
 targets if GNU make is available. Spelled out because make is not present on
 every machine, and because a shortened list would claim more verification than
 it performs. `AGENTRAIL_REQUIRE_INTEGRATION=1` matters: without it the
-integration tests *skip* when PostgreSQL or Redis is absent, and a skipped suite
+integration tests _skip_ when PostgreSQL or Redis is absent, and a skipped suite
 reads as a passing one.
 
 Then show the raw artifact link for one benchmark metric.
