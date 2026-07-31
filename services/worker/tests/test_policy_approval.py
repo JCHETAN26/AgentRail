@@ -18,7 +18,9 @@ from test_run_runner import load_run, make_run
 from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.execution import EvaluationRunState, RunItem, RunItemState
 from agentrail_core.ids import new_sortable_id
+from agentrail_core.settings import DatabaseSettings
 from agentrail_core.side_effects import SideEffectRecord
+from agentrail_core.trajectories import Trajectory, TrajectoryStep
 from agentrail_worker.run_runner import EvaluationRunRunner, RunOutcome
 
 pytestmark = pytest.mark.integration
@@ -312,3 +314,314 @@ class TestRejectionCannotBeBypassed:
 
         assert len(await approvals(session_factory, run_id)) == 1
         assert await effects(session_factory, run_id) == 0
+
+
+LANGGRAPH_MODEL = {"provider": "langgraph"}
+LANGGRAPH_SPEC = {
+    "nodes": [
+        {"name": "act", "kind": "tool_call", "tool": "restart_service"},
+        {"name": "gather", "kind": "evidence"},
+        {"name": "decide", "kind": "decision"},
+    ]
+}
+
+
+class TestApprovalUnderLangGraph:
+    """Phase 11's exit criterion on the graph path: approve, resume, complete.
+
+    The recorded path already proves the approval contract. What only a real
+    database can show here is that the *interrupt* survives the process — the
+    graph pauses at the node that asked, and the reviewer's decision resumes
+    that node rather than replaying the graph.
+    """
+
+    async def test_a_high_risk_graph_node_parks_without_reaching_the_world(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            policy_bundle=HIGH_RISK,
+            model_config=LANGGRAPH_MODEL,
+            graph_spec=LANGGRAPH_SPEC,
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="policy-worker",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+
+        await runner.process(run_id)
+
+        assert await effects(session_factory, run_id) == 0
+        assert (await items(session_factory, run_id))[0].state == RunItemState.AWAITING_APPROVAL
+        assert len(await approvals(session_factory, run_id)) == 1
+
+    async def test_approve_resume_complete(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            policy_bundle=HIGH_RISK,
+            model_config=LANGGRAPH_MODEL,
+            graph_spec=LANGGRAPH_SPEC,
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="policy-worker",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+        await runner.process(run_id)
+        approval = (await approvals(session_factory, run_id))[0]
+
+        await decide(session_factory, approval.id, approve=True)
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.PASSED
+        item = (await items(session_factory, run_id))[0]
+        assert item.state == RunItemState.COMPLETED
+        assert item.result["mode"] == "langgraph"
+        # Exactly once. A resume that replayed the graph would apply it twice,
+        # and the ledger is what makes that visible.
+        assert await effects(session_factory, run_id) == 1
+        async with session_factory() as session:
+            record = await session.scalar(
+                select(SideEffectRecord).where(SideEffectRecord.run_id == run_id)
+            )
+        assert record is not None
+        assert record.required_approval is True
+        assert record.approval_id == approval.id
+
+    async def test_resuming_does_not_re_run_the_node_before_the_interrupt(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        """The discriminator between resuming and replaying from START.
+
+        With the high-risk tool as the graph's first node, a replay is
+        indistinguishable from a resume: the ledger deduplicates the repeated
+        effect under the same key, so exactly one record exists either way. A
+        completed node *before* the interrupt is what makes the difference
+        visible — on a replay it runs a second time.
+        """
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            policy_bundle={
+                "tool_risks": {
+                    "search_logs": "READ_ONLY",
+                    "restart_service": "HIGH_RISK_WRITE",
+                }
+            },
+            model_config=LANGGRAPH_MODEL,
+            graph_spec={
+                "nodes": [
+                    {"name": "probe", "kind": "tool_call", "tool": "search_logs"},
+                    {"name": "act", "kind": "tool_call", "tool": "restart_service"},
+                    {"name": "decide", "kind": "decision"},
+                ]
+            },
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="policy-worker",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+        await runner.process(run_id)
+        approval = (await approvals(session_factory, run_id))[0]
+        await decide(session_factory, approval.id, approve=True)
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            item = (await items(session_factory, run_id))[0]
+            steps = list(
+                (
+                    await session.scalars(
+                        select(TrajectoryStep)
+                        .join(Trajectory, Trajectory.id == TrajectoryStep.trajectory_id)
+                        .where(Trajectory.run_item_id == item.id)
+                    )
+                ).all()
+            )
+
+        probes = [step for step in steps if step.title == "probe (tool_call)"]
+        # Exactly one. Two would mean the graph restarted from START and ran an
+        # already-completed node again.
+        assert len(probes) == 1
+        assert item.state == RunItemState.COMPLETED
+
+    async def test_the_resumed_node_is_recorded_in_the_trajectory(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            policy_bundle=HIGH_RISK,
+            model_config=LANGGRAPH_MODEL,
+            graph_spec=LANGGRAPH_SPEC,
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="policy-worker",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+        await runner.process(run_id)
+        approval = (await approvals(session_factory, run_id))[0]
+        await decide(session_factory, approval.id, approve=True)
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            item = (await items(session_factory, run_id))[0]
+            steps = list(
+                (
+                    await session.scalars(
+                        select(TrajectoryStep)
+                        .join(Trajectory, Trajectory.id == TrajectoryStep.trajectory_id)
+                        .where(Trajectory.run_item_id == item.id)
+                        .order_by(TrajectoryStep.step_index)
+                    )
+                ).all()
+            )
+
+        titles = [step.title for step in steps]
+        # Losing the record of the effect a human authorised is the wrong thing
+        # to lose; step indices on resume must not collide with the pre-approval
+        # rows and silently drop it.
+        assert "Awaiting approval" in titles
+        assert "act (tool_call)" in titles
+        assert len(steps) == len({step.step_index for step in steps})
+
+    async def test_a_rejected_graph_node_never_reaches_the_world(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            policy_bundle=HIGH_RISK,
+            model_config=LANGGRAPH_MODEL,
+            graph_spec=LANGGRAPH_SPEC,
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="policy-worker",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+        await runner.process(run_id)
+        approval = (await approvals(session_factory, run_id))[0]
+
+        await decide(session_factory, approval.id, approve=False)
+        await runner.process(run_id)
+
+        assert await effects(session_factory, run_id) == 0
+        assert (await items(session_factory, run_id))[0].state == RunItemState.FAILED_TERMINAL
+
+
+class TestEscalationChain:
+    async def test_a_second_ask_on_the_same_item_escalates(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        """Reached the way production reaches it: two high-risk nodes.
+
+        A parked item never retries while a human decides, so item attempt
+        counts cannot drive this. What does is a graph whose *second* node
+        raises a second approval request after the first was granted.
+        """
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            policy_bundle={
+                "tool_risks": {
+                    "restart_service": "HIGH_RISK_WRITE",
+                    "scale_service": "HIGH_RISK_WRITE",
+                },
+                "escalate_after_attempts": 1,
+            },
+            model_config=LANGGRAPH_MODEL,
+            graph_spec={
+                "nodes": [
+                    {"name": "act", "kind": "tool_call", "tool": "restart_service"},
+                    {"name": "grow", "kind": "tool_call", "tool": "scale_service"},
+                ]
+            },
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="policy-worker",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+
+        await runner.process(run_id)
+        first = (await approvals(session_factory, run_id))[0]
+        await decide(session_factory, first.id, approve=True)
+        await runner.process(run_id)
+
+        item = (await items(session_factory, run_id))[0]
+        assert item.state == RunItemState.FAILED_TERMINAL
+        # Distinct from a denial: scale_service was approvable, the chain simply
+        # ran out of patience on this item.
+        assert item.error_code == "approval_escalated"
+        # The second node never asked, and never acted.
+        assert len(await approvals(session_factory, run_id)) == 1
+        assert await effects(session_factory, run_id) == 1
+
+    async def test_an_already_approved_effect_is_never_escalated(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        project_id: str,
+        database_settings: DatabaseSettings,
+    ) -> None:
+        # The converse failure: escalating an effect a human already approved
+        # would block work that was explicitly authorised.
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            policy_bundle={**HIGH_RISK, "escalate_after_attempts": 1},
+            model_config=LANGGRAPH_MODEL,
+            graph_spec=LANGGRAPH_SPEC,
+        )
+        runner = EvaluationRunRunner(
+            session_factory,
+            worker_id="policy-worker",
+            lease_seconds=5,
+            database_url=str(database_settings.database_url),
+        )
+        await runner.process(run_id)
+        approval = (await approvals(session_factory, run_id))[0]
+
+        await decide(session_factory, approval.id, approve=True)
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.PASSED
+        assert (await items(session_factory, run_id))[0].state == RunItemState.COMPLETED
+        assert await effects(session_factory, run_id) == 1

@@ -39,6 +39,11 @@ class PolicyDecision(StrEnum):
     ALLOW = "allow"
     REQUIRE_APPROVAL = "require_approval"
     DENY = "deny"
+    #: The approval chain ran out of patience. Distinct from DENY because the
+    #: tool is not prohibited — the same call would have been approvable on an
+    #: earlier attempt, and an operator reading the audit trail needs to know
+    #: which of the two stopped it.
+    ESCALATE = "escalate"
 
 
 class PolicyBundleError(ValueError):
@@ -60,6 +65,11 @@ class PolicyBundle:
     default_risk: ToolRiskLevel = ToolRiskLevel.HIGH_RISK_WRITE
     #: The level at or above which a human must approve. Below it, allow.
     require_approval_at: ToolRiskLevel = ToolRiskLevel.HIGH_RISK_WRITE
+    #: How many separate approval requests one run item may raise before the
+    #: chain escalates and blocks instead. ``None`` disables escalation, which
+    #: is the default: a platform that silently stops asking for approval is
+    #: worse than one that keeps asking.
+    escalate_after_attempts: int | None = None
 
     def risk_of(self, tool: str) -> ToolRiskLevel:
         return self.tool_risks.get(tool, self.default_risk)
@@ -72,6 +82,10 @@ def decide(bundle: PolicyBundle, *, tool: str) -> tuple[PolicyDecision, ToolRisk
     decision also has to record *why* — in an approval request, an audit event
     or a trajectory step — and recomputing it separately invites the two to
     drift apart.
+
+    Escalation is deliberately *not* decided here: it depends on how many times
+    this item has already asked a human, which is a database fact rather than a
+    property of the bundle. See :func:`escalates`.
     """
     risk = bundle.risk_of(tool)
     if risk == ToolRiskLevel.PROHIBITED:
@@ -81,6 +95,22 @@ def decide(bundle: PolicyBundle, *, tool: str) -> tuple[PolicyDecision, ToolRisk
     if _SEVERITY[risk] >= _SEVERITY[bundle.require_approval_at]:
         return PolicyDecision.REQUIRE_APPROVAL, risk
     return PolicyDecision.ALLOW, risk
+
+
+def escalates(bundle: PolicyBundle, *, prior_asks: int) -> bool:
+    """Whether raising *another* approval request should be refused instead.
+
+    ``prior_asks`` counts the approval requests this run item has already
+    raised. Item retry counts are the wrong measure: a parked item does not
+    retry while a human is deciding, so its attempt counter never advances, and
+    retries caused by something unrelated would escalate a tool whose approval
+    had already been granted.
+
+    Only consulted when a *new* request would be created. An effect that already
+    has a decision is answered by that decision, not by this.
+    """
+    limit = bundle.escalate_after_attempts
+    return limit is not None and prior_asks >= limit
 
 
 def parse_policy_bundle(raw: dict[str, Any] | None) -> PolicyBundle:
@@ -118,11 +148,28 @@ def parse_policy_bundle(raw: dict[str, Any] | None) -> PolicyBundle:
         # inert policy is worse than a rejected one.
         raise PolicyBundleError("require_approval_at cannot be PROHIBITED")
 
+    escalate_after_attempts = _escalation_limit(raw.get("escalate_after_attempts"))
+
     return PolicyBundle(
         tool_risks=tool_risks,
         default_risk=default_risk,
         require_approval_at=require_approval_at,
+        escalate_after_attempts=escalate_after_attempts,
     )
+
+
+def _escalation_limit(value: Any) -> int | None:
+    if value is None:
+        return None
+    # bool is an int subclass, and `escalate_after_attempts: true` is a
+    # configuration mistake rather than a limit of one.
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise PolicyBundleError("escalate_after_attempts must be a positive integer")
+    if value < 1:
+        # Zero would escalate before the first attempt could ever ask, making
+        # every approvable tool permanently blocked with no way to notice.
+        raise PolicyBundleError("escalate_after_attempts must be at least 1")
+    return value
 
 
 def _level(value: Any, field_name: str) -> ToolRiskLevel:
