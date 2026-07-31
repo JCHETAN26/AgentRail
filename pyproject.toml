@@ -57,6 +57,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S105", "S106"]
 "**/conftest.py" = ["S101"]
+# The seed CLI's stdout is its interface, not stray debugging. T20 stays on
+# everywhere else, where a print really is a leftover.
+"**/agentrail_api/seed.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["agentrail_core", "agentrail_api", "agentrail_worker", "agentrail_cloudops_sandbox"]

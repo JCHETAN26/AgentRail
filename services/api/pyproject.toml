@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 agentrail-api = "agentrail_api.main:main"
+agentrail-seed = "agentrail_api.seed:main"
 
 [dependency-groups]
 dev = [
