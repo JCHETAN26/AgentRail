@@ -351,13 +351,21 @@ PLATFORM_FAULTS = [
 ]
 
 
-class TestPlatformFaultsAreSurvivable:
-    """Phase 10's platform catalogue: every one of these must be recoverable.
+class TestPlatformFaultRetryContract:
+    """The contract every platform fault kind shares, asserted for all eight.
 
-    A platform fault is something outside the agent breaking — a redelivery, a
-    lost lease, a dependency briefly down. None of them are the candidate's
-    fault, so none may fail a run permanently while retries remain. A fault kind
-    that silently went terminal would blame an agent for the platform's problem.
+    Scope, stated plainly because it is easy to overread: the worker handles all
+    eight identically, so these tests establish that each declared kind is
+    routed, retried and ledgered correctly. They do **not** exercise the
+    components themselves — nothing here restarts Redis, terminates a worker to
+    reclaim its lease, or induces a PostgreSQL transient error at its own
+    boundary. Per-component injection is separate work, and Phase 10's checklist
+    item stays unchecked until it exists.
+
+    What this does buy: a platform fault is something outside the agent
+    breaking, so none may fail a run permanently while retries remain. A kind
+    that silently went terminal would blame an agent for the platform's problem,
+    and that would now fail here.
     """
 
     def test_the_catalogue_matches_the_declared_family(self) -> None:
