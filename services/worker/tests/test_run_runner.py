@@ -666,7 +666,8 @@ class TestTribunalThroughput:
         assert all(state == RunItemState.COMPLETED for state in item_states)
         assert tribunal is not None
         assert run is not None
-        assert run.summary["tribunal"]["outcome"] == TribunalVerdictOutcome.APPROVED.value
+        assert run.summary["tribunal_outcome"] == TribunalVerdictOutcome.APPROVED.value
+        assert tribunal.outcome == TribunalVerdictOutcome.APPROVED.value
         assert elapsed < 180.0, f"16-item Tribunal run took {elapsed:.1f}s, budget is 180s"
 
     async def test_the_tribunal_is_created_once_for_the_whole_run(
