@@ -526,6 +526,14 @@ class RecordedTribunalModelClient:
         )
 
 
+class TribunalModelTimeout(TimeoutError):
+    """The Tribunal's model provider did not answer for one role."""
+
+    def __init__(self, role: TribunalAgentRole) -> None:
+        super().__init__(f"tribunal model timed out for {role.value}")
+        self.role = role
+
+
 class TribunalBias(StrEnum):
     """A way one Tribunal role can be wrong, for deliberate injection.
 
@@ -541,6 +549,17 @@ class TribunalBias(StrEnum):
     DEFENDER_UNDER_FLAGS = "defender_under_flags"
     #: Approves regardless of what the Auditor found.
     JUDGE_IGNORES_AUDITOR = "judge_ignores_auditor"
+    #: The provider never answers. Not a wrong role — an absent one.
+    MODEL_TIMEOUT = "model_timeout"
+
+
+#: Which injected fault produces which panel bias. Kept beside the biases so a
+#: new fault cannot be declared without deciding what it actually does.
+TRIBUNAL_FAULT_BIASES: dict[str, TribunalBias] = {
+    "tribunal.prosecutor_over_flagging": TribunalBias.PROSECUTOR_OVER_FLAGS,
+    "tribunal.judge_ignores_auditor": TribunalBias.JUDGE_IGNORES_AUDITOR,
+    "tribunal.model_timeout": TribunalBias.MODEL_TIMEOUT,
+}
 
 
 class BiasedTribunalModelClient:
@@ -557,6 +576,10 @@ class BiasedTribunalModelClient:
         self.bias = bias
 
     async def complete(self, request: TribunalModelRequest) -> TribunalModelResponse:
+        if self.bias is TribunalBias.MODEL_TIMEOUT:
+            # Raised before the call, not after: a timeout that still returned a
+            # usable response would not be a timeout.
+            raise TribunalModelTimeout(request.role)
         response = await self._inner.complete(request)
         distorted = self._distort(request.role, dict(response.content))
         if distorted is None:
