@@ -16,6 +16,13 @@ All notable changes to AgentRail are recorded here. The format follows
 - Cell intensity carries the count, but the number is always rendered: colour alone is not an
   accessible signal, and the subjects behind a cell are available on hover.
 
+### Added — Phase 8: Tribunal throughput
+
+- A 16-item suite runs end to end through the Tribunal inside a 180-second budget, asserting every
+  item actually completed — a budget met by doing less work is not a budget met.
+- One Tribunal session is convened per run, not per delivery. Re-processing a finished run does not
+  convene a second panel, so the cost scales with runs rather than with redeliveries.
+
 ### Added — Phase 8: Tribunal bias injection
 
 - `BiasedTribunalModelClient` wraps any Tribunal model client and distorts one role's response, so

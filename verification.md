@@ -260,7 +260,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 ## Tests
 
-- [ ] Integration tests: 16-scenario suite runs through Tribunal in under 3 minutes
+- [x] Integration tests: 16-scenario suite runs through Tribunal in under 3 minutes
 - [x] Integration tests: Prosecutor and Defender produce genuinely conflicting findings on at least one scenario
 - [x] Integration tests: Auditor blocker always overrides Defender approval
 - [x] Integration tests: verdict is reproducible (same trajectories + same prompts → same verdict within LLM variance)
