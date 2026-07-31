@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -219,5 +219,49 @@ describe('TribunalPanel', () => {
     expect(await screen.findByTestId('tribunal-missing')).toHaveTextContent(
       'No Tribunal exists for this run yet.',
     );
+  });
+
+  it('summarises findings by agent and severity in a heatmap', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(TRIBUNAL, 201));
+    vi.mocked(fetch).mockResolvedValue(json({ items: [] }));
+
+    renderWithQueryClient(<TribunalPanel />);
+    await userEvent.type(screen.getByLabelText(/evaluation run id/i), RUN_ID);
+    await userEvent.click(screen.getByRole('button', { name: /run tribunal/i }));
+
+    const heatmap = await screen.findByLabelText(/finding severity heatmap/i);
+    // The fixture carries one auditor blocker and one defender info finding.
+    expect(within(heatmap).getByTestId('heatmap-auditor-blocker')).toHaveTextContent('1');
+    expect(within(heatmap).getByTestId('heatmap-defender-info')).toHaveTextContent('1');
+  });
+
+  it('shows every agent, including the ones that found nothing', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(TRIBUNAL, 201));
+    vi.mocked(fetch).mockResolvedValue(json({ items: [] }));
+
+    renderWithQueryClient(<TribunalPanel />);
+    await userEvent.type(screen.getByLabelText(/evaluation run id/i), RUN_ID);
+    await userEvent.click(screen.getByRole('button', { name: /run tribunal/i }));
+
+    const heatmap = await screen.findByLabelText(/finding severity heatmap/i);
+    // A silent agent is information. Dropping its row would make "the
+    // Prosecutor raised nothing" indistinguishable from "the Prosecutor did not
+    // run" — exactly the distinction bias injection makes worth seeing.
+    expect(within(heatmap).getByTestId('heatmap-prosecutor-blocker')).toHaveTextContent('—');
+    expect(within(heatmap).getByTestId('heatmap-judge-info')).toHaveTextContent('—');
+  });
+
+  it('does not rely on colour alone to convey a count', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(TRIBUNAL, 201));
+    vi.mocked(fetch).mockResolvedValue(json({ items: [] }));
+
+    renderWithQueryClient(<TribunalPanel />);
+    await userEvent.type(screen.getByLabelText(/evaluation run id/i), RUN_ID);
+    await userEvent.click(screen.getByRole('button', { name: /run tribunal/i }));
+
+    const heatmap = await screen.findByLabelText(/finding severity heatmap/i);
+    // Intensity carries magnitude, but the number has to be readable without
+    // perceiving the shade at all.
+    expect(within(heatmap).getByTestId('heatmap-auditor-blocker').textContent?.trim()).toBe('1');
   });
 });

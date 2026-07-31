@@ -246,7 +246,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 - [x] Tribunal tab in run detail view
 - [x] Blackboard timeline (who said what, when)
-- [ ] Finding severity heatmap (by agent and type)
+- [x] Finding severity heatmap (by agent and type)
 - [x] Verdict card with primary reason and dissent visible
 - [x] Evidence links from findings to specific trajectory steps
 - [x] Argument thread view (rebuttals and counter-rebuttals)
