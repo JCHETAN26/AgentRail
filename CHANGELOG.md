@@ -6,6 +6,21 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 10: platform fault retry contract
+
+- All eight platform fault kinds are now exercised against the retry contract, not just
+  `lease_expiry`. Each is asserted recoverable within its retry budget, non-duplicating on the
+  side-effect ledger, and traceable to the item that hit it — a recovered fault leaving no trace is
+  indistinguishable from one that never fired.
+- This is the shared contract, not per-component injection. The worker handles all eight identically,
+  so these tests establish that every declared kind is routed and retried correctly; they do not
+  restart Redis, terminate a worker, or fail PostgreSQL at its own boundary. The Phase 10 checklist
+  item stays unchecked for that reason.
+- Exhausting the retry budget still fails the item. Recoverable is not infinitely forgiving; a
+  platform that never gives up would hide a dependency that is genuinely down.
+- The catalogue is asserted against the declared fault family, so a ninth platform fault is named by
+  a failing test rather than shipping unexercised.
+
 ### Added — Phase 10: Tribunal faults
 
 - A `tribunal` fault family alongside model, tool and platform: failures of the _panel_ rather than

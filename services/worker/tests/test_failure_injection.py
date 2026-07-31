@@ -20,8 +20,10 @@ from agentrail_core.execution import (
     RunItem,
     RunItemState,
 )
+from agentrail_core.faults import FAULT_FAMILIES, FaultFamily, FaultKind
 from agentrail_core.ids import new_sortable_id
 from agentrail_core.side_effects import SideEffectRecord, side_effect_key
+from agentrail_core.trajectories import Trajectory, TrajectoryStep
 from agentrail_worker.run_runner import EvaluationRunRunner, RunOutcome
 
 pytestmark = pytest.mark.integration
@@ -335,3 +337,137 @@ class TestZeroDuplicateSideEffects:
         items = await load_items(session_factory, run_id)
         assert items[0].state == RunItemState.FAILED_TERMINAL
         assert items[0].error_code == "fault_profile_invalid"
+
+
+PLATFORM_FAULTS = [
+    "platform.duplicate_delivery",
+    "platform.delayed_event",
+    "platform.worker_termination",
+    "platform.lease_expiry",
+    "platform.redis_restart",
+    "platform.postgres_transient",
+    "platform.object_store_failure",
+    "platform.analytics_outage",
+]
+
+
+class TestPlatformFaultRetryContract:
+    """The contract every platform fault kind shares, asserted for all eight.
+
+    Scope, stated plainly because it is easy to overread: the worker handles all
+    eight identically, so these tests establish that each declared kind is
+    routed, retried and ledgered correctly. They do **not** exercise the
+    components themselves — nothing here restarts Redis, terminates a worker to
+    reclaim its lease, or induces a PostgreSQL transient error at its own
+    boundary. Per-component injection is separate work, and Phase 10's checklist
+    item stays unchecked until it exists.
+
+    What this does buy: a platform fault is something outside the agent
+    breaking, so none may fail a run permanently while retries remain. A kind
+    that silently went terminal would blame an agent for the platform's problem,
+    and that would now fail here.
+    """
+
+    def test_the_catalogue_matches_the_declared_family(self) -> None:
+        declared = {
+            kind.value for kind in FaultKind if FAULT_FAMILIES[kind] is FaultFamily.PLATFORM
+        }
+
+        # If a ninth platform fault is added, this test names it rather than
+        # letting it ship unexercised.
+        assert declared == set(PLATFORM_FAULTS)
+
+    @pytest.mark.parametrize("kind", PLATFORM_FAULTS)
+    async def test_the_run_recovers_from_a_platform_fault(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str, kind: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            fault_profiles=[{"kind": kind, "attempts": [1]}],
+            max_attempts=2,
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="fault-worker", lease_seconds=5)
+
+        outcome = await runner.process(run_id)
+
+        assert outcome is RunOutcome.PASSED, f"{kind} should be recoverable"
+        items = await load_items(session_factory, run_id)
+        assert items[0].state == RunItemState.COMPLETED
+        assert items[0].attempt_count == 2, f"{kind} should have cost exactly one retry"
+
+    @pytest.mark.parametrize("kind", PLATFORM_FAULTS)
+    async def test_a_platform_fault_never_duplicates_the_side_effect(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str, kind: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            fault_profiles=[{"kind": kind, "attempts": [1]}],
+            max_attempts=2,
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="fault-worker", lease_seconds=5)
+
+        await runner.process(run_id)
+
+        # The effect reaches the world before the injected fault kills the
+        # attempt, so the retry has to find the ledger row and decline. This is
+        # the property the whole ledger exists for, asserted per fault kind
+        # rather than once for a representative.
+        assert await side_effect_count(session_factory, run_id) == 1
+
+    @pytest.mark.parametrize("kind", PLATFORM_FAULTS)
+    async def test_the_fault_is_recorded_on_the_item_that_hit_it(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str, kind: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            fault_profiles=[{"kind": kind, "attempts": [1]}],
+            max_attempts=2,
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="fault-worker", lease_seconds=5)
+
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            steps = list(
+                (
+                    await session.scalars(
+                        select(TrajectoryStep)
+                        .join(Trajectory, Trajectory.id == TrajectoryStep.trajectory_id)
+                        .join(RunItem, RunItem.id == Trajectory.run_item_id)
+                        .where(RunItem.run_id == run_id)
+                    )
+                ).all()
+            )
+
+        # A recovered fault that left no trace is indistinguishable from one
+        # that never fired, which is how unexercised injection looks.
+        assert any(kind in str(step.checkpoint) or kind in step.title for step in steps), (
+            f"{kind} left no trace in the trajectory"
+        )
+
+    async def test_an_exhausted_platform_fault_still_fails_the_item(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=1,
+            # Every attempt, so the retry budget runs out.
+            fault_profiles=[{"kind": "platform.redis_restart"}],
+            max_attempts=2,
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="fault-worker", lease_seconds=5)
+
+        outcome = await runner.process(run_id)
+
+        # Recoverable is not the same as infinitely forgiving: a platform that
+        # never gives up would hide a dependency that is genuinely down.
+        assert outcome is RunOutcome.FAILED
+        items = await load_items(session_factory, run_id)
+        assert items[0].state == RunItemState.FAILED_TERMINAL
