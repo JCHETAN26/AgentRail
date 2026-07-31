@@ -22,7 +22,10 @@ Usage::
 
     uv run agentrail-seed                    # against http://localhost:8000
     uv run agentrail-seed --api-url ...      # against a deployed environment
-    uv run agentrail-seed --reset            # new org each time, never destructive
+    uv run agentrail-seed --organisation "Demo Labs v2"   # a second, separate org
+
+Never destructive: each run creates a new organisation rather than touching an
+existing one, so re-seeding cannot damage data someone is demoing from.
 """
 
 from __future__ import annotations
