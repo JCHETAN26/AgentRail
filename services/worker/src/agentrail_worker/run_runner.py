@@ -59,6 +59,9 @@ from agentrail_core.trajectories import (
     redact_payload,
 )
 from agentrail_core.tribunal import (
+    TRIBUNAL_FAULT_BIASES,
+    BiasedTribunalModelClient,
+    TribunalBias,
     TribunalMode,
     TribunalVerdictOutcome,
     build_tribunal_model_client,
@@ -327,6 +330,21 @@ class PolicyGate:
 class ClaimedRun:
     id: str
     item_count: int
+
+
+def _tribunal_bias_for(suite: EvaluationSuite) -> TribunalBias | None:
+    """The panel bias this suite's fault profiles ask for, if any.
+
+    Tribunal faults live in the same ``fault_profiles`` list as every other
+    injected fault, so a suite declares them the same way. The first one wins:
+    two simultaneous panel biases would make the resulting verdict impossible
+    to attribute to either.
+    """
+    for raw in suite.fault_profiles or []:
+        bias = TRIBUNAL_FAULT_BIASES.get(str(raw.get("kind", "")))
+        if bias is not None:
+            return bias
+    return None
 
 
 class _HaltedByPlatform(Exception):
@@ -1647,6 +1665,11 @@ class EvaluationRunRunner:
                             openai_base_url=self._openai_base_url,
                             timeout_seconds=self._tribunal_model_timeout_seconds,
                         )
+                        # A Tribunal fault declared on the suite has to reach
+                        # the panel, or it is a checkbox rather than a fault.
+                        bias = _tribunal_bias_for(suite)
+                        if bias is not None:
+                            model_client = BiasedTribunalModelClient(model_client, bias=bias)
                 tribunal, _created = await create_or_get_tribunal_session(
                     session,
                     run=run,

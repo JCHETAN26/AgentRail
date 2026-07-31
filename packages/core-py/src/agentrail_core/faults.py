@@ -18,6 +18,10 @@ class FaultFamily(StrEnum):
     MODEL = "model"
     TOOL = "tool"
     PLATFORM = "platform"
+    #: Failures of the *panel* rather than of the platform: a role that is
+    #: wrong rather than a component that is broken. They exist so the
+    #: Tribunal's safety properties can be attacked rather than assumed.
+    TRIBUNAL = "tribunal"
 
 
 class FaultKind(StrEnum):
@@ -52,6 +56,10 @@ class FaultKind(StrEnum):
     PLATFORM_POSTGRES_TRANSIENT = "platform.postgres_transient"
     PLATFORM_OBJECT_STORE_FAILURE = "platform.object_store_failure"
     PLATFORM_ANALYTICS_OUTAGE = "platform.analytics_outage"
+
+    TRIBUNAL_PROSECUTOR_OVER_FLAGGING = "tribunal.prosecutor_over_flagging"
+    TRIBUNAL_JUDGE_IGNORES_AUDITOR = "tribunal.judge_ignores_auditor"
+    TRIBUNAL_MODEL_TIMEOUT = "tribunal.model_timeout"
 
 
 FAULT_FAMILIES: dict[FaultKind, FaultFamily] = {

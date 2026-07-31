@@ -10,6 +10,7 @@ import pytest
 
 from agentrail_core.tribunal import (
     DEFAULT_TRIBUNAL_PROMPT_VERSION,
+    TRIBUNAL_FAULT_BIASES,
     BiasedTribunalModelClient,
     OpenAITribunalModelClient,
     RecordedTribunalModelClient,
@@ -20,6 +21,7 @@ from agentrail_core.tribunal import (
     TribunalMode,
     TribunalModelRequest,
     TribunalModelResponse,
+    TribunalModelTimeout,
     TribunalRound,
     TribunalSessionState,
     TribunalVerdictOutcome,
@@ -553,3 +555,65 @@ class TestBiasInjection:
         )
 
         assert verdict.outcome is TribunalVerdictOutcome.BLOCKED
+
+
+class TestTribunalFaults:
+    """Phase 10's Tribunal faults: a role that is wrong, or one that is absent."""
+
+    def test_every_tribunal_fault_maps_to_a_bias(self) -> None:
+        from agentrail_core.faults import FAULT_FAMILIES, FaultFamily, FaultKind
+
+        declared = {
+            kind.value for kind in FaultKind if FAULT_FAMILIES[kind] is FaultFamily.TRIBUNAL
+        }
+
+        # A fault that can be written into a suite but does nothing when injected
+        # is worse than no fault at all: it reads as coverage.
+        assert declared == set(TRIBUNAL_FAULT_BIASES)
+
+    @pytest.mark.asyncio
+    async def test_a_model_timeout_stops_the_tribunal_rather_than_approving(self) -> None:
+        client = BiasedTribunalModelClient(
+            RecordedTribunalModelClient(), bias=TribunalBias.MODEL_TIMEOUT
+        )
+
+        # An unanswered panel must not resolve to a verdict. Defaulting to
+        # approval when the Tribunal cannot run is the failure that would make
+        # the gate worthless precisely when the provider is down.
+        with pytest.raises(TribunalModelTimeout):
+            await decide_model_backed_tribunal(
+                run=RUN, comparison=comparison(), model_client=client
+            )
+
+    @pytest.mark.asyncio
+    async def test_the_timeout_names_the_role_that_did_not_answer(self) -> None:
+        client = BiasedTribunalModelClient(
+            RecordedTribunalModelClient(), bias=TribunalBias.MODEL_TIMEOUT
+        )
+
+        with pytest.raises(TribunalModelTimeout) as raised:
+            await decide_model_backed_tribunal(
+                run=RUN, comparison=comparison(), model_client=client
+            )
+
+        # Which role hung is the first thing an operator needs.
+        assert raised.value.role in set(TribunalAgentRole)
+
+    @pytest.mark.asyncio
+    async def test_the_panel_stays_consistent_across_repeated_bias_injection(self) -> None:
+        # Consistency, not just correctness: the same injected bias over the
+        # same evidence must not drift between runs, or a verdict stops being
+        # reproducible evidence for a release decision.
+        outcomes = []
+        for _ in range(3):
+            verdict = await decide_model_backed_tribunal(
+                run=RUN,
+                comparison=comparison(reproducible=False),
+                model_client=BiasedTribunalModelClient(
+                    RecordedTribunalModelClient(), bias=TribunalBias.JUDGE_IGNORES_AUDITOR
+                ),
+            )
+            outcomes.append((verdict.outcome, verdict.summary["blocker_count"]))
+
+        assert len(set(outcomes)) == 1
+        assert outcomes[0][0] is TribunalVerdictOutcome.BLOCKED

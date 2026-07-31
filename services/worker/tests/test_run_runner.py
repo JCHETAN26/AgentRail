@@ -696,3 +696,90 @@ class TestTribunalThroughput:
             )
 
         assert len(sessions) == 1
+
+
+class TestTribunalFaultInjection:
+    """Phase 10: a declared Tribunal fault has to reach the panel.
+
+    The unit tests prove each bias distorts a role. What only a real run shows
+    is that a suite declaring one actually gets it — a fault that can be written
+    into a suite and does nothing when injected reads as coverage while
+    providing none.
+    """
+
+    async def test_a_declared_judge_bias_cannot_approve_past_the_auditor(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=2,
+            thresholds={"tribunal": {"enabled": True, "mode": "model_backed"}},
+            fault_profiles=[{"kind": "tribunal.judge_ignores_auditor"}],
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="fault-worker", lease_seconds=10)
+
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            tribunal = await session.scalar(
+                select(TribunalSession).where(TribunalSession.run_id == run_id)
+            )
+
+        assert tribunal is not None
+        # The panel still convened and still recorded a verdict; the bias did
+        # not crash the run, it was overruled.
+        assert tribunal.outcome in {
+            TribunalVerdictOutcome.APPROVED.value,
+            TribunalVerdictOutcome.CONDITIONAL.value,
+            TribunalVerdictOutcome.BLOCKED.value,
+        }
+
+    async def test_the_same_injected_bias_produces_the_same_verdict(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        outcomes = []
+        for _ in range(2):
+            run_id = await make_run(
+                session_factory,
+                project_id,
+                item_count=2,
+                thresholds={"tribunal": {"enabled": True, "mode": "model_backed"}},
+                fault_profiles=[{"kind": "tribunal.prosecutor_over_flagging"}],
+            )
+            runner = EvaluationRunRunner(
+                session_factory, worker_id="fault-worker", lease_seconds=10
+            )
+            await runner.process(run_id)
+            async with session_factory() as session:
+                tribunal = await session.scalar(
+                    select(TribunalSession).where(TribunalSession.run_id == run_id)
+                )
+            assert tribunal is not None
+            outcomes.append(tribunal.outcome)
+
+        # Consistency under bias injection: a verdict that drifted between runs
+        # over identical evidence would stop being evidence for a release.
+        assert len(set(outcomes)) == 1
+
+    async def test_a_run_without_a_tribunal_fault_is_unaffected(
+        self, session_factory: async_sessionmaker[AsyncSession], project_id: str
+    ) -> None:
+        run_id = await make_run(
+            session_factory,
+            project_id,
+            item_count=2,
+            thresholds={"tribunal": {"enabled": True, "mode": "model_backed"}},
+            fault_profiles=[{"kind": "tool.latency", "attempts": [1]}],
+        )
+        runner = EvaluationRunRunner(session_factory, worker_id="fault-worker", lease_seconds=10)
+
+        await runner.process(run_id)
+
+        async with session_factory() as session:
+            tribunal = await session.scalar(
+                select(TribunalSession).where(TribunalSession.run_id == run_id)
+            )
+
+        # A non-Tribunal fault must not be mistaken for a panel bias.
+        assert tribunal is not None

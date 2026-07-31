@@ -6,6 +6,17 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 10: Tribunal faults
+
+- A `tribunal` fault family alongside model, tool and platform: failures of the _panel_ rather than
+  of the platform. Three kinds — `tribunal.prosecutor_over_flagging`, `tribunal.judge_ignores_auditor`
+  and `tribunal.model_timeout` — declared in a suite's `fault_profiles` like any other fault.
+- Declared faults reach the panel. The worker wraps the Tribunal's model client when a suite asks for
+  one, and a test asserts every declared Tribunal fault maps to a bias, because a fault that can be
+  written into a suite and does nothing when injected reads as coverage while providing none.
+- A Tribunal model timeout stops the panel rather than resolving to a verdict. Defaulting to approval
+  when the Tribunal cannot run would make the gate worthless exactly when the provider is down.
+
 ### Added — Phase 8: finding severity heatmap
 
 - The Tribunal console shows findings as a grid of agent against severity. Reading across a row
