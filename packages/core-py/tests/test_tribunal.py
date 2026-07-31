@@ -9,9 +9,11 @@ import pytest
 
 from agentrail_core.tribunal import (
     DEFAULT_TRIBUNAL_PROMPT_VERSION,
+    BiasedTribunalModelClient,
     OpenAITribunalModelClient,
     RecordedTribunalModelClient,
     TribunalAgentRole,
+    TribunalBias,
     TribunalConfigError,
     TribunalFindingSeverity,
     TribunalMode,
@@ -375,3 +377,105 @@ def test_openai_tribunal_client_requires_configured_api_key() -> None:
         )
 
     assert "AGENTRAIL_OPENAI_API_KEY" in str(caught.value)
+
+
+class TestBiasInjection:
+    """The panel's safety must not depend on any single role being honest.
+
+    Each test injects one role's bias and asserts what the Tribunal does about
+    it. A six-agent panel that only works when all six behave is theatre.
+    """
+
+    @pytest.mark.asyncio
+    async def test_an_over_flagging_prosecutor_cannot_block_a_clean_run(self) -> None:
+        verdict = await decide_model_backed_tribunal(
+            run=RUN,
+            comparison=comparison(),
+            model_client=BiasedTribunalModelClient(
+                RecordedTribunalModelClient(), bias=TribunalBias.PROSECUTOR_OVER_FLAGS
+            ),
+        )
+
+        # Blocking authority belongs to the Auditor and the deterministic floor.
+        # A Prosecutor that cries wolf would otherwise be able to halt every
+        # release by asserting a catastrophe, which is a denial of service
+        # dressed as caution.
+        assert verdict.outcome is TribunalVerdictOutcome.APPROVED
+
+    @pytest.mark.asyncio
+    async def test_an_over_flagging_prosecutor_is_still_recorded(self) -> None:
+        verdict = await decide_model_backed_tribunal(
+            run=RUN,
+            comparison=comparison(),
+            model_client=BiasedTribunalModelClient(
+                RecordedTribunalModelClient(), bias=TribunalBias.PROSECUTOR_OVER_FLAGS
+            ),
+        )
+
+        # Overruled is not the same as unheard. The dissent has to survive into
+        # the blackboard or an operator cannot audit why it was discounted.
+        prosecutor = [
+            finding
+            for finding in verdict.findings
+            if finding.agent_role is TribunalAgentRole.PROSECUTOR
+        ]
+        assert prosecutor
+        assert prosecutor[0].severity is TribunalFindingSeverity.BLOCKER
+
+    @pytest.mark.asyncio
+    async def test_an_under_flagging_defender_cannot_rescue_unsafe_evidence(self) -> None:
+        verdict = await decide_model_backed_tribunal(
+            run=RUN,
+            comparison=comparison(reproducible=False),
+            model_client=BiasedTribunalModelClient(
+                RecordedTribunalModelClient(), bias=TribunalBias.DEFENDER_UNDER_FLAGS
+            ),
+        )
+
+        # Non-reproducible evidence cannot support a release no matter who
+        # vouches for it.
+        assert verdict.outcome is TribunalVerdictOutcome.BLOCKED
+
+    @pytest.mark.asyncio
+    async def test_an_under_flagging_defender_cannot_hide_missing_evidence(self) -> None:
+        verdict = await decide_model_backed_tribunal(
+            run=RUN,
+            comparison=None,
+            model_client=BiasedTribunalModelClient(
+                RecordedTribunalModelClient(), bias=TribunalBias.DEFENDER_UNDER_FLAGS
+            ),
+        )
+
+        assert verdict.outcome is TribunalVerdictOutcome.BLOCKED
+
+    @pytest.mark.asyncio
+    async def test_a_judge_that_ignores_the_auditor_is_overruled(self) -> None:
+        verdict = await decide_model_backed_tribunal(
+            run=RUN,
+            comparison=comparison(reproducible=False),
+            model_client=BiasedTribunalModelClient(
+                RecordedTribunalModelClient(), bias=TribunalBias.JUDGE_IGNORES_AUDITOR
+            ),
+        )
+
+        # The Judge is the panel's authority, which is exactly why it must not
+        # be its single point of failure.
+        assert verdict.outcome is TribunalVerdictOutcome.BLOCKED
+        assert verdict.dissent["model_judge_outcome"] == TribunalVerdictOutcome.APPROVED.value
+
+    @pytest.mark.asyncio
+    async def test_bias_does_not_change_a_verdict_it_should_not_reach(self) -> None:
+        # A Judge biased toward approval on evidence that was already going to
+        # be approved must not look like the bias "worked".
+        honest = await decide_model_backed_tribunal(
+            run=RUN, comparison=comparison(), model_client=RecordedTribunalModelClient()
+        )
+        biased = await decide_model_backed_tribunal(
+            run=RUN,
+            comparison=comparison(),
+            model_client=BiasedTribunalModelClient(
+                RecordedTribunalModelClient(), bias=TribunalBias.JUDGE_IGNORES_AUDITOR
+            ),
+        )
+
+        assert honest.outcome is biased.outcome is TribunalVerdictOutcome.APPROVED

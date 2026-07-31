@@ -253,8 +253,8 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 ## Tribunal Failure Injection
 
-- [ ] Prosecutor over-flagging bias injection test
-- [ ] Defender under-flagging bias injection test
+- [x] Prosecutor over-flagging bias injection test
+- [x] Defender under-flagging bias injection test
 - [x] Judge ignoring Auditor blockers (override logic test)
 - [x] Tribunal model timeout during debate
 

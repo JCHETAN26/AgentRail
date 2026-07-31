@@ -6,6 +6,19 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 8: Tribunal bias injection
+
+- `BiasedTribunalModelClient` wraps any Tribunal model client and distorts one role's response, so
+  the panel's safety properties can be attacked rather than assumed. Three biases: a Prosecutor that
+  flags everything as a blocker, a Defender that finds nothing wrong, and a Judge that approves
+  regardless of the audit.
+- Tests prove the properties hold under each: an over-flagging Prosecutor cannot block a clean run
+  (blocking authority belongs to the Auditor and the deterministic floor, so crying wolf is not a
+  denial of service), and neither a silent Defender nor a compliant Judge can approve past missing or
+  non-reproducible evidence.
+- An overruled role is still recorded. Discounting a dissent without persisting it would leave an
+  operator unable to audit why.
+
 ### Added — Phase 11: escalation chains
 
 - Policy bundles accept `escalate_after_attempts`: the number of separate approval requests one run
