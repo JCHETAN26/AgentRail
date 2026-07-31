@@ -296,7 +296,7 @@ Use this checklist to track progress. Check an item only when it is implemented,
 
 - [x] Model faults: timeout, rate limit, malformed output, refusal, wrong tool, invalid args, tool loop, partial stream failure
 - [x] Tool faults: latency, timeout, 500, malformed response, stale data, rate limit, unavailable dependency
-- [ ] Platform faults: duplicate delivery, delayed event, worker termination, lease expiry, Redis restart, Postgres transient error, object-store failure, analytics outage
+- [x] Platform faults: duplicate delivery, delayed event, worker termination, lease expiry, Redis restart, Postgres transient error, object-store failure, analytics outage
 - [x] **Tribunal faults**: Prosecutor over-flagging, Judge ignoring Auditor, tribunal model timeout
 
 ## Resilience

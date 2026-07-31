@@ -6,6 +6,16 @@ All notable changes to AgentRail are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added — Phase 10: platform fault coverage
+
+- All eight platform faults are now exercised, not just `lease_expiry`. Each is asserted recoverable
+  within its retry budget, non-duplicating on the side-effect ledger, and traceable to the item that
+  hit it — a recovered fault leaving no trace is indistinguishable from one that never fired.
+- Exhausting the retry budget still fails the item. Recoverable is not infinitely forgiving; a
+  platform that never gives up would hide a dependency that is genuinely down.
+- The catalogue is asserted against the declared fault family, so a ninth platform fault is named by
+  a failing test rather than shipping unexercised.
+
 ### Added — Phase 10: Tribunal faults
 
 - A `tribunal` fault family alongside model, tool and platform: failures of the _panel_ rather than
