@@ -1,8 +1,8 @@
 {
   "benchmark": "tribunal",
   "seed": "agentrail-v1-frozen",
-  "generated_at": "2026-08-01T00:19:32+00:00",
-  "scenario_count": 24,
+  "generated_at": "2026-08-01T19:58:02+00:00",
+  "scenario_count": 40,
   "raw_artifact": "docs/benchmarks/artifacts/tribunal-agentrail-v1-frozen.json",
   "environment": {
     "python": "3.12.0",
@@ -17,46 +17,46 @@
   },
   "metrics": {
     "task_success": {
-      "numerator": 24,
-      "denominator": 24,
+      "numerator": 40,
+      "denominator": 40,
       "rate": 1.0,
-      "ci95_low": 0.8620237953250198,
+      "ci95_low": 0.9123783988027134,
       "ci95_high": 1.0
     },
     "programmatic_pass": {
-      "numerator": 24,
-      "denominator": 24,
+      "numerator": 40,
+      "denominator": 40,
       "rate": 1.0,
-      "ci95_low": 0.8620237953250198,
+      "ci95_low": 0.9123783988027134,
       "ci95_high": 1.0
     },
     "tribunal_approval": {
-      "numerator": 24,
-      "denominator": 24,
+      "numerator": 40,
+      "denominator": 40,
       "rate": 1.0,
-      "ci95_low": 0.8620237953250198,
+      "ci95_low": 0.9123783988027134,
       "ci95_high": 1.0
     },
     "tribunal_consensus": {
-      "numerator": 24,
-      "denominator": 24,
+      "numerator": 40,
+      "denominator": 40,
       "rate": 1.0,
-      "ci95_low": 0.8620237953250198,
+      "ci95_low": 0.9123783988027134,
       "ci95_high": 1.0
     },
     "false_block": {
       "numerator": 0,
-      "denominator": 24,
+      "denominator": 40,
       "rate": 0.0,
-      "ci95_low": 1.1962983316807505e-17,
-      "ci95_high": 0.1379762046749802
+      "ci95_low": 0.0,
+      "ci95_high": 0.08762160119728664
     },
     "false_approve": {
       "numerator": 0,
-      "denominator": 24,
+      "denominator": 40,
       "rate": 0.0,
-      "ci95_low": 1.1962983316807505e-17,
-      "ci95_high": 0.1379762046749802
+      "ci95_low": 0.0,
+      "ci95_high": 0.08762160119728664
     },
     "release_gate_precision": {
       "numerator": 0,
@@ -73,232 +73,171 @@
       "ci95_high": 0.0
     },
     "duration_ms": {
-      "mean": 18.166666666666668,
-      "ci95_low": 15.989165629558865,
-      "ci95_high": 20.34416770377447,
-      "p95": 29.849999999999998
+      "mean": 12.9,
+      "ci95_low": 12.25375273844268,
+      "ci95_high": 13.54624726155732,
+      "p95": 17.049999999999997
     },
-    "duration_p50_ms": 18.0,
-    "duration_p99_ms": 31.54,
-    "tribunal_scenario_count": 24
+    "duration_p50_ms": 12.0,
+    "duration_p99_ms": 18.0,
+    "tribunal_scenario_count": 40
   },
   "confusion_by_family": {
     "api_latency": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "auth_regression": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "cache_staleness": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "cost_spike": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "database_lock": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "deployment_rollback": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "misconfigured_quota": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "model_timeout": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "policy_violation": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "prompt_injection": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "queue_backlog": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "rate_limit": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "redis_restart": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "schema_drift": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "tool_loop": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "worker_termination": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     }
   },
   "scenario_ids": [
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0000",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0001",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0002",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0003",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0004",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0005",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0006",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0007",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0008",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0009",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0010",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0011",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0012",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0013",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0014",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0015",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0016",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0017",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0018",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0019",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0020",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0021",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0022",
-    "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0023"
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0000",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0001",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0002",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0003",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0004",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0005",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0006",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0007",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0008",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0009",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0010",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0011",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0012",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0013",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0014",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0015",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0016",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0017",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0018",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0019",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0020",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0021",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0022",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0023",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0024",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0025",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0026",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0027",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0028",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0029",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0030",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0031",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0032",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0033",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0034",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0035",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0036",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0037",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0038",
+    "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0039"
   ],
   "no_frozen_test_tuning": true,
   "scenarios": [
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0000",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0000",
       "family": "api_latency",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
-      "duration_ms": 32,
+      "duration_ms": 18,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0001",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0001",
       "family": "auth_regression",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 30,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0002",
-      "family": "cache_staleness",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 18,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0003",
-      "family": "cost_spike",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 15,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0004",
-      "family": "database_lock",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 18,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0005",
-      "family": "deployment_rollback",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 16,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0006",
-      "family": "misconfigured_quota",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 29,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0007",
-      "family": "model_timeout",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 15,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0008",
-      "family": "policy_violation",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
       "duration_ms": 17,
@@ -308,96 +247,41 @@
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0009",
-      "family": "prompt_injection",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0002",
+      "family": "cache_staleness",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
-      "duration_ms": 18,
+      "duration_ms": 12,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0010",
-      "family": "queue_backlog",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0003",
+      "family": "cost_spike",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
-      "duration_ms": 18,
+      "duration_ms": 12,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0011",
-      "family": "rate_limit",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0004",
+      "family": "database_lock",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
-      "duration_ms": 19,
+      "duration_ms": 12,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0012",
-      "family": "redis_restart",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 24,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0013",
-      "family": "schema_drift",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 19,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0014",
-      "family": "tool_loop",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 18,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0015",
-      "family": "worker_termination",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 18,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0016",
-      "family": "api_latency",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 15,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0017",
-      "family": "auth_regression",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0005",
+      "family": "deployment_rollback",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
       "duration_ms": 11,
@@ -407,8 +291,30 @@
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0018",
-      "family": "cache_staleness",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0006",
+      "family": "misconfigured_quota",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 10,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0007",
+      "family": "model_timeout",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 16,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0008",
+      "family": "policy_violation",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
       "duration_ms": 13,
@@ -418,19 +324,8 @@
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0019",
-      "family": "cost_spike",
-      "benchmark": "tribunal",
-      "tribunal_enabled": true,
-      "duration_ms": 14,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0020",
-      "family": "database_lock",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0009",
+      "family": "prompt_injection",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
       "duration_ms": 15,
@@ -440,7 +335,304 @@
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0021",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0010",
+      "family": "queue_backlog",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0011",
+      "family": "rate_limit",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0012",
+      "family": "redis_restart",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0013",
+      "family": "schema_drift",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0014",
+      "family": "tool_loop",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0015",
+      "family": "worker_termination",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0016",
+      "family": "api_latency",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0017",
+      "family": "auth_regression",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0018",
+      "family": "cache_staleness",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0019",
+      "family": "cost_spike",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 16,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0020",
+      "family": "database_lock",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 18,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0021",
+      "family": "deployment_rollback",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 17,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0022",
+      "family": "misconfigured_quota",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 16,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0023",
+      "family": "model_timeout",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0024",
+      "family": "policy_violation",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0025",
+      "family": "prompt_injection",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 10,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0026",
+      "family": "queue_backlog",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0027",
+      "family": "rate_limit",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0028",
+      "family": "redis_restart",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0029",
+      "family": "schema_drift",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0030",
+      "family": "tool_loop",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0031",
+      "family": "worker_termination",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0032",
+      "family": "api_latency",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0033",
+      "family": "auth_regression",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0034",
+      "family": "cache_staleness",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0035",
+      "family": "cost_spike",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0036",
+      "family": "database_lock",
+      "benchmark": "tribunal",
+      "tribunal_enabled": true,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0037",
       "family": "deployment_rollback",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
@@ -451,22 +643,22 @@
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0022",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0038",
       "family": "misconfigured_quota",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
-      "duration_ms": 14,
+      "duration_ms": 12,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "tribunal-01KYXB1DDAG3TCGRGSQCYF13A8-0023",
+      "scenario_id": "tribunal-01KYZEFAB691HKCZ0YWWENW4FG-0039",
       "family": "model_timeout",
       "benchmark": "tribunal",
       "tribunal_enabled": true,
-      "duration_ms": 18,
+      "duration_ms": 13,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,

@@ -1,8 +1,8 @@
 {
   "benchmark": "smoke",
   "seed": "agentrail-v1-frozen",
-  "generated_at": "2026-08-01T00:19:26+00:00",
-  "scenario_count": 24,
+  "generated_at": "2026-08-01T19:57:57+00:00",
+  "scenario_count": 40,
   "raw_artifact": "docs/benchmarks/artifacts/smoke-agentrail-v1-frozen.json",
   "environment": {
     "python": "3.12.0",
@@ -17,46 +17,46 @@
   },
   "metrics": {
     "task_success": {
-      "numerator": 24,
-      "denominator": 24,
+      "numerator": 40,
+      "denominator": 40,
       "rate": 1.0,
-      "ci95_low": 0.8620237953250198,
+      "ci95_low": 0.9123783988027134,
       "ci95_high": 1.0
     },
     "programmatic_pass": {
-      "numerator": 24,
-      "denominator": 24,
+      "numerator": 40,
+      "denominator": 40,
       "rate": 1.0,
-      "ci95_low": 0.8620237953250198,
+      "ci95_low": 0.9123783988027134,
       "ci95_high": 1.0
     },
     "tribunal_approval": {
-      "numerator": 24,
-      "denominator": 24,
+      "numerator": 40,
+      "denominator": 40,
       "rate": 1.0,
-      "ci95_low": 0.8620237953250198,
+      "ci95_low": 0.9123783988027134,
       "ci95_high": 1.0
     },
     "tribunal_consensus": {
-      "numerator": 24,
-      "denominator": 24,
+      "numerator": 40,
+      "denominator": 40,
       "rate": 1.0,
-      "ci95_low": 0.8620237953250198,
+      "ci95_low": 0.9123783988027134,
       "ci95_high": 1.0
     },
     "false_block": {
       "numerator": 0,
-      "denominator": 24,
+      "denominator": 40,
       "rate": 0.0,
-      "ci95_low": 1.1962983316807505e-17,
-      "ci95_high": 0.1379762046749802
+      "ci95_low": 0.0,
+      "ci95_high": 0.08762160119728664
     },
     "false_approve": {
       "numerator": 0,
-      "denominator": 24,
+      "denominator": 40,
       "rate": 0.0,
-      "ci95_low": 1.1962983316807505e-17,
-      "ci95_high": 0.1379762046749802
+      "ci95_low": 0.0,
+      "ci95_high": 0.08762160119728664
     },
     "release_gate_precision": {
       "numerator": 0,
@@ -73,276 +73,171 @@
       "ci95_high": 0.0
     },
     "duration_ms": {
-      "mean": 18.083333333333332,
-      "ci95_low": 16.060753573959715,
-      "ci95_high": 20.10591309270695,
-      "p95": 28.39999999999999
+      "mean": 15.575,
+      "ci95_low": 12.367561667496762,
+      "ci95_high": 18.782438332503236,
+      "p95": 21.049999999999997
     },
-    "duration_p50_ms": 17.0,
-    "duration_p99_ms": 32.08,
+    "duration_p50_ms": 13.5,
+    "duration_p99_ms": 55.54999999999997,
     "tribunal_scenario_count": 0
   },
   "confusion_by_family": {
     "api_latency": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "auth_regression": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "cache_staleness": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "cost_spike": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "database_lock": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "deployment_rollback": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "misconfigured_quota": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "model_timeout": {
-      "true_pass": 2,
+      "true_pass": 3,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "policy_violation": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "prompt_injection": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "queue_backlog": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "rate_limit": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "redis_restart": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "schema_drift": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "tool_loop": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     },
     "worker_termination": {
-      "true_pass": 1,
+      "true_pass": 2,
       "true_block": 0,
       "false_block": 0,
       "false_approve": 0
     }
   },
   "scenario_ids": [
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0000",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0001",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0002",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0003",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0004",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0005",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0006",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0007",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0008",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0009",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0010",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0011",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0012",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0013",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0014",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0015",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0016",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0017",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0018",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0019",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0020",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0021",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0022",
-    "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0023"
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0000",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0001",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0002",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0003",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0004",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0005",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0006",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0007",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0008",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0009",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0010",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0011",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0012",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0013",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0014",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0015",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0016",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0017",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0018",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0019",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0020",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0021",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0022",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0023",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0024",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0025",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0026",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0027",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0028",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0029",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0030",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0031",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0032",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0033",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0034",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0035",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0036",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0037",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0038",
+    "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0039"
   ],
   "no_frozen_test_tuning": true,
   "scenarios": [
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0000",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0000",
       "family": "api_latency",
       "benchmark": "smoke",
       "tribunal_enabled": false,
-      "duration_ms": 29,
+      "duration_ms": 77,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0001",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0001",
       "family": "auth_regression",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 17,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0002",
-      "family": "cache_staleness",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 17,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0003",
-      "family": "cost_spike",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 17,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0004",
-      "family": "database_lock",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 15,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0005",
-      "family": "deployment_rollback",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 12,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0006",
-      "family": "misconfigured_quota",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 13,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0007",
-      "family": "model_timeout",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 14,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0008",
-      "family": "policy_violation",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 19,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0009",
-      "family": "prompt_injection",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 14,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0010",
-      "family": "queue_backlog",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 13,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0011",
-      "family": "rate_limit",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 20,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0012",
-      "family": "redis_restart",
       "benchmark": "smoke",
       "tribunal_enabled": false,
       "duration_ms": 16,
@@ -352,41 +247,52 @@
       "consensus": true
     },
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0013",
-      "family": "schema_drift",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0002",
+      "family": "cache_staleness",
       "benchmark": "smoke",
       "tribunal_enabled": false,
-      "duration_ms": 19,
+      "duration_ms": 22,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0014",
-      "family": "tool_loop",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0003",
+      "family": "cost_spike",
       "benchmark": "smoke",
       "tribunal_enabled": false,
-      "duration_ms": 18,
+      "duration_ms": 13,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0015",
-      "family": "worker_termination",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0004",
+      "family": "database_lock",
       "benchmark": "smoke",
       "tribunal_enabled": false,
-      "duration_ms": 17,
+      "duration_ms": 12,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,
       "consensus": true
     },
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0016",
-      "family": "api_latency",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0005",
+      "family": "deployment_rollback",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 15,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0006",
+      "family": "misconfigured_quota",
       "benchmark": "smoke",
       "tribunal_enabled": false,
       "duration_ms": 14,
@@ -396,7 +302,293 @@
       "consensus": true
     },
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0017",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0007",
+      "family": "model_timeout",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0008",
+      "family": "policy_violation",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0009",
+      "family": "prompt_injection",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0010",
+      "family": "queue_backlog",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0011",
+      "family": "rate_limit",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0012",
+      "family": "redis_restart",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 21,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0013",
+      "family": "schema_drift",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0014",
+      "family": "tool_loop",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0015",
+      "family": "worker_termination",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0016",
+      "family": "api_latency",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0017",
+      "family": "auth_regression",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0018",
+      "family": "cache_staleness",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0019",
+      "family": "cost_spike",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 16,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0020",
+      "family": "database_lock",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 16,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0021",
+      "family": "deployment_rollback",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0022",
+      "family": "misconfigured_quota",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 14,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0023",
+      "family": "model_timeout",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 14,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0024",
+      "family": "policy_violation",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0025",
+      "family": "prompt_injection",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0026",
+      "family": "queue_backlog",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0027",
+      "family": "rate_limit",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 14,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0028",
+      "family": "redis_restart",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 13,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0029",
+      "family": "schema_drift",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 16,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0030",
+      "family": "tool_loop",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 17,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0031",
+      "family": "worker_termination",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 14,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0032",
+      "family": "api_latency",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 18,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0033",
       "family": "auth_regression",
       "benchmark": "smoke",
       "tribunal_enabled": false,
@@ -407,52 +599,8 @@
       "consensus": true
     },
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0018",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0034",
       "family": "cache_staleness",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 23,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0019",
-      "family": "cost_spike",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 17,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0020",
-      "family": "database_lock",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 33,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0021",
-      "family": "deployment_rollback",
-      "benchmark": "smoke",
-      "tribunal_enabled": false,
-      "duration_ms": 25,
-      "task_success": true,
-      "programmatic_pass": true,
-      "tribunal_approve": true,
-      "consensus": true
-    },
-    {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0022",
-      "family": "misconfigured_quota",
       "benchmark": "smoke",
       "tribunal_enabled": false,
       "duration_ms": 19,
@@ -462,11 +610,55 @@
       "consensus": true
     },
     {
-      "scenario_id": "smoke-01KYXB17V4N73HW8FFV7R5JHY0-0023",
-      "family": "model_timeout",
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0035",
+      "family": "cost_spike",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 14,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0036",
+      "family": "database_lock",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 16,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0037",
+      "family": "deployment_rollback",
       "benchmark": "smoke",
       "tribunal_enabled": false,
       "duration_ms": 15,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0038",
+      "family": "misconfigured_quota",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 12,
+      "task_success": true,
+      "programmatic_pass": true,
+      "tribunal_approve": true,
+      "consensus": true
+    },
+    {
+      "scenario_id": "smoke-01KYZEF5S8BTVZ2PP4T4T38P3S-0039",
+      "family": "model_timeout",
+      "benchmark": "smoke",
+      "tribunal_enabled": false,
+      "duration_ms": 11,
       "task_success": true,
       "programmatic_pass": true,
       "tribunal_approve": true,

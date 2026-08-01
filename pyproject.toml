@@ -60,6 +60,7 @@ ignore = [
 # The seed CLI's stdout is its interface, not stray debugging. T20 stays on
 # everywhere else, where a print really is a leftover.
 "**/agentrail_api/seed.py" = ["T201"]
+"scripts/ab_test.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["agentrail_core", "agentrail_api", "agentrail_worker", "agentrail_cloudops_sandbox"]
