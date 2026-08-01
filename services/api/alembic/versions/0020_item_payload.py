@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0020_item_payload"
 down_revision: str | None = "0019_tribunal_rounds"  # lgtm[py/unused-global-variable]
@@ -33,7 +34,7 @@ def upgrade() -> None:
         "dataset_versions",
         sa.Column(
             "records",
-            sa.dialects.postgresql.JSONB(),
+            postgresql.JSONB(),
             nullable=False,
             server_default=sa.text("'[]'::jsonb"),
         ),
@@ -42,7 +43,7 @@ def upgrade() -> None:
         "run_items",
         sa.Column(
             "payload",
-            sa.dialects.postgresql.JSONB(),
+            postgresql.JSONB(),
             nullable=False,
             server_default=sa.text("'{}'::jsonb"),
         ),

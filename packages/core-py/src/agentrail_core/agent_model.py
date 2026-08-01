@@ -53,7 +53,10 @@ class AgentActionKind(StrEnum):
 AGENT_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["kind", "reasoning"],
+    # strict structured output requires *every* property to be listed here.
+    # Optional values are expressed as required-and-nullable instead, so a
+    # schema that omitted them would be rejected before the model ever decided.
+    "required": ["kind", "reasoning", "tool", "arguments", "diagnosis"],
     "properties": {
         "kind": {"type": "string", "enum": [kind.value for kind in AgentActionKind]},
         "reasoning": {"type": "string"},
@@ -257,17 +260,24 @@ class OpenAIAgentModelClient:
             timeout=httpx.Timeout(self._timeout),
             transport=self._transport,
         ) as client:
-            response = await client.post(
-                "/responses",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json=payload,
-            )
             try:
+                response = await client.post(
+                    "/responses",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    json=payload,
+                )
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 raise AgentModelError(
                     f"OpenAI agent request failed with HTTP {exc.response.status_code}."
                 ) from exc
+            except httpx.RequestError as exc:
+                # A timeout or refused connection has to arrive as an
+                # AgentModelError like every other provider failure. Left as an
+                # httpx error it escapes the item handler, unwinds the consume
+                # loop and stops the worker, and recovery then hands the same
+                # run to the next one.
+                raise AgentModelError(f"OpenAI agent request failed: {exc}") from exc
             body = response.json()
 
         action = parse_agent_action(

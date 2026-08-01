@@ -642,13 +642,58 @@ class EvaluationRunRunner:
             if claim.rowcount != 1:
                 await session.rollback()
                 return
-            client = await self._agent_model_client(session, run=run)
+            try:
+                client = await self._agent_model_client(session, run=run)
+            except AgentModelError as unconfigured:
+                # Raised outside _execute_model_agent_item, so its handler
+                # cannot see it. Left to propagate it unwinds the consume loop,
+                # stops the worker, and recovery hands the same run to the next
+                # one — the crash loop this codebase has hit twice before.
+                await self._fail_claimed_item(
+                    session,
+                    run=run,
+                    item=item,
+                    error_code="agent_model_unusable",
+                    error_message=str(unconfigured),
+                )
+                return
             if client is not None:
                 await self._execute_model_agent_item(session, run=run, item=item, client=client)
             elif await self._uses_langgraph(session, run=run):
                 await self._execute_langgraph_item(session, run=run, item=item)
             else:
                 await self._execute_recorded_item(session, run=run, item=item)
+
+    async def _fail_claimed_item(
+        self,
+        session: AsyncSession,
+        *,
+        run: EvaluationRun,
+        item: RunItem,
+        error_code: str,
+        error_message: str,
+    ) -> None:
+        """Settle an item that failed before any executor could start.
+
+        A claimed item has no trajectory yet, so the usual _fail_item path does
+        not apply. Terminal rather than retryable: a worker missing a credential
+        will still be missing it on the next attempt, and retrying only moves
+        the same failure to a different worker.
+        """
+        trajectory = await self._create_trajectory(session, item=item, run=run)
+        await self._fail_item(
+            session,
+            item=item,
+            trajectory=trajectory,
+            attempt=max(item.attempt_count, 1),
+            retryable=False,
+            error_code=error_code,
+            error_message=error_message,
+            fault_payload=None,
+            budget_state=item.budget_state,
+            title="Agent model unavailable",
+        )
+        await session.commit()
 
     async def _agent_model_client(
         self, session: AsyncSession, *, run: EvaluationRun

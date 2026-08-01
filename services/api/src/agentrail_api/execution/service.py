@@ -572,14 +572,21 @@ async def create_run(
     # was frozen.
     records = dataset_version.records or []
     for index, partition in enumerate(partitions):
+        # The record's own partition wins. `partitions` is built from sorted
+        # per-partition counts while `records` stays in file order, so pairing
+        # the two by index mislabels every item once a file interleaves
+        # partitions — and evaluator results copy this field, so the error
+        # would land in per-partition metrics rather than staying visible.
+        record = records[index] if index < len(records) else {}
+        item_partition = str(record.get("partition") or partition)
         session.add(
             RunItem(
                 id=new_sortable_id(),
                 run_id=run.id,
                 item_index=index,
-                partition=partition,
+                partition=item_partition,
                 state=RunItemState.PENDING,
-                payload=dict(records[index]) if index < len(records) else {},
+                payload=dict(record),
                 checkpoint={"dataset_version_id": dataset_version.id, "item_index": index},
             )
         )

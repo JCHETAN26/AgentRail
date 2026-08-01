@@ -189,3 +189,39 @@ class TestOpenAIClient:
         # Better than discovering it mid-benchmark on the twentieth scenario.
         with pytest.raises(AgentModelError, match="requires an API key"):
             OpenAIAgentModelClient(api_key="   ", model="gpt-test")
+
+
+class TestProviderFailuresStayContained:
+    async def test_a_transport_failure_becomes_an_agent_model_error(self) -> None:
+        def refuse(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused", request=request)
+
+        client = OpenAIAgentModelClient(
+            api_key="test-key", model="gpt-test", transport=httpx.MockTransport(refuse)
+        )
+
+        # Left as an httpx error this escapes the item handler, unwinds the
+        # consume loop and stops the worker — after which recovery hands the
+        # same run to the next one and stops that too.
+        with pytest.raises(AgentModelError, match="request failed"):
+            await client.decide(AgentObservation(incident={}, available_tools=TOOLS))
+
+    async def test_a_timeout_becomes_an_agent_model_error(self) -> None:
+        def hang(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("timed out", request=request)
+
+        client = OpenAIAgentModelClient(
+            api_key="test-key", model="gpt-test", transport=httpx.MockTransport(hang)
+        )
+
+        with pytest.raises(AgentModelError, match="request failed"):
+            await client.decide(AgentObservation(incident={}, available_tools=TOOLS))
+
+
+def test_the_schema_is_strict_output_compliant() -> None:
+    # OpenAI's strict structured output requires every declared property to
+    # appear in `required`; optional values are required-and-nullable instead.
+    # A schema that omitted them is rejected before the model ever decides, so
+    # every live item would fail and retry.
+    assert set(AGENT_RESPONSE_SCHEMA["properties"]) == set(AGENT_RESPONSE_SCHEMA["required"])
+    assert AGENT_RESPONSE_SCHEMA["properties"]["tool"]["type"] == ["string", "null"]
