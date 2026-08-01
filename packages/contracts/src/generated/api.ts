@@ -2189,6 +2189,8 @@ export interface components {
         };
         /** RunItemTraceResponse */
         RunItemTraceResponse: {
+            /** Completed At */
+            completed_at?: string | null;
             /** Error Code */
             error_code?: string | null;
             /** Error Message */
@@ -2203,6 +2205,8 @@ export interface components {
             partition: string;
             /** Run Id */
             run_id: string;
+            /** Started At */
+            started_at?: string | null;
             state: components["schemas"]["RunItemState"];
             /** Trajectory Id */
             trajectory_id?: string | null;

@@ -64,6 +64,8 @@ async def list_evaluation_run_items(
                 failing_step_id=failing_step_id,
                 error_code=item.error_code,
                 error_message=item.error_message,
+                started_at=item.started_at,
+                completed_at=item.completed_at,
             )
             for item, trajectory_id, failing_step_id in rows
         ]

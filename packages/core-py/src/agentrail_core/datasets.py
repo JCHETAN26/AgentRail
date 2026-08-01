@@ -51,6 +51,13 @@ class DatasetVersion(Base):
     storage_uri: Mapped[str] = mapped_column(String(512), nullable=False)
     input_format: Mapped[str] = mapped_column(String(16), nullable=False)
     source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    #: The parsed records themselves. Previously they were validated and
+    #: discarded, with only a digest and a storage_uri kept — and nothing ever
+    #: wrote to that URI. The consequence was that an evaluation could not show
+    #: an agent the item it was being evaluated on.
+    records: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     record_schema: Mapped[dict[str, Any]] = mapped_column(
         "schema", JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )

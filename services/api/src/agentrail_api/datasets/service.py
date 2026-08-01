@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import dataclasses
 import hashlib
 import io
 import json
@@ -50,6 +51,10 @@ class DatasetValidation:
     partition_counts: dict[str, int]
     record_schema: dict[str, Any]
     validation_report: dict[str, Any]
+    #: The records that passed validation, in file order. Kept so a run item can
+    #: carry the record it evaluates; previously these were validated and
+    #: dropped, leaving nothing to show an agent.
+    records: list[dict[str, Any]] = dataclasses.field(default_factory=list)
 
 
 def dataset_content_digest(request: CreateDatasetVersionRequest) -> str:
@@ -232,6 +237,7 @@ def _validate_records(
         report["truncated"] = True
 
     return DatasetValidation(
+        records=valid,
         item_count=len(valid),
         rejected_count=len(rejected),
         partition_counts=dict(sorted(partitions.items())),
@@ -416,6 +422,7 @@ async def create_dataset_version(
         storage_uri=_normalise_storage_uri(dataset.id, digest, request),
         input_format=request.input_format,
         source_filename=request.source_filename,
+        records=validation.records,
         record_schema=validation.record_schema,
         validation_report=validation.validation_report,
         item_count=validation.item_count,

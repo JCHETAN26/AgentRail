@@ -3176,6 +3176,18 @@
       },
       "RunItemTraceResponse": {
         "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
           "error_code": {
             "anyOf": [
               {
@@ -3224,6 +3236,18 @@
           "run_id": {
             "title": "Run Id",
             "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
           },
           "state": {
             "$ref": "#/components/schemas/RunItemState"

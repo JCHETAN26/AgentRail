@@ -144,6 +144,12 @@ class RunItem(Base):
     checkpoint: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
+    #: The dataset record this item evaluates. Copied in at run creation so the
+    #: worker never has to reach back through the suite to the dataset, and so
+    #: an agent can actually see the incident it is asked to diagnose.
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(1024), nullable=True)

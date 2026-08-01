@@ -566,6 +566,11 @@ async def create_run(
     )
     session.add(run)
     partitions = _partitions_for_items(dataset_version.partition_counts, dataset_version.item_count)
+    # The record travels with the item. Reaching back through the suite to the
+    # dataset at execution time would couple the worker to data that may have
+    # been superseded, and a frozen suite's whole point is that what ran is what
+    # was frozen.
+    records = dataset_version.records or []
     for index, partition in enumerate(partitions):
         session.add(
             RunItem(
@@ -574,6 +579,7 @@ async def create_run(
                 item_index=index,
                 partition=partition,
                 state=RunItemState.PENDING,
+                payload=dict(records[index]) if index < len(records) else {},
                 checkpoint={"dataset_version_id": dataset_version.id, "item_index": index},
             )
         )

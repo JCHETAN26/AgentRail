@@ -21,6 +21,11 @@ class RunItemTraceResponse(BaseModel):
     failing_step_id: str | None = None
     error_code: str | None = None
     error_message: str | None = None
+    #: Execution window, so a caller can measure how long an item took without
+    #: inferring it. The benchmark reports latency from these rather than
+    #: estimating, and an item that never started has neither.
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 class RunItemTraceListResponse(BaseModel):
