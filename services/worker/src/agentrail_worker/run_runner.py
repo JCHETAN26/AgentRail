@@ -644,9 +644,7 @@ class EvaluationRunRunner:
                 return
             client = await self._agent_model_client(session, run=run)
             if client is not None:
-                await self._execute_model_agent_item(
-                    session, run=run, item=item, client=client
-                )
+                await self._execute_model_agent_item(session, run=run, item=item, client=client)
             elif await self._uses_langgraph(session, run=run):
                 await self._execute_langgraph_item(session, run=run, item=item)
             else:
