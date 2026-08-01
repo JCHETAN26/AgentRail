@@ -566,14 +566,27 @@ async def create_run(
     )
     session.add(run)
     partitions = _partitions_for_items(dataset_version.partition_counts, dataset_version.item_count)
+    # The record travels with the item. Reaching back through the suite to the
+    # dataset at execution time would couple the worker to data that may have
+    # been superseded, and a frozen suite's whole point is that what ran is what
+    # was frozen.
+    records = dataset_version.records or []
     for index, partition in enumerate(partitions):
+        # The record's own partition wins. `partitions` is built from sorted
+        # per-partition counts while `records` stays in file order, so pairing
+        # the two by index mislabels every item once a file interleaves
+        # partitions — and evaluator results copy this field, so the error
+        # would land in per-partition metrics rather than staying visible.
+        record = records[index] if index < len(records) else {}
+        item_partition = str(record.get("partition") or partition)
         session.add(
             RunItem(
                 id=new_sortable_id(),
                 run_id=run.id,
                 item_index=index,
-                partition=partition,
+                partition=item_partition,
                 state=RunItemState.PENDING,
+                payload=dict(record),
                 checkpoint={"dataset_version_id": dataset_version.id, "item_index": index},
             )
         )

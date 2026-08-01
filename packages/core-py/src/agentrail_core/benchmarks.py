@@ -1,8 +1,21 @@
-"""Deterministic benchmark report generation for public AgentRail evidence."""
+"""Benchmark reporting over **measured** AgentRail runs.
+
+Every figure published from here is observed from persisted rows produced by a
+real evaluation run: run items, evaluator results, trajectories and Tribunal
+sessions. Nothing is synthesised.
+
+This module previously generated its own scenarios from a hash of the seed
+string and reported the result as a benchmark, which meant the published task
+success, latency, cost and gate precision were properties of the string
+``"agentrail-v1-frozen"`` rather than of this system. Those figures are gone.
+
+The seed still names the frozen *input* set — which scenarios are run, in which
+order — because reproducible inputs are the point. It no longer decides
+outcomes.
+"""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -45,7 +58,16 @@ DEFAULT_SCENARIO_COUNTS: dict[BenchmarkFamily, int] = {
 
 @dataclass(frozen=True)
 class BenchmarkScenario:
-    """One frozen benchmark row derived from immutable seed inputs."""
+    """One **measured** benchmark row, read back from a real evaluation run.
+
+    Every field here is observed: the states come from persisted
+    ``EvaluationResult`` and ``TribunalSession`` rows, and ``duration_ms`` is
+    wall-clock time recorded on the run item. Nothing is derived from the seed.
+
+    Token and cost figures are deliberately absent. The recorded executor makes
+    no model calls, so there is nothing to count, and a benchmark that reported
+    them would be reporting an assumption.
+    """
 
     scenario_id: str
     family: str
@@ -56,8 +78,6 @@ class BenchmarkScenario:
     programmatic_pass: bool
     tribunal_approve: bool
     consensus: bool
-    cost_usd: float
-    tokens: int
 
 
 @dataclass(frozen=True)
@@ -86,19 +106,6 @@ class BenchmarkReport:
     confusion_by_family: dict[str, dict[str, int]]
     scenario_ids: list[str]
     no_frozen_test_tuning: bool = True
-
-
-def stable_float(*parts: object) -> float:
-    """Return a deterministic 0..1 float from content-addressed inputs."""
-
-    payload = ":".join(str(part) for part in parts)
-    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-    return int(digest[:12], 16) / float(0xFFFFFFFFFFFF)
-
-
-def stable_int(minimum: int, maximum: int, *parts: object) -> int:
-    value = stable_float(*parts)
-    return minimum + int(value * ((maximum - minimum) + 1))
 
 
 def wilson_interval(numerator: int, denominator: int) -> RateMetric:
@@ -142,50 +149,6 @@ def percentile(values: list[int], percentile_value: float) -> float:
     return float(ordered[lower] * (1 - weight) + ordered[upper] * weight)
 
 
-def generate_scenarios(
-    benchmark: BenchmarkFamily, *, seed: str = "agentrail-v1-frozen", count: int | None = None
-) -> list[BenchmarkScenario]:
-    scenario_count = count or DEFAULT_SCENARIO_COUNTS[benchmark]
-    scenarios: list[BenchmarkScenario] = []
-    for index in range(scenario_count):
-        incident = INCIDENT_FAMILIES[index % len(INCIDENT_FAMILIES)]
-        scenario_id = f"{benchmark}-{index + 1:04d}-{incident}"
-        tribunal_enabled = benchmark in {"tribunal", "quality"} or index % 3 == 0
-        difficulty = stable_float(seed, benchmark, scenario_id, "difficulty")
-        fault_pressure = stable_float(seed, benchmark, scenario_id, "fault")
-        task_success = difficulty < (0.88 if benchmark != "failures" else 0.78)
-        programmatic_pass = task_success and fault_pressure < 0.92
-        tribunal_noise = stable_float(seed, benchmark, scenario_id, "tribunal-noise")
-        tribunal_approve = programmatic_pass if tribunal_noise >= 0.08 else not programmatic_pass
-        consensus = programmatic_pass == tribunal_approve
-        duration_base = {
-            "smoke": 350,
-            "quality": 680,
-            "failures": 920,
-            "tribunal": 1450,
-            "load": 540,
-        }[benchmark]
-        jitter = stable_int(0, 900, seed, benchmark, scenario_id, "duration")
-        overhead = 700 if tribunal_enabled else 0
-        tokens = stable_int(600, 4200, seed, benchmark, scenario_id, "tokens")
-        scenarios.append(
-            BenchmarkScenario(
-                scenario_id=scenario_id,
-                family=incident,
-                benchmark=benchmark,
-                tribunal_enabled=tribunal_enabled,
-                duration_ms=duration_base + jitter + overhead,
-                task_success=task_success,
-                programmatic_pass=programmatic_pass,
-                tribunal_approve=tribunal_approve,
-                consensus=consensus,
-                cost_usd=round(tokens * 0.0000025, 6),
-                tokens=tokens,
-            )
-        )
-    return scenarios
-
-
 def confusion_by_family(scenarios: list[BenchmarkScenario]) -> dict[str, dict[str, int]]:
     matrix: dict[str, dict[str, int]] = {}
     for scenario in scenarios:
@@ -204,9 +167,19 @@ def confusion_by_family(scenarios: list[BenchmarkScenario]) -> dict[str, dict[st
 
 
 def summarize_benchmark(
-    benchmark: BenchmarkFamily, *, seed: str = "agentrail-v1-frozen", count: int | None = None
+    benchmark: BenchmarkFamily,
+    scenarios: list[BenchmarkScenario],
+    *,
+    seed: str = "agentrail-v1-frozen",
 ) -> tuple[BenchmarkReport, list[BenchmarkScenario]]:
-    scenarios = generate_scenarios(benchmark, seed=seed, count=count)
+    """Summarise measured scenarios.
+
+    Takes the measurements rather than producing them. The previous version
+    generated its own rows from a hash of the seed, so every published figure
+    was a property of the string "agentrail-v1-frozen" and not of this system.
+    """
+    if not scenarios:
+        raise ValueError(f"{benchmark}: no measured scenarios; run the benchmark first")
     durations = [scenario.duration_ms for scenario in scenarios]
     successes = sum(1 for scenario in scenarios if scenario.task_success)
     programmatic_passes = sum(1 for scenario in scenarios if scenario.programmatic_pass)
@@ -224,7 +197,6 @@ def summarize_benchmark(
         if not scenario.programmatic_pass and not scenario.tribunal_approve
     )
     tribunal_scenarios = [scenario for scenario in scenarios if scenario.tribunal_enabled]
-    tribunal_overhead = [scenario.duration_ms - 700 for scenario in tribunal_scenarios]
     predicted_blocks = true_blocks + false_blocks
     actual_blocks = true_blocks + false_approvals
     metrics: dict[str, Any] = {
@@ -240,9 +212,9 @@ def summarize_benchmark(
             **mean_ci95([float(value) for value in durations]),
             "p95": percentile(durations, 0.95),
         },
-        "tribunal_duration_overhead_ms": mean_ci95([700.0 for _ in tribunal_overhead]),
-        "cost_usd": mean_ci95([scenario.cost_usd for scenario in scenarios]),
-        "tokens": mean_ci95([float(scenario.tokens) for scenario in scenarios]),
+        "duration_p50_ms": percentile(durations, 0.50),
+        "duration_p99_ms": percentile(durations, 0.99),
+        "tribunal_scenario_count": len(tribunal_scenarios),
     }
     raw_artifact = f"docs/benchmarks/artifacts/{benchmark}-{seed}.json"
     report = BenchmarkReport(
@@ -279,12 +251,12 @@ def report_to_json(report: BenchmarkReport, scenarios: list[BenchmarkScenario]) 
 
 def write_benchmark_artifacts(
     benchmark: BenchmarkFamily,
+    scenarios: list[BenchmarkScenario],
     *,
     output_dir: Path,
     seed: str = "agentrail-v1-frozen",
-    count: int | None = None,
 ) -> tuple[Path, Path]:
-    report, scenarios = summarize_benchmark(benchmark, seed=seed, count=count)
+    report, scenarios = summarize_benchmark(benchmark, scenarios, seed=seed)
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / f"{benchmark}-{seed}.json"
     markdown_path = output_dir / f"{benchmark}-{seed}.md"

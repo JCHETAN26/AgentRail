@@ -11,6 +11,14 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentrail_core.agent_model import (
+    AgentActionKind,
+    AgentModelClient,
+    AgentModelError,
+    AgentObservation,
+    OpenAIAgentModelClient,
+    RecordedAgentModelClient,
+)
 from agentrail_core.approvals import ApprovalRequest, ApprovalState
 from agentrail_core.datasets import EvaluationSuite
 from agentrail_core.db import set_tenant_context
@@ -310,6 +318,15 @@ _REMEDIATION_TOOL = "restart_service"
 #: model_config.provider value that selects the LangGraph execution path.
 _LANGGRAPH_PROVIDER = "langgraph"
 
+#: model_config.provider values that select the model-driven agent path.
+#: "model_recorded" replays captured decisions; "openai" calls a live provider.
+_RECORDED_AGENT_PROVIDER = "model_recorded"
+_AGENT_MODEL_PROVIDERS = frozenset({_RECORDED_AGENT_PROVIDER, "openai"})
+
+#: Decision steps one item may take before the platform stops it. A model that
+#: never concludes would otherwise spend the whole budget discovering that.
+_AGENT_MAX_STEPS = 8
+
 #: Its own band again, above the fault steps, for the same reason: attempts
 #: share a trajectory, and an item can park for approval more than once.
 _APPROVAL_STEP_BASE = 70
@@ -542,7 +559,7 @@ class EvaluationRunRunner:
                 )
                 .values(
                     state=EvaluationRunState.RUNNING,
-                    started_at=func.now(),
+                    started_at=func.clock_timestamp(),
                     updated_at=func.now(),
                     version=EvaluationRun.version + 1,
                 )
@@ -616,7 +633,7 @@ class EvaluationRunRunner:
                 .where(RunItem.id == item.id, RunItem.state == RunItemState.LEASED)
                 .values(
                     state=RunItemState.EXECUTING,
-                    started_at=func.now(),
+                    started_at=func.clock_timestamp(),
                     checkpoint={"stage": "executing", "item_index": item.item_index},
                     updated_at=func.now(),
                     version=RunItem.version + 1,
@@ -625,10 +642,89 @@ class EvaluationRunRunner:
             if claim.rowcount != 1:
                 await session.rollback()
                 return
-            if await self._uses_langgraph(session, run=run):
+            try:
+                client = await self._agent_model_client(session, run=run)
+            except AgentModelError as unconfigured:
+                # Raised outside _execute_model_agent_item, so its handler
+                # cannot see it. Left to propagate it unwinds the consume loop,
+                # stops the worker, and recovery hands the same run to the next
+                # one — the crash loop this codebase has hit twice before.
+                await self._fail_claimed_item(
+                    session,
+                    run=run,
+                    item=item,
+                    error_code="agent_model_unusable",
+                    error_message=str(unconfigured),
+                )
+                return
+            if client is not None:
+                await self._execute_model_agent_item(session, run=run, item=item, client=client)
+            elif await self._uses_langgraph(session, run=run):
                 await self._execute_langgraph_item(session, run=run, item=item)
             else:
                 await self._execute_recorded_item(session, run=run, item=item)
+
+    async def _fail_claimed_item(
+        self,
+        session: AsyncSession,
+        *,
+        run: EvaluationRun,
+        item: RunItem,
+        error_code: str,
+        error_message: str,
+    ) -> None:
+        """Settle an item that failed before any executor could start.
+
+        A claimed item has no trajectory yet, so the usual _fail_item path does
+        not apply. Terminal rather than retryable: a worker missing a credential
+        will still be missing it on the next attempt, and retrying only moves
+        the same failure to a different worker.
+        """
+        trajectory = await self._create_trajectory(session, item=item, run=run)
+        await self._fail_item(
+            session,
+            item=item,
+            trajectory=trajectory,
+            attempt=max(item.attempt_count, 1),
+            retryable=False,
+            error_code=error_code,
+            error_message=error_message,
+            fault_payload=None,
+            budget_state=item.budget_state,
+            title="Agent model unavailable",
+        )
+        await session.commit()
+
+    async def _agent_model_client(
+        self, session: AsyncSession, *, run: EvaluationRun
+    ) -> AgentModelClient | None:
+        """The model client this run's candidate version asks for, if any.
+
+        Recorded stays the default. A version only takes the model-driven path
+        by naming a provider, so existing runs, CI and the frozen benchmark are
+        untouched — and a version naming a live provider on a worker with no
+        credentials fails its own item rather than silently running something
+        else and reporting it as the same thing.
+        """
+        version = await session.get(AgentVersion, run.candidate_agent_version_id)
+        if version is None:
+            return None
+        provider = version.model_config.get("provider")
+        if not isinstance(provider, str) or provider not in _AGENT_MODEL_PROVIDERS:
+            return None
+        model = str(version.model_config.get("model") or "gpt-4o-mini")
+        if provider == _RECORDED_AGENT_PROVIDER:
+            return RecordedAgentModelClient(model=model)
+        if not self._openai_api_key:
+            raise AgentModelError(
+                "agent model_config.provider is openai but AGENTRAIL_OPENAI_API_KEY is not set."
+            )
+        return OpenAIAgentModelClient(
+            api_key=self._openai_api_key,
+            model=model,
+            base_url=self._openai_base_url,
+            timeout_seconds=self._tribunal_model_timeout_seconds,
+        )
 
     async def _uses_langgraph(self, session: AsyncSession, *, run: EvaluationRun) -> bool:
         """Whether this run's candidate version asks to execute under LangGraph.
@@ -890,7 +986,226 @@ class EvaluationRunRunner:
                 injected_fault=None,
                 budget_state=ledger.as_payload(),
                 lease_expires_at=None,
-                completed_at=func.now(),
+                completed_at=func.clock_timestamp(),
+                updated_at=func.now(),
+                version=RunItem.version + 1,
+            )
+        )
+        await session.commit()
+
+    async def _execute_model_agent_item(
+        self,
+        session: AsyncSession,
+        *,
+        run: EvaluationRun,
+        item: RunItem,
+        client: AgentModelClient,
+    ) -> None:
+        """Execute one item by asking a model what to do, step by step.
+
+        The model decides; it never acts. Every tool call it names goes through
+        the same gateway a graph uses, so the budget ledger, the policy gate and
+        the idempotent side-effect ledger hold against a model that has never
+        heard of them. That is the property this path exists to exercise: until
+        now only a scripted graph had ever been subjected to it.
+        """
+        version = await session.get(AgentVersion, run.candidate_agent_version_id)
+        available = sorted(
+            str(contract.get("name"))
+            for contract in (version.tool_contracts if version is not None else [])
+            if isinstance(contract, dict) and contract.get("name")
+        )
+        trajectory = await self._create_trajectory(session, item=item, run=run)
+        opening = await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=1,
+            step_type=TrajectoryStepType.GRAPH_STATE,
+            title="Brief the agent",
+            input_payload={"item_index": item.item_index, "partition": item.partition},
+            output_payload={"available_tools": available, "mode": "model_agent"},
+            checkpoint={"stage": "graph_state", "node": "model_agent"},
+        )
+        await self._append_checkpoint(
+            session,
+            trajectory_id=trajectory.id,
+            step_id=opening.id,
+            checkpoint_index=0,
+            label="agent-briefed",
+            state=opening.checkpoint,
+        )
+        await session.execute(
+            update(RunItem)
+            .where(RunItem.id == item.id, RunItem.state == RunItemState.EXECUTING)
+            .values(
+                state=RunItemState.EVALUATING,
+                checkpoint={
+                    "stage": "evaluating",
+                    "item_index": item.item_index,
+                    "trajectory_id": trajectory.id,
+                },
+                updated_at=func.now(),
+                version=RunItem.version + 1,
+            )
+        )
+
+        attempt = max(item.attempt_count, 1)
+        ledger = BudgetLedger.restore(
+            await self._budget_limits(session, run=run), item.budget_state
+        )
+        gateway = _RunnerToolGateway(
+            self,
+            session,
+            run=run,
+            item=item,
+            trajectory=trajectory,
+            attempt=attempt,
+            ledger=ledger,
+        )
+
+        tool_results: list[dict[str, Any]] = []
+        diagnosis: str | None = None
+        step_index = 1
+        for decision in range(_AGENT_MAX_STEPS):
+            observation = AgentObservation(
+                # The record wraps the incident in "input"; the rest is the
+                # dataset's own bookkeeping and the expected answer, which the
+                # agent must not see.
+                incident=dict((item.payload or {}).get("input") or {}),
+                available_tools=available,
+                tool_results=list(tool_results),
+                step_index=decision,
+                max_steps=_AGENT_MAX_STEPS,
+            )
+            try:
+                response = await client.decide(observation)
+            except AgentModelError as unusable:
+                # A model that cannot be consulted, or answers unusably, fails
+                # this item. Letting it escape would take down the consumer and
+                # then the worker recovery hands it the same run again.
+                await self._fail_item(
+                    session,
+                    item=item,
+                    trajectory=trajectory,
+                    attempt=attempt,
+                    retryable=True,
+                    error_code="agent_model_unusable",
+                    error_message=str(unusable),
+                    fault_payload=None,
+                    budget_state=gateway.ledger.as_payload(),
+                    title="Agent model unusable",
+                )
+                await session.commit()
+                return
+
+            action = response.action
+            step_index += 1
+            await self._append_step(
+                session,
+                trajectory_id=trajectory.id,
+                step_index=step_index,
+                step_type=TrajectoryStepType.GRAPH_STATE,
+                title=f"Decide: {action.kind.value}",
+                input_payload={"step": decision, "observations": len(tool_results)},
+                output_payload={
+                    "kind": action.kind.value,
+                    "reasoning": action.reasoning,
+                    "tool": action.tool,
+                    "provider": response.provider,
+                    "model": response.model,
+                    "response_id": response.response_id,
+                    "usage": response.usage,
+                },
+                checkpoint={"stage": "decision", "step": decision, "kind": action.kind.value},
+            )
+
+            if action.kind is AgentActionKind.CONCLUDE:
+                diagnosis = action.diagnosis
+                break
+
+            assert action.tool is not None
+            step_index += 1
+            try:
+                result = await gateway.invoke(
+                    ToolInvocation(
+                        tool=action.tool,
+                        arguments=dict(action.arguments),
+                        step_index=step_index,
+                    )
+                )
+            except ApprovalPending:
+                # Parked for a human. The gateway recorded the request; the next
+                # attempt resumes from the model's next decision.
+                await session.commit()
+                return
+            except _HaltedByPlatform:
+                # Policy refused, or the budget ran out. Already settled.
+                await session.commit()
+                return
+            tool_results.append({"tool": result.tool, "output": result.output})
+
+        step_index += 1
+        final = await self._append_step(
+            session,
+            trajectory_id=trajectory.id,
+            step_index=step_index,
+            step_type=TrajectoryStepType.FINAL_RESULT,
+            title="Agent final result",
+            input_payload={"decisions": len(tool_results)},
+            output_payload={
+                "passed": diagnosis is not None,
+                "mode": "model_agent",
+                "diagnosis": diagnosis,
+            },
+            evidence={"tool_results": tool_results},
+            checkpoint={"stage": "final_result", "passed": diagnosis is not None},
+        )
+        await self._append_checkpoint(
+            session,
+            trajectory_id=trajectory.id,
+            step_id=final.id,
+            checkpoint_index=1,
+            label="item-completed",
+            state=final.checkpoint,
+        )
+
+        # No diagnosis means the model spent every step without concluding.
+        # That is a failure of the agent, not of the platform, and it is
+        # recorded as one rather than being retried into the same wall.
+        passed = diagnosis is not None
+        trajectory.state = TrajectoryState.COMPLETED
+        trajectory.summary = {
+            "step_count": step_index,
+            "checkpoint_count": 2,
+            "result": "passed" if passed else "failed",
+            "failing_step_id": None,
+        }
+        trajectory.graph_state = {"diagnosis": diagnosis, "tool_results": tool_results}
+        trajectory.final_checkpoint = final.checkpoint
+        trajectory.completed_at = datetime.now(UTC)
+        trajectory.updated_at = trajectory.completed_at
+        await session.execute(
+            update(RunItem)
+            .where(RunItem.id == item.id, RunItem.state == RunItemState.EVALUATING)
+            .values(
+                state=RunItemState.COMPLETED if passed else RunItemState.FAILED_TERMINAL,
+                result={
+                    "passed": passed,
+                    "mode": "model_agent",
+                    "diagnosis": diagnosis,
+                    "trajectory_id": trajectory.id,
+                    "tool_calls": gateway.applied,
+                },
+                error_code=None if passed else "agent_did_not_conclude",
+                checkpoint={
+                    "stage": "completed",
+                    "item_index": item.item_index,
+                    "trajectory_id": trajectory.id,
+                },
+                injected_fault=None,
+                budget_state=gateway.ledger.as_payload(),
+                lease_expires_at=None,
+                completed_at=func.clock_timestamp(),
                 updated_at=func.now(),
                 version=RunItem.version + 1,
             )
@@ -1080,7 +1395,7 @@ class EvaluationRunRunner:
                 injected_fault=None,
                 budget_state=gateway.ledger.as_payload(),
                 lease_expires_at=None,
-                completed_at=func.now(),
+                completed_at=func.clock_timestamp(),
                 updated_at=func.now(),
                 version=RunItem.version + 1,
             )
@@ -1873,7 +2188,9 @@ class EvaluationRunRunner:
                         ),
                     )
                     .values(
-                        state=RunItemState.CANCELLED, completed_at=func.now(), updated_at=func.now()
+                        state=RunItemState.CANCELLED,
+                        completed_at=func.clock_timestamp(),
+                        updated_at=func.now(),
                     )
                 )
             ).rowcount
