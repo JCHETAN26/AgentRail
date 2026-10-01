@@ -7,7 +7,7 @@ dependencies = [
     "agentrail-core",
     "alembic==1.14.1",
     # EmailStr in the identity contracts requires this at runtime.
-    "email-validator==2.2.0",
+    "email-validator==2.3.0",
     "fastapi==0.140.13",
     "httpx==0.28.1",
     "uvicorn[standard]==0.51.0",
